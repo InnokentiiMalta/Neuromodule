@@ -198,7 +198,7 @@ function findAccessiblePosition(
 
       let collidesWithUnit = false;
       for (const pos of occupiedPositions) {
-        if (rectIntersects(px - 8, py - 8, unitWidth + 16, unitHeight + 16, pos.x, pos.y, pos.w, pos.h)) {
+        if (rectIntersects(px - 5, py - 5, unitWidth + 10, unitHeight + 10, pos.x, pos.y, pos.w, pos.h)) {
           collidesWithUnit = true;
           break;
         }
@@ -273,7 +273,7 @@ export function calculateDeployment(
   
   // Left side (fire spreads left)
   const leftPos = findAccessiblePosition(
-    fireWagon.x - 10, fireY, 50, 22, obstacles, wagons, 'left', 35, 320, safeDist, occupiedPositions
+    fireWagon.x - 10, fireY, 50, 22, obstacles, wagons, 'left', 35, 400, safeDist, occupiedPositions
   );
   if (leftPos && availAC > 0) {
     addUnit({
@@ -290,7 +290,7 @@ export function calculateDeployment(
 
   // Right side (fire spreads right)
   const rightPos = findAccessiblePosition(
-    fireWagon.x + fireWagon.width + 10, fireY, 50, 22, obstacles, wagons, 'right', 35, 320, safeDist, occupiedPositions
+    fireWagon.x + fireWagon.width + 10, fireY, 50, 22, obstacles, wagons, 'right', 35, 400, safeDist, occupiedPositions
   );
   if (rightPos && availAC > 0) {
     addUnit({
@@ -305,10 +305,10 @@ export function calculateDeployment(
     });
   }
 
-  // === SECONDARY ATTACK - TOP AND BOTTOM (windows side for passenger) ===
+  // === SECONDARY ATTACK - TOP AND BOTTOM (opposite sides) ===
   
-  // Top side (window side for passenger wagons)
-  const topPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, wagons, 'top', 30, 350, safeDist, occupiedPositions);
+  // Top side (opposite to bottom)
+  const topPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, wagons, 'top', 30, 400, safeDist, occupiedPositions);
   if (topPos && availAC > 0) {
     addUnit({
       type: 'aca',
@@ -318,12 +318,12 @@ export function calculateDeployment(
       angle: topPos.angle,
       personnel: 6,
       hoses: 2,
-      role: 'Верх (со стороны окон)',
+      role: 'Верх (противоположная сторона)',
     });
   }
 
-  // Bottom side (window side for passenger wagons)
-  const bottomPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, wagons, 'bottom', 30, 350, safeDist, occupiedPositions);
+  // Bottom side (opposite to top)
+  const bottomPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, wagons, 'bottom', 30, 400, safeDist, occupiedPositions);
   if (bottomPos && availAC > 0) {
     addUnit({
       type: 'ac',
@@ -333,7 +333,7 @@ export function calculateDeployment(
       angle: bottomPos.angle,
       personnel: 6,
       hoses: 2,
-      role: 'Низ (со стороны окон)',
+      role: 'Низ (противоположная сторона)',
     });
   }
 
