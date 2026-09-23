@@ -1,12 +1,12 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit } from './types';
-import { calculateDeployment, generateDefaultWagons, getIdealResources } from './utils/deployment';
+import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
-const HOSE_SEGMENT_LENGTH = 40; // 20m = 40 SVG units
-const MIN_NOZZLE_DISTANCE_FROM_WAGON = 4; // 2m = 4 SVG units
-const MIN_NOZZLE_DISTANCE_FROM_FIRE = 6; // 3m = 6 SVG units
+const HOSE_SEGMENT_LENGTH = 40; // 20m
+const NOZZLE_DISTANCE_FROM_WAGON = 11; // 5-6m from wagon contour
+const MIN_NOZZLE_DISTANCE_FROM_FIRE = 6; // 3m from fire
 
 const OBSTACLE_DEFAULTS: Record<ObstacleType, { width: number; height: number; label: string; icon: string }> = {
   building: { width: 80, height: 60, label: 'Здание', icon: '🏢' },
@@ -17,419 +17,148 @@ const OBSTACLE_DEFAULTS: Record<ObstacleType, { width: number; height: number; l
   road: { width: 120, height: 25, label: 'Дорога', icon: '🛤' },
 };
 
-const DEFAULT_RESOURCES: AvailableResources = {
-  ac: 6,
-  al: 1,
-  asr: 1,
-  personnel: 60,
-};
-
-// Check if line segment intersects rectangle (with margin)
-function lineIntersectsRect(
-  x1: number, y1: number, x2: number, y2: number,
-  rx: number, ry: number, rw: number, rh: number,
-  margin: number = 0
-): boolean {
-  const steps = 30;
-  const expandedRx = rx - margin;
-  const expandedRy = ry - margin;
-  const expandedRw = rw + margin * 2;
-  const expandedRh = rh + margin * 2;
-  
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const px = x1 + (x2 - x1) * t;
-    const py = y1 + (y2 - y1) * t;
-    if (px >= expandedRx && px <= expandedRx + expandedRw && 
-        py >= expandedRy && py <= expandedRy + expandedRh) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Check if point is inside any blocking obstacle or wagon
-function isPointInBlockingObstacle(x: number, y: number, obstacles: Obstacle[], wagons: Wagon[]): boolean {
-  for (const obs of obstacles) {
-    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
-    if (x >= obs.x && x <= obs.x + obs.width && y >= obs.y && y <= obs.y + obs.height) {
-      return true;
-    }
-  }
-  // Check wagons
-  for (const wagon of wagons) {
-    if (x >= wagon.x && x <= wagon.x + wagon.width && y >= wagon.y && y <= wagon.y + wagon.height) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Check if line segment crosses any blocking obstacle or wagon (with margin for safety)
-function lineCrossesBlockingObstacle(
-  x1: number, y1: number, x2: number, y2: number,
-  obstacles: Obstacle[], wagons: Wagon[], margin: number = 2
-): boolean {
-  // Check obstacles (except road, tree_group, equipment)
-  for (const obs of obstacles) {
-    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
-    if (lineIntersectsRect(x1, y1, x2, y2, obs.x, obs.y, obs.width, obs.height, margin)) {
-      return true;
-    }
-  }
-  // Check wagons (with margin)
-  for (const wagon of wagons) {
-    if (lineIntersectsRect(x1, y1, x2, y2, wagon.x, wagon.y, wagon.width, wagon.height, margin)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Calculate minimum distance from point to rectangle contour
-function distanceToRectContour(px: number, py: number, rx: number, ry: number, rw: number, rh: number): number {
-  // If point is inside rectangle, distance is 0
-  if (px >= rx && px <= rx + rw && py >= ry && py <= ry + rh) {
-    return 0;
-  }
-
-  // Calculate distance to each edge
-  const dx = Math.max(rx - px, 0, px - (rx + rw));
-  const dy = Math.max(ry - py, 0, py - (ry + rh));
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-// Check if point is too close to any wagon contour
-function isPointTooCloseToWagon(px: number, py: number, wagons: Wagon[], minDistance: number): boolean {
-  for (const wagon of wagons) {
-    const dist = distanceToRectContour(px, py, wagon.x, wagon.y, wagon.width, wagon.height);
-    if (dist < minDistance) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Find a point that avoids obstacles and wagons
-function findAvoidancePoint(
-  fromX: number, fromY: number, toX: number, toY: number,
-  obstacles: Obstacle[], wagons: Wagon[]
-): { x: number; y: number } {
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  if (len === 0) return { x: fromX, y: fromY };
-
-  const nx = -dy / len;
-  const ny = dx / len;
-
-  // Try offsets perpendicular to the line
-  for (let offset = 30; offset <= 180; offset += 15) {
-    for (const sign of [1, -1]) {
-      const midX = (fromX + toX) / 2 + nx * offset * sign;
-      const midY = (fromY + toY) / 2 + ny * offset * sign;
-
-      if (midX < 10 || midX > 990 || midY < 10 || midY > 590) continue;
-
-      if (!isPointInBlockingObstacle(midX, midY, obstacles, wagons)) {
-        if (!lineCrossesBlockingObstacle(fromX, fromY, midX, midY, obstacles, wagons) &&
-            !lineCrossesBlockingObstacle(midX, midY, toX, toY, obstacles, wagons)) {
-          return { x: midX, y: midY };
-        }
-      }
-    }
-  }
-
-  return { x: (fromX + toX) / 2, y: (fromY + toY) / 2 };
-}
-
-interface HoseLine {
-  segments: Array<{ x1: number; y1: number; x2: number; y2: number }>;
-  connections: Array<{ x: number; y: number }>; // Points every 20m
-  branchPoint: { x: number; y: number };
-  branchSegments: Array<{ x1: number; y1: number; x2: number; y2: number }>[];
-  branchConnections: Array<Array<{ x: number; y: number }>>;
-  nozzles: Array<{ x: number; y: number }>;
-}
-
-// Find path from A to B avoiding all obstacles and wagons using multi-step routing
-function findSafePath(
-  fromX: number, fromY: number, toX: number, toY: number,
-  obstacles: Obstacle[], wagons: Wagon[]
-): Array<{ x: number; y: number }> {
-  // Direct path check
-  if (!lineCrossesBlockingObstacle(fromX, fromY, toX, toY, obstacles, wagons, 3)) {
-    return [{ x: fromX, y: fromY }, { x: toX, y: toY }];
-  }
-
-  // Need to find waypoints around obstacles
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  if (len === 0) return [{ x: fromX, y: fromY }];
-
-  // Perpendicular direction
-  const perpX = -dy / len;
-  const perpY = dx / len;
-
-  // Try different offset distances and directions
-  for (let offset = 40; offset <= 250; offset += 20) {
-    for (const sign of [1, -1]) {
-      // Try midpoint with offset
-      const midX = (fromX + toX) / 2 + perpX * offset * sign;
-      const midY = (fromY + toY) / 2 + perpY * offset * sign;
-
-      if (midX < 5 || midX > 995 || midY < 5 || midY > 595) continue;
-      if (isPointInBlockingObstacle(midX, midY, obstacles, wagons)) continue;
-
-      // Check if both segments are clear
-      if (!lineCrossesBlockingObstacle(fromX, fromY, midX, midY, obstacles, wagons, 3) &&
-          !lineCrossesBlockingObstacle(midX, midY, toX, toY, obstacles, wagons, 3)) {
-        return [{ x: fromX, y: fromY }, { x: midX, y: midY }, { x: toX, y: toY }];
-      }
-    }
-  }
-
-  // Try two waypoints
-  for (let offset1 = 50; offset1 <= 200; offset1 += 30) {
-    for (let offset2 = 50; offset2 <= 200; offset2 += 30) {
-      for (const s1 of [1, -1]) {
-        for (const s2 of [1, -1]) {
-          const wp1X = fromX + dx * 0.33 + perpX * offset1 * s1;
-          const wp1Y = fromY + dy * 0.33 + perpY * offset1 * s1;
-          const wp2X = fromX + dx * 0.66 + perpX * offset2 * s2;
-          const wp2Y = fromY + dy * 0.66 + perpY * offset2 * s2;
-
-          if (wp1X < 5 || wp1X > 995 || wp1Y < 5 || wp1Y > 595) continue;
-          if (wp2X < 5 || wp2X > 995 || wp2Y < 5 || wp2Y > 595) continue;
-          if (isPointInBlockingObstacle(wp1X, wp1Y, obstacles, wagons)) continue;
-          if (isPointInBlockingObstacle(wp2X, wp2Y, obstacles, wagons)) continue;
-
-          if (!lineCrossesBlockingObstacle(fromX, fromY, wp1X, wp1Y, obstacles, wagons, 3) &&
-              !lineCrossesBlockingObstacle(wp1X, wp1Y, wp2X, wp2Y, obstacles, wagons, 3) &&
-              !lineCrossesBlockingObstacle(wp2X, wp2Y, toX, toY, obstacles, wagons, 3)) {
-            return [
-              { x: fromX, y: fromY },
-              { x: wp1X, y: wp1Y },
-              { x: wp2X, y: wp2Y },
-              { x: toX, y: toY }
-            ];
-          }
-        }
-      }
-    }
-  }
-
-  // Fallback: direct path (shouldn't happen often)
-  return [{ x: fromX, y: fromY }, { x: toX, y: toY }];
-}
-
-function generateHoseLine(
-  unit: FireUnit, fireX: number, fireY: number,
-  unitWidth: number, unitHeight: number,
-  wagons: Wagon[], obstacles: Obstacle[]
-): HoseLine {
-  const startX = unit.x + unitWidth / 2;
-  const startY = unit.y + unitHeight / 2;
-
-  // Direction to fire
-  const dx = fireX - startX;
-  const dy = fireY - startY;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const normX = dx / dist;
-  const normY = dy / dist;
-
-  // Branch point at ~50% of distance, using safe path
-  const branchDist = dist * 0.45;
-  let branchTargetX = startX + normX * branchDist;
-  let branchTargetY = startY + normY * branchDist;
-
-  // Find safe path to branch point
-  const mainPath = findSafePath(startX, startY, branchTargetX, branchTargetY, obstacles, wagons);
-  
-  // Use last waypoint as actual branch point
-  const branchPoint = mainPath[mainPath.length - 1];
-  const branchX = branchPoint.x;
-  const branchY = branchPoint.y;
-
-  // Build main hose segments from path
-  const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
-  const connections: Array<{ x: number; y: number }> = [];
-
-  for (let i = 0; i < mainPath.length - 1; i++) {
-    segments.push({
-      x1: mainPath[i].x,
-      y1: mainPath[i].y,
-      x2: mainPath[i + 1].x,
-      y2: mainPath[i + 1].y,
-    });
-  }
-
-  // Add connection points every 20m (40 units)
-  let totalDist = 0;
-  for (const seg of segments) {
-    const segLen = Math.sqrt((seg.x2 - seg.x1) ** 2 + (seg.y2 - seg.y1) ** 2);
-    if (segLen === 0) continue;
-    const segNx = (seg.x2 - seg.x1) / segLen;
-    const segNy = (seg.y2 - seg.y1) / segLen;
-
-    let posInSeg = 0;
-    while (posInSeg < segLen) {
-      const nextConnDist = Math.ceil((totalDist + posInSeg) / HOSE_SEGMENT_LENGTH) * HOSE_SEGMENT_LENGTH;
-      const connDistInSeg = nextConnDist - totalDist;
-      if (connDistInSeg > segLen || connDistInSeg < 0) break;
-
-      connections.push({
-        x: seg.x1 + segNx * connDistInSeg,
-        y: seg.y1 + segNy * connDistInSeg,
-      });
-      posInSeg = connDistInSeg + HOSE_SEGMENT_LENGTH;
-    }
-    totalDist += segLen;
-  }
-
-  // Generate branch hoses to nozzles (on OPPOSITE sides of the fire wagon)
-  const branchSegments: Array<Array<{ x1: number; y1: number; x2: number; y2: number }>> = [];
-  const branchConnections: Array<Array<{ x: number; y: number }>> = [];
-  const nozzles: Array<{ x: number; y: number }> = [];
-
-  // Find the fire wagon to position nozzles on opposite sides
-  const fireWagon = wagons.find(w => {
-    const cx = w.x + w.width / 2;
-    const cy = w.y + w.height / 2;
-    return Math.sqrt((fireX - cx) ** 2 + (fireY - cy) ** 2) < 60;
-  });
-
-  // Two nozzles on opposite sides of the fire
-  const nozzleAngles = [Math.atan2(dy, dx) - 0.3, Math.atan2(dy, dx) + Math.PI + 0.3];
-
-  for (let idx = 0; idx < 2; idx++) {
-    const angle = nozzleAngles[idx];
-
-    // Position nozzle close to fire wagon but at least MIN_NOZZLE_DISTANCE_FROM_WAGON from contour
-    // Start at a moderate distance and adjust
-    let nozzleX = fireX + Math.cos(angle) * 15;
-    let nozzleY = fireY + Math.sin(angle) * 15;
-
-    // Ensure at least MIN_NOZZLE_DISTANCE_FROM_FIRE from fire center
-    const distToFire = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
-    if (distToFire < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
-      nozzleX = fireX + Math.cos(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
-      nozzleY = fireY + Math.sin(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
-    }
-
-    // Ensure at least MIN_NOZZLE_DISTANCE_FROM_WAGON from wagon contour
-    // Try multiple positions, moving outward if needed
-    for (let attempt = 0; attempt < 15; attempt++) {
-      if (!isPointTooCloseToWagon(nozzleX, nozzleY, wagons, MIN_NOZZLE_DISTANCE_FROM_WAGON)) {
-        break;
-      }
-      // Move further from fire
-      const currentDist = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
-      nozzleX = fireX + Math.cos(angle) * (currentDist + 5);
-      nozzleY = fireY + Math.sin(angle) * (currentDist + 5);
-    }
-
-    // Final push away from any wagon if still too close
-    if (isPointTooCloseToWagon(nozzleX, nozzleY, wagons, MIN_NOZZLE_DISTANCE_FROM_WAGON)) {
-      for (const wagon of wagons) {
-        const dist = distanceToRectContour(nozzleX, nozzleY, wagon.x, wagon.y, wagon.width, wagon.height);
-        if (dist < MIN_NOZZLE_DISTANCE_FROM_WAGON) {
-          const wagonCenterX = wagon.x + wagon.width / 2;
-          const wagonCenterY = wagon.y + wagon.height / 2;
-          const pushAngle = Math.atan2(nozzleY - wagonCenterY, nozzleX - wagonCenterX);
-          const pushDist = Math.max(wagon.width, wagon.height) / 2 + MIN_NOZZLE_DISTANCE_FROM_WAGON + 8;
-          nozzleX = wagonCenterX + Math.cos(pushAngle) * pushDist;
-          nozzleY = wagonCenterY + Math.sin(pushAngle) * pushDist;
-          break;
-        }
-      }
-    }
-
-    nozzles.push({ x: nozzleX, y: nozzleY });
-
-    // Find safe path from branch to nozzle
-    const branchPath = findSafePath(branchX, branchY, nozzleX, nozzleY, obstacles, wagons);
-
-    const bSegs: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
-    const bConns: Array<{ x: number; y: number }> = [];
-
-    for (let i = 0; i < branchPath.length - 1; i++) {
-      bSegs.push({
-        x1: branchPath[i].x,
-        y1: branchPath[i].y,
-        x2: branchPath[i + 1].x,
-        y2: branchPath[i + 1].y,
-      });
-    }
-
-    // Add connection points along branch
-    let bTotalDist = 0;
-    for (const seg of bSegs) {
-      const segLen = Math.sqrt((seg.x2 - seg.x1) ** 2 + (seg.y2 - seg.y1) ** 2);
-      if (segLen === 0) continue;
-      const segNx = (seg.x2 - seg.x1) / segLen;
-      const segNy = (seg.y2 - seg.y1) / segLen;
-
-      let posInSeg = 0;
-      while (posInSeg < segLen) {
-        const nextConnDist = Math.ceil((bTotalDist + posInSeg) / HOSE_SEGMENT_LENGTH) * HOSE_SEGMENT_LENGTH;
-        const connDistInSeg = nextConnDist - bTotalDist;
-        if (connDistInSeg > segLen || connDistInSeg < 0) break;
-
-        bConns.push({
-          x: seg.x1 + segNx * connDistInSeg,
-          y: seg.y1 + segNy * connDistInSeg,
-        });
-        posInSeg = connDistInSeg + HOSE_SEGMENT_LENGTH;
-      }
-      bTotalDist += segLen;
-    }
-
-    branchSegments.push(bSegs);
-    branchConnections.push(bConns);
-  }
-
-  return {
-    segments,
-    connections,
-    branchPoint: { x: branchX, y: branchY },
-    branchSegments,
-    branchConnections,
-    nozzles,
-  };
-}
-
-// Generate water stream path that avoids wagons
-function generateWaterStreamPath(
-  fromX: number, fromY: number,
-  toX: number, toY: number,
-  wagons: Wagon[]
-): string {
-  // Use the safe path finder
-  const path = findSafePath(fromX, fromY, toX, toY, [], wagons);
-  
-  if (path.length === 2) {
-    // Direct path
-    return `M ${path[0].x} ${path[0].y} L ${path[1].x} ${path[1].y}`;
-  }
-  
-  // Build path with curves through waypoints
-  let pathStr = `M ${path[0].x} ${path[0].y}`;
-  for (let i = 1; i < path.length; i++) {
-    pathStr += ` L ${path[i].x} ${path[i].y}`;
-  }
-  return pathStr;
-}
+const DEFAULT_RESOURCES: AvailableResources = { ac: 6, al: 1, asr: 1, personnel: 60 };
 
 type WagonType = 'passenger' | 'freight' | 'tank' | 'platform';
-
 const WAGON_TYPE_INFO: Record<WagonType, { label: string; icon: string; color: string }> = {
   passenger: { label: 'Пассажирский', icon: '🚃', color: '#3a4a5a' },
   freight: { label: 'Грузовой', icon: '📦', color: '#5a4a3a' },
   tank: { label: 'Цистерна', icon: '🛢', color: '#3a5a35' },
   platform: { label: 'Платформа', icon: '🚛', color: '#4a4a4a' },
 };
+
+interface ManualUnit extends FireUnit {
+  division: string;
+  ptvDeployed: boolean;
+}
+
+interface DragState {
+  type: 'unit' | 'nozzle' | 'obstacle';
+  id: string;
+  unitId?: string;
+  offsetX: number;
+  offsetY: number;
+}
+
+// Hose routing along train corridor
+function routeHoseAlongCorridor(
+  unitX: number, unitY: number, unitWidth: number, unitHeight: number,
+  fireX: number, fireY: number,
+  wagons: Wagon[], obstacles: Obstacle[]
+): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }> } {
+  const corridor = getTrainCorridor(wagons);
+  const unitCenterX = unitX + unitWidth / 2;
+  const unitCenterY = unitY + unitHeight / 2;
+
+  // Find closest corridor side to unit
+  const distToTop = Math.abs(unitCenterY - corridor.topY);
+  const distToBottom = Math.abs(unitCenterY - corridor.bottomY);
+  const distToLeft = Math.abs(unitCenterX - corridor.leftX);
+  const distToRight = Math.abs(unitCenterX - corridor.rightX);
+
+  const minDist = Math.min(distToTop, distToBottom, distToLeft, distToRight);
+  
+  let corridorEntryX: number, corridorEntryY: number;
+  let corridorSide: 'top' | 'bottom' | 'left' | 'right';
+
+  if (minDist === distToTop) {
+    corridorEntryX = Math.max(corridor.leftX, Math.min(corridor.rightX, unitCenterX));
+    corridorEntryY = corridor.topY;
+    corridorSide = 'top';
+  } else if (minDist === distToBottom) {
+    corridorEntryX = Math.max(corridor.leftX, Math.min(corridor.rightX, unitCenterX));
+    corridorEntryY = corridor.bottomY;
+    corridorSide = 'bottom';
+  } else if (minDist === distToLeft) {
+    corridorEntryX = corridor.leftX;
+    corridorEntryY = Math.max(corridor.topY, Math.min(corridor.bottomY, unitCenterY));
+    corridorSide = 'left';
+  } else {
+    corridorEntryX = corridor.rightX;
+    corridorEntryY = Math.max(corridor.topY, Math.min(corridor.bottomY, unitCenterY));
+    corridorSide = 'right';
+  }
+
+  // Point along corridor opposite to fire
+  let corridorFirePointX: number, corridorFirePointY: number;
+  if (corridorSide === 'top' || corridorSide === 'bottom') {
+    corridorFirePointX = fireX;
+    corridorFirePointY = corridorSide === 'top' ? corridor.topY : corridor.bottomY;
+  } else {
+    corridorFirePointX = corridorSide === 'left' ? corridor.leftX : corridor.rightX;
+    corridorFirePointY = fireY;
+  }
+
+  // Branch point: 15 units from fire (shorter than distance to fire)
+  const distToFire = Math.sqrt((unitCenterX - fireX) ** 2 + (unitCenterY - fireY) ** 2);
+  const branchDist = distToFire * 0.7; // 70% of distance
+  const angleToFire = Math.atan2(fireY - unitCenterY, fireX - unitCenterX);
+  
+  // Place branch point along corridor near fire
+  let branchX = corridorFirePointX;
+  let branchY = corridorFirePointY;
+
+  // Build path: unit -> corridor entry -> along corridor -> branch point
+  const path: Array<{ x: number; y: number }> = [
+    { x: unitCenterX, y: unitCenterY },
+    { x: corridorEntryX, y: corridorEntryY },
+  ];
+
+  // Add intermediate points along corridor if needed
+  if (corridorSide === 'top' || corridorSide === 'bottom') {
+    if (Math.abs(corridorEntryX - corridorFirePointX) > 5) {
+      path.push({ x: corridorFirePointX, y: corridorEntryY });
+    }
+  } else {
+    if (Math.abs(corridorEntryY - corridorFirePointY) > 5) {
+      path.push({ x: corridorEntryX, y: corridorFirePointY });
+    }
+  }
+
+  path.push({ x: branchX, y: branchY });
+
+  // Nozzles: 5-6m from fire wagon, on opposite sides
+  const fireWagon = wagons.find(w => {
+    const cx = w.x + w.width / 2;
+    const cy = w.y + w.height / 2;
+    return Math.sqrt((fireX - cx) ** 2 + (fireY - cy) ** 2) < 60;
+  });
+
+  const nozzles: Array<{ x: number; y: number }> = [];
+  const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
+
+  for (const angle of nozzleAngles) {
+    let nozzleX = fireX + Math.cos(angle) * 12;
+    let nozzleY = fireY + Math.sin(angle) * 12;
+
+    // Ensure minimum distance from fire
+    const distToFireCheck = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
+    if (distToFireCheck < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
+      nozzleX = fireX + Math.cos(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
+      nozzleY = fireY + Math.sin(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
+    }
+
+    // Ensure distance from wagon contour
+    for (let attempt = 0; attempt < 10; attempt++) {
+      let tooClose = false;
+      for (const wagon of wagons) {
+        const dist = distanceToRectContour(nozzleX, nozzleY, wagon.x, wagon.y, wagon.width, wagon.height);
+        if (dist < NOZZLE_DISTANCE_FROM_WAGON) {
+          tooClose = true;
+          break;
+        }
+      }
+      if (!tooClose) break;
+      const currentDist = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
+      nozzleX = fireX + Math.cos(angle) * (currentDist + 3);
+      nozzleY = fireY + Math.sin(angle) * (currentDist + 3);
+    }
+
+    nozzles.push({ x: nozzleX, y: nozzleY });
+  }
+
+  return { path, branchPoint: { x: branchX, y: branchY }, nozzles };
+}
 
 export default function App() {
   const [wagons, setWagons] = useState<Wagon[]>(generateDefaultWagons());
@@ -440,50 +169,63 @@ export default function App() {
   const [fireIntensity, setFireIntensity] = useState<'low' | 'medium' | 'high'>('medium');
   const [fireType, setFireType] = useState<'wagon_body' | 'tank' | 'undercarriage' | 'cargo'>('wagon_body');
   const [deployment, setDeployment] = useState<Deployment | null>(null);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [manualUnits, setManualUnits] = useState<ManualUnit[]>([]);
+  const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showResources, setShowResources] = useState(false);
   const [resources, setResources] = useState<AvailableResources>(DEFAULT_RESOURCES);
   const [useCustomResources, setUseCustomResources] = useState(false);
-  const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const idealResources = useMemo(() => {
-    if (!fireSource) return null;
-    return getIdealResources(fireSource);
-  }, [fireSource]);
+  const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
 
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 1000;
-    const y = ((e.clientY - rect.top) / rect.height) * 600;
-    return { x, y };
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * 1000,
+      y: ((e.clientY - rect.top) / rect.height) * 600,
+    };
   }, []);
 
   const handleSVGClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (dragging) return;
+    if (dragState) return;
     const { x, y } = getSVGCoords(e);
 
+    if (placingUnit) {
+      const newUnit: ManualUnit = {
+        id: `manual-${Date.now()}`,
+        type: placingUnit,
+        name: placingUnit === 'al' ? 'АЛ-30(40)' : placingUnit === 'asr' ? 'АСР' : 'АЦ-40',
+        x: x - 22,
+        y: y - 10,
+        angle: 0,
+        personnel: placingUnit === 'al' ? 5 : placingUnit === 'asr' ? 3 : 7,
+        hoses: 0,
+        role: 'Добавлен вручную',
+        safeDistance: 200,
+        division: '',
+        ptvDeployed: false,
+      };
+      setManualUnits(prev => [...prev, newUnit]);
+      setPlacingUnit(null);
+      setDeployment(null);
+      return;
+    }
+
     if (toolMode === 'fire') {
-      const clickedWagon = wagons.find(
-        w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height
-      );
+      const clickedWagon = wagons.find(w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height);
       if (clickedWagon) {
-        setFireSource({
-          wagonId: clickedWagon.id,
-          x,
-          y,
-          intensity: fireIntensity,
-          type: fireType,
-        });
+        setFireSource({ wagonId: clickedWagon.id, x, y, intensity: fireIntensity, type: fireType });
         setDeployment(null);
       }
     } else if (toolMode === 'obstacle') {
       const defaults = OBSTACLE_DEFAULTS[obstacleType];
-      const newObs: Obstacle = {
+      setObstacles(prev => [...prev, {
         id: `obs-${Date.now()}`,
         x: x - defaults.width / 2,
         y: y - defaults.height / 2,
@@ -491,75 +233,82 @@ export default function App() {
         height: defaults.height,
         type: obstacleType,
         label: defaults.label,
-      };
-      setObstacles(prev => [...prev, newObs]);
+      }]);
       setDeployment(null);
-    } else if (toolMode === 'none' || toolMode === 'select') {
-      // Check if clicked on a wagon to select it for type change
-      const clickedWagon = wagons.find(
-        w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height
-      );
+    } else {
+      // Check wagon click for type change
+      const clickedWagon = wagons.find(w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height);
       if (clickedWagon) {
         setSelectedWagonId(clickedWagon.id);
+        setSelectedUnitId(null);
       } else {
-        setSelectedWagonId(null);
+        // Check unit click
+        const allUnits = [...(deployment?.units || []), ...manualUnits];
+        const clickedUnit = allUnits.find(u => {
+          const w = u.type === 'al' ? 55 : 44;
+          return x >= u.x && x <= u.x + w && y >= u.y && y <= u.y + 20;
+        });
+        if (clickedUnit) {
+          setSelectedUnitId(clickedUnit.id);
+          setSelectedWagonId(null);
+        } else {
+          setSelectedWagonId(null);
+          setSelectedUnitId(null);
+        }
       }
     }
-  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragging]);
+  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits]);
 
-  const changeWagonType = useCallback((wagonId: number, newType: WagonType) => {
-    setWagons(prev => prev.map(w => {
-      if (w.id === wagonId) {
-        const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
-        return {
-          ...w,
-          type: newType,
-          height,
-          y: TRACK_Y - height / 2,
-          label: `${WAGON_TYPE_INFO[newType].label} №${w.id}`,
-        };
-      }
-      return w;
-    }));
-    setSelectedWagonId(null);
-    setDeployment(null);
-  }, []);
-
-  const changeAllWagonsType = useCallback((newType: WagonType) => {
-    setWagons(prev => prev.map(w => {
-      const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
-      return {
-        ...w,
-        type: newType,
-        height,
-        y: TRACK_Y - height / 2,
-        label: `${WAGON_TYPE_INFO[newType].label} №${w.id}`,
-      };
-    }));
-    setDeployment(null);
-  }, []);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent, obsId: string) => {
-    if (toolMode !== 'select') return;
+  const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle', id: string, unitId?: string) => {
+    if (toolMode !== 'select' && type !== 'unit') return;
     e.stopPropagation();
     const { x, y } = getSVGCoords(e);
-    const obs = obstacles.find(o => o.id === obsId);
-    if (obs) {
-      setDragging(obsId);
-      setDragOffset({ x: x - obs.x, y: y - obs.y });
+
+    if (type === 'obstacle') {
+      const obs = obstacles.find(o => o.id === id);
+      if (obs) {
+        setDragState({ type, id, offsetX: x - obs.x, offsetY: y - obs.y });
+      }
+    } else if (type === 'unit') {
+      const allUnits = [...(deployment?.units || []), ...manualUnits];
+      const unit = allUnits.find(u => u.id === id);
+      if (unit) {
+        setDragState({ type, id, offsetX: x - unit.x, offsetY: y - unit.y });
+      }
     }
-  }, [toolMode, obstacles, getSVGCoords]);
+  }, [toolMode, obstacles, getSVGCoords, deployment, manualUnits]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!dragging) return;
+    if (!dragState) return;
     const { x, y } = getSVGCoords(e);
-    setObstacles(prev => prev.map(o =>
-      o.id === dragging ? { ...o, x: x - dragOffset.x, y: y - dragOffset.y } : o
-    ));
-  }, [dragging, dragOffset, getSVGCoords]);
+
+    if (dragState.type === 'obstacle') {
+      setObstacles(prev => prev.map(o =>
+        o.id === dragState.id ? { ...o, x: x - dragState.offsetX, y: y - dragState.offsetY } : o
+      ));
+    } else if (dragState.type === 'unit') {
+      const newX = x - dragState.offsetX;
+      const newY = y - dragState.offsetY;
+      
+      // Update manual units
+      setManualUnits(prev => prev.map(u =>
+        u.id === dragState.id ? { ...u, x: newX, y: newY } : u
+      ));
+      
+      // Update deployment units
+      if (deployment) {
+        setDeployment({
+          ...deployment,
+          units: deployment.units.map(u =>
+            u.id === dragState.id ? { ...u, x: newX, y: newY } : u
+          ),
+        });
+      }
+    }
+  }, [dragState, getSVGCoords, deployment]);
 
   const handleMouseUp = useCallback(() => {
-    setDragging(null);
+    setDragState(null);
   }, []);
 
   const handleDeploy = useCallback(() => {
@@ -571,38 +320,60 @@ export default function App() {
     setFireSource(null);
     setObstacles([]);
     setDeployment(null);
+    setManualUnits([]);
     setToolMode('none');
   }, []);
 
-  const handleClearFire = useCallback(() => {
-    setFireSource(null);
+  const changeWagonType = useCallback((wagonId: number, newType: WagonType) => {
+    setWagons(prev => prev.map(w => {
+      if (w.id === wagonId) {
+        const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
+        return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
+      }
+      return w;
+    }));
+    setSelectedWagonId(null);
     setDeployment(null);
   }, []);
 
-  const handleDeleteObstacle = useCallback((id: string) => {
-    const newObs = obstacles.filter(o => o.id !== id);
-    setObstacles(newObs);
-    if (deployment && fireSource) {
-      setDeployment(calculateDeployment(wagons, fireSource, newObs, useCustomResources ? resources : null));
-    }
-  }, [wagons, fireSource, obstacles, deployment, useCustomResources, resources]);
+  const changeAllWagonsType = useCallback((newType: WagonType) => {
+    setWagons(prev => prev.map(w => {
+      const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
+      return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
+    }));
+    setDeployment(null);
+  }, []);
 
-  const handleApplyResources = useCallback(() => {
-    setUseCustomResources(true);
-    if (fireSource) {
-      const result = calculateDeployment(wagons, fireSource, obstacles, resources);
-      setDeployment(result);
+  const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
+    const newName = newType === 'al' ? 'АЛ-30(40)' : newType === 'asr' ? 'АСР' : 'АЦ-40';
+    const newPersonnel = newType === 'al' ? 5 : newType === 'asr' ? 3 : 7;
+    
+    setManualUnits(prev => prev.map(u =>
+      u.id === unitId ? { ...u, type: newType, name: newName, personnel: newPersonnel } : u
+    ));
+    
+    if (deployment) {
+      setDeployment(prev => prev ? {
+        ...prev,
+        units: prev.units.map(u =>
+          u.id === unitId ? { ...u, type: newType, name: newName, personnel: newPersonnel } : u
+        ),
+      } : null);
     }
-    setShowResources(false);
-  }, [wagons, fireSource, obstacles, resources]);
+    setSelectedUnitId(null);
+  }, [deployment]);
 
-  const handleResetResources = useCallback(() => {
-    setUseCustomResources(false);
-    if (fireSource) {
-      const result = calculateDeployment(wagons, fireSource, obstacles, null);
-      setDeployment(result);
-    }
-  }, [wagons, fireSource, obstacles]);
+  const updateUnitDivision = useCallback((unitId: string, division: string) => {
+    setManualUnits(prev => prev.map(u =>
+      u.id === unitId ? { ...u, division } : u
+    ));
+  }, []);
+
+  const deployPTV = useCallback((unitId: string) => {
+    setManualUnits(prev => prev.map(u =>
+      u.id === unitId ? { ...u, ptvDeployed: true, hoses: 2 } : u
+    ));
+  }, []);
 
   const fireWagonLabel = useMemo(() => {
     if (!fireSource) return '';
@@ -612,49 +383,41 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      {/* Header */}
       <header className="bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700 px-4 py-2 shadow-lg flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center shadow-md">
+            <div className="w-9 h-9 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center">
               <span className="text-lg">🚒</span>
             </div>
             <div>
-              <h1 className="text-sm font-bold text-white tracking-tight">Расстановка сил и средств ПО</h1>
-              <p className="text-[10px] text-gray-400">Тушение пожаров ЖД составов | Вид сверху</p>
+              <h1 className="text-sm font-bold">Расстановка сил и средств ПО</h1>
+              <p className="text-[10px] text-gray-400">Тушение пожаров ЖД составов</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowResources(true)}
-              className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold transition-colors"
-            >
-              📋 Задать количество сил
-            </button>
-            <button
-              onClick={handleDeploy}
-              disabled={!fireSource}
-              className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-lg font-semibold text-xs transition-all shadow-md"
-            >
-              🚀 Расставить силы
-            </button>
-            <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs transition-colors">❓</button>
-            <button onClick={handleReset} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs font-medium transition-colors">🔄 Сброс</button>
+            <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Силы</button>
+            <div className="flex gap-1">
+              <button onClick={() => setPlacingUnit('aca')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'aca' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АЦ</button>
+              <button onClick={() => setPlacingUnit('al')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'al' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АЛ</button>
+              <button onClick={() => setPlacingUnit('asr')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'asr' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСР</button>
+            </div>
+            <button onClick={handleDeploy} disabled={!fireSource} className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-red-700 disabled:from-gray-600 disabled:to-gray-700 rounded-lg font-semibold text-xs">🚀 Расставить</button>
+            <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 rounded-lg text-xs">❓</button>
+            <button onClick={handleReset} className="px-3 py-1.5 bg-gray-700 rounded-lg text-xs">🔄</button>
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Panel */}
         <aside className="w-[270px] bg-gray-800/95 border-r border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
           <div className="p-3 overflow-y-auto flex-1 space-y-3">
             <div>
-              <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Инструменты</h3>
+              <h3 className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Инструменты</h3>
               <div className="grid grid-cols-2 gap-1">
-                <button onClick={() => setToolMode(toolMode === 'fire' ? 'none' : 'fire')} className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${toolMode === 'fire' ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'}`}>🔥 Очаг пожара</button>
-                <button onClick={() => setToolMode(toolMode === 'obstacle' ? 'none' : 'obstacle')} className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${toolMode === 'obstacle' ? 'bg-yellow-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'}`}>🧱 Препятствия</button>
-                <button onClick={() => setToolMode(toolMode === 'select' ? 'none' : 'select')} className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${toolMode === 'select' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'}`}>✋ Перемещение</button>
-                <button onClick={() => setToolMode('none')} className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${toolMode === 'none' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'}`}>👁 Просмотр</button>
+                <button onClick={() => setToolMode(toolMode === 'fire' ? 'none' : 'fire')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'fire' ? 'bg-orange-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>🔥 Очаг</button>
+                <button onClick={() => setToolMode(toolMode === 'obstacle' ? 'none' : 'obstacle')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'obstacle' ? 'bg-yellow-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>🧱 Препятствия</button>
+                <button onClick={() => setToolMode(toolMode === 'select' ? 'none' : 'select')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'select' ? 'bg-blue-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>✋ Перемещение</button>
+                <button onClick={() => setToolMode('none')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'none' ? 'bg-green-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>👁 Просмотр</button>
               </div>
             </div>
 
@@ -666,13 +429,13 @@ export default function App() {
                     <label className="text-[10px] text-gray-400 block mb-0.5">Интенсивность</label>
                     <div className="flex gap-1">
                       {([['low', 'Слабая'], ['medium', 'Средняя'], ['high', 'Сильная']] as const).map(([val, label]) => (
-                        <button key={val} onClick={() => setFireIntensity(val)} className={`flex-1 px-1 py-1 rounded text-[10px] font-medium transition-all ${fireIntensity === val ? val === 'low' ? 'bg-yellow-700 ring-1 ring-yellow-400' : val === 'medium' ? 'bg-orange-700 ring-1 ring-orange-400' : 'bg-red-700 ring-1 ring-red-400' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>{label}</button>
+                        <button key={val} onClick={() => setFireIntensity(val)} className={`flex-1 px-1 py-1 rounded text-[10px] font-medium ${fireIntensity === val ? val === 'low' ? 'bg-yellow-700' : val === 'medium' ? 'bg-orange-700' : 'bg-red-700' : 'bg-gray-700 hover:bg-gray-600'}`}>{label}</button>
                       ))}
                     </div>
                   </div>
                   <div>
                     <label className="text-[10px] text-gray-400 block mb-0.5">Характер</label>
-                    <select value={fireType} onChange={e => setFireType(e.target.value as FireSource['type'])} className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] text-white border border-gray-600">
+                    <select value={fireType} onChange={e => setFireType(e.target.value as FireSource['type'])} className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600">
                       <option value="wagon_body">Корпус вагона</option>
                       <option value="tank">Цистерна (ГЖ/ЛЖ)</option>
                       <option value="undercarriage">Ходовая часть</option>
@@ -689,87 +452,36 @@ export default function App() {
                 <h3 className="text-[11px] font-semibold text-yellow-400 mb-1.5">🧱 Тип препятствия</h3>
                 <div className="grid grid-cols-2 gap-1">
                   {(Object.keys(OBSTACLE_DEFAULTS) as ObstacleType[]).map(type => (
-                    <button key={type} onClick={() => setObstacleType(type)} className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${obstacleType === type ? 'bg-yellow-600 text-white ring-1 ring-yellow-400' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
+                    <button key={type} onClick={() => setObstacleType(type)} className={`px-1.5 py-1 rounded text-[10px] font-medium flex items-center gap-1 ${obstacleType === type ? 'bg-yellow-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
                       <span className="text-xs">{OBSTACLE_DEFAULTS[type].icon}</span>
                       <span>{OBSTACLE_DEFAULTS[type].label}</span>
                     </button>
                   ))}
                 </div>
-                <p className="text-[10px] text-yellow-300/70 italic mt-1.5">👆 Кликните на карту</p>
               </div>
             )}
 
-            {fireSource && (
-              <div className="p-2 bg-red-900/20 rounded-lg border border-red-500/30">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-[10px] font-semibold text-red-400">🔥 Очаг установлен</h3>
-                  <button onClick={handleClearFire} className="text-[9px] text-red-400 hover:text-red-300">✕</button>
-                </div>
-                <div className="text-[10px] text-gray-300 space-y-0.5">
-                  <p>Вагон: <span className="text-white font-medium">{fireWagonLabel}</span></p>
-                  <p>Интенсивность: <span className="text-white">{fireSource.intensity === 'low' ? 'Слабая' : fireSource.intensity === 'medium' ? 'Средняя' : 'Сильная'}</span></p>
-                  <p>Тип: <span className="text-white">{fireSource.type === 'wagon_body' ? 'Корпус' : fireSource.type === 'tank' ? 'Цистерна' : fireSource.type === 'undercarriage' ? 'Ходовая' : 'Груз'}</span></p>
-                  {idealResources && (
-                    <p className="text-yellow-400 mt-1">Оптимально: АЦ×{idealResources.ac}, АЛ×{idealResources.al}, л/с {idealResources.personnel}ч.</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {useCustomResources && (
-              <div className="p-2 bg-indigo-900/20 rounded-lg border border-indigo-500/30">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-[10px] font-semibold text-indigo-400">📋 Заданные силы</h3>
-                  <button onClick={handleResetResources} className="text-[9px] text-indigo-400 hover:text-indigo-300">Сбросить</button>
-                </div>
-                <div className="text-[10px] text-gray-300 grid grid-cols-2 gap-x-2 gap-y-0.5">
-                  <span>АЦ: {resources.ac}</span>
-                  <span>АЛ: {resources.al}</span>
-                  <span>АСР: {resources.asr}</span>
-                  <span>Л/состав: {resources.personnel} чел.</span>
-                </div>
-              </div>
-            )}
-
-            {/* Train type selector */}
             <div>
-              <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Тип поезда</h3>
+              <h3 className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Тип поезда</h3>
               <div className="grid grid-cols-2 gap-1">
                 {(Object.keys(WAGON_TYPE_INFO) as WagonType[]).map(type => (
-                  <button
-                    key={type}
-                    onClick={() => changeAllWagonsType(type)}
-                    className="px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 bg-gray-700/80 text-gray-300 hover:bg-gray-600"
-                  >
+                  <button key={type} onClick={() => changeAllWagonsType(type)} className="px-1.5 py-1 rounded text-[10px] font-medium flex items-center gap-1 bg-gray-700/80 hover:bg-gray-600">
                     <span className="text-xs">{WAGON_TYPE_INFO[type].icon}</span>
                     <span>{WAGON_TYPE_INFO[type].label}</span>
                   </button>
                 ))}
               </div>
-              <p className="text-[9px] text-gray-500 italic mt-1">Нажмите для смены типа всех вагонов</p>
             </div>
 
-            {/* Selected wagon type changer */}
             {selectedWagonId && (
               <div className="p-2.5 bg-purple-900/20 rounded-lg border border-purple-500/30">
                 <div className="flex items-center justify-between mb-1.5">
-                  <h3 className="text-[11px] font-semibold text-purple-400">
-                    {WAGON_TYPE_INFO[wagons.find(w => w.id === selectedWagonId)?.type || 'freight'].icon} Вагон №{selectedWagonId}
-                  </h3>
-                  <button onClick={() => setSelectedWagonId(null)} className="text-[9px] text-purple-400 hover:text-purple-300">✕</button>
+                  <h3 className="text-[11px] font-semibold text-purple-400">Вагон №{selectedWagonId}</h3>
+                  <button onClick={() => setSelectedWagonId(null)} className="text-[9px] text-purple-400">✕</button>
                 </div>
-                <p className="text-[9px] text-gray-400 mb-1.5">Выберите тип вагона:</p>
                 <div className="grid grid-cols-2 gap-1">
                   {(Object.keys(WAGON_TYPE_INFO) as WagonType[]).map(type => (
-                    <button
-                      key={type}
-                      onClick={() => changeWagonType(selectedWagonId, type)}
-                      className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                        wagons.find(w => w.id === selectedWagonId)?.type === type
-                          ? 'bg-purple-600 text-white ring-1 ring-purple-400'
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      }`}
-                    >
+                    <button key={type} onClick={() => changeWagonType(selectedWagonId, type)} className={`px-1.5 py-1 rounded text-[10px] font-medium flex items-center gap-1 ${wagons.find(w => w.id === selectedWagonId)?.type === type ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
                       <span className="text-xs">{WAGON_TYPE_INFO[type].icon}</span>
                       <span>{WAGON_TYPE_INFO[type].label}</span>
                     </button>
@@ -778,71 +490,107 @@ export default function App() {
               </div>
             )}
 
-            {obstacles.length > 0 && (
-              <div>
-                <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Препятствия ({obstacles.length})</h3>
-                <div className="space-y-0.5 max-h-24 overflow-y-auto">
-                  {obstacles.map(obs => (
-                    <div key={obs.id} className="flex items-center justify-between bg-gray-700/60 rounded px-2 py-0.5">
-                      <span className="text-[10px] text-gray-300 flex items-center gap-1"><span>{OBSTACLE_DEFAULTS[obs.type]?.icon}</span>{obs.label}</span>
-                      <button onClick={() => handleDeleteObstacle(obs.id)} className="text-red-400 hover:text-red-300 text-[10px]">✕</button>
+            {selectedUnitId && (
+              <div className="p-2.5 bg-cyan-900/20 rounded-lg border border-cyan-500/30">
+                <div className="flex items-center justify-between mb-1.5">
+                  <h3 className="text-[11px] font-semibold text-cyan-400">
+                    {[...(deployment?.units || []), ...manualUnits].find(u => u.id === selectedUnitId)?.name}
+                  </h3>
+                  <button onClick={() => setSelectedUnitId(null)} className="text-[9px] text-cyan-400">✕</button>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[9px] text-gray-400 block mb-0.5">Тип техники:</label>
+                    <div className="grid grid-cols-2 gap-1">
+                      {(['aca', 'ac', 'al', 'asr'] as const).map(type => (
+                        <button key={type} onClick={() => changeUnitType(selectedUnitId, type)} className={`px-1.5 py-1 rounded text-[9px] font-medium ${[...(deployment?.units || []), ...manualUnits].find(u => u.id === selectedUnitId)?.type === type ? 'bg-cyan-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                          {type === 'al' ? 'АЛ' : type === 'asr' ? 'АСР' : 'АЦ'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-gray-400 block mb-0.5">Подразделение:</label>
+                    <input
+                      type="text"
+                      placeholder="Напр.: ПЧ-12"
+                      value={(manualUnits.find(u => u.id === selectedUnitId) as ManualUnit | undefined)?.division || ''}
+                      onChange={e => updateUnitDivision(selectedUnitId, e.target.value)}
+                      className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
+                    />
+                  </div>
+                  {manualUnits.find(u => u.id === selectedUnitId) && !manualUnits.find(u => u.id === selectedUnitId)?.ptvDeployed && (
+                    <button onClick={() => deployPTV(selectedUnitId)} className="w-full py-1.5 bg-green-600 hover:bg-green-500 rounded text-[10px] font-semibold">
+                      🔧 Расставить ПТВ
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {fireSource && (
+              <div className="p-2 bg-red-900/20 rounded-lg border border-red-500/30">
+                <h3 className="text-[10px] font-semibold text-red-400 mb-1">🔥 Очаг: {fireWagonLabel}</h3>
+                <div className="text-[10px] text-gray-300 space-y-0.5">
+                  <p>Интенсивность: {fireSource.intensity === 'low' ? 'Слабая' : fireSource.intensity === 'medium' ? 'Средняя' : 'Сильная'}</p>
+                  <p>Тип: {fireSource.type === 'wagon_body' ? 'Корпус' : fireSource.type === 'tank' ? 'Цистерна' : fireSource.type === 'undercarriage' ? 'Ходовая' : 'Груз'}</p>
+                </div>
+              </div>
+            )}
+
+            {!deployment && manualUnits.length > 0 && (
+              <div className="p-2.5 bg-blue-900/20 rounded-lg border border-blue-500/30">
+                <h3 className="text-[11px] font-semibold text-blue-400 mb-1.5">📌 Добавленная техника</h3>
+                <div className="space-y-1">
+                  {manualUnits.map(unit => (
+                    <div key={unit.id} className="flex items-center justify-between bg-gray-700/60 rounded px-2 py-1">
+                      <span className="text-[10px] text-gray-300">{unit.name}</span>
+                      <span className={`text-[9px] ${unit.ptvDeployed ? 'text-green-400' : 'text-yellow-400'}`}>
+                        {unit.ptvDeployed ? '✓ ПТВ' : '⚠ Без ПТВ'}
+                      </span>
                     </div>
                   ))}
                 </div>
+                <p className="text-[9px] text-gray-400 mt-2 italic">Выберите машину для расстановки ПТВ</p>
               </div>
             )}
 
             {deployment && (
               <div className="p-2.5 bg-green-900/20 rounded-lg border border-green-500/30">
-                <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка выполнена</h3>
+                <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
                 <div className="grid grid-cols-3 gap-1 mb-2">
                   <div className="bg-gray-700/80 rounded p-1 text-center">
-                    <div className="text-sm font-bold text-white">{deployment.units.length}</div>
-                    <div className="text-[8px] text-gray-400">Ед.техники</div>
+                    <div className="text-sm font-bold">{deployment.units.length + manualUnits.filter(u => u.ptvDeployed).length}</div>
+                    <div className="text-[8px] text-gray-400">Техника</div>
                   </div>
                   <div className="bg-gray-700/80 rounded p-1 text-center">
-                    <div className="text-sm font-bold text-white">{deployment.totalPersonnel}</div>
-                    <div className="text-[8px] text-gray-400">Л/состав</div>
+                    <div className="text-sm font-bold">{deployment.totalPersonnel}</div>
+                    <div className="text-[8px] text-gray-400">Л/с</div>
                   </div>
                   <div className="bg-gray-700/80 rounded p-1 text-center">
-                    <div className="text-sm font-bold text-white">{deployment.totalHoses}</div>
+                    <div className="text-sm font-bold">{deployment.totalHoses}</div>
                     <div className="text-[8px] text-gray-400">Стволов</div>
                   </div>
                 </div>
-                <div className="mb-2">
-                  <div className="text-[9px] text-cyan-400">🛡 Безопасное расстояние: {(deployment.safeRadius * 0.5).toFixed(0)} м</div>
-                </div>
+                {manualUnits.length > 0 && (
+                  <div className="mb-2 p-1.5 bg-blue-900/20 rounded border border-blue-500/30">
+                    <p className="text-[9px] text-blue-300">📌 Добавлено вручную: {manualUnits.length} ед.</p>
+                    <p className="text-[8px] text-blue-400">С ПТВ: {manualUnits.filter(u => u.ptvDeployed).length} ед.</p>
+                  </div>
+                )}
+                <p className="text-[9px] text-gray-400">{deployment.strategy}</p>
                 {deployment.warnings.length > 0 && (
-                  <div className="mb-2 space-y-0.5">
+                  <div className="mt-2 space-y-0.5">
                     {deployment.warnings.map((w, i) => (
                       <div key={i} className="text-[9px] text-yellow-300 bg-yellow-900/30 rounded px-1.5 py-0.5">{w}</div>
                     ))}
                   </div>
                 )}
-                <div className="mb-1.5">
-                  <h4 className="text-[9px] font-semibold text-gray-300">Стратегия:</h4>
-                  <p className="text-[9px] text-gray-400 leading-relaxed">{deployment.strategy}</p>
-                </div>
-                <div>
-                  <h4 className="text-[9px] font-semibold text-gray-300 mb-0.5">Подразделения:</h4>
-                  <div className="space-y-0.5 max-h-36 overflow-y-auto">
-                    {deployment.units.map(unit => (
-                      <div key={unit.id} className="bg-gray-700/60 rounded p-1 border-l-2 border-red-500">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-medium text-white">{unit.name}</span>
-                          <span className="text-[8px] text-gray-400">{unit.personnel}ч. | {unit.hoses}ств.</span>
-                        </div>
-                        <div className="text-[8px] text-gray-400">{unit.role}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
           </div>
         </aside>
 
-        {/* Main Canvas */}
         <main className="flex-1 p-2 flex flex-col overflow-hidden">
           <div className="flex-1 bg-gray-800 rounded-xl border border-gray-700 overflow-hidden relative">
             <svg
@@ -853,7 +601,7 @@ export default function App() {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              style={{ cursor: toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : 'pointer' }}
+              style={{ cursor: placingUnit ? 'cell' : toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : toolMode === 'select' ? 'move' : 'pointer' }}
             >
               <defs>
                 <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -873,8 +621,6 @@ export default function App() {
 
               <rect width="1000" height="600" fill="#1e2a1e" />
               <rect width="1000" height="600" fill="url(#grid)" />
-              <rect x="0" y="0" width="1000" height="260" fill="#1a2a1a" opacity="0.3" />
-              <rect x="0" y="360" width="1000" height="240" fill="#1a2a1a" opacity="0.3" />
 
               {/* Railway tracks */}
               <g>
@@ -885,69 +631,37 @@ export default function App() {
                 ))}
                 <line x1="60" y1="290" x2="940" y2="290" stroke="#aaa" strokeWidth="2.5" />
                 <line x1="60" y1="330" x2="940" y2="330" stroke="#aaa" strokeWidth="2.5" />
-                <line x1="60" y1="289" x2="940" y2="289" stroke="#ccc" strokeWidth="0.5" />
-                <line x1="60" y1="329" x2="940" y2="329" stroke="#ccc" strokeWidth="0.5" />
               </g>
 
               {/* Wagons */}
               {wagons.map(wagon => {
                 const isOnFire = fireSource?.wagonId === wagon.id;
                 const isSelected = selectedWagonId === wagon.id;
-                const wagonColor = WAGON_TYPE_INFO[wagon.type].color;
                 return (
-                  <g key={wagon.id} style={{ cursor: 'pointer' }}>
+                  <g key={wagon.id}>
                     <rect x={wagon.x + 2} y={wagon.y + 2} width={wagon.width} height={wagon.height} fill="rgba(0,0,0,0.3)" rx="3" />
                     <rect x={wagon.x} y={wagon.y} width={wagon.width} height={wagon.height}
-                      fill={wagonColor}
-                      stroke={isOnFire ? '#ff4500' : isSelected ? '#a855f7' : '#666'} strokeWidth={isOnFire ? 2.5 : isSelected ? 2 : 1} rx="3" />
+                      fill={WAGON_TYPE_INFO[wagon.type].color}
+                      stroke={isOnFire ? '#ff4500' : isSelected ? '#a855f7' : '#666'}
+                      strokeWidth={isOnFire ? 2.5 : isSelected ? 2 : 1} rx="3" />
                     {wagon.type === 'tank' && (
-                      <>
-                        <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 4} fill="none" stroke="#5a7a55" strokeWidth="1.5" />
-                        <circle cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} r="4" fill="#4a6a45" stroke="#6a8a65" strokeWidth="0.5" />
-                      </>
+                      <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 4} fill="none" stroke="#5a7a55" strokeWidth="1.5" />
                     )}
                     {wagon.type === 'passenger' && (
                       <>
                         {Array.from({ length: 6 }, (_, i) => (
                           <rect key={i} x={wagon.x + 8 + i * 13} y={wagon.y + 3} width="8" height="3" fill="#5a8aaa" rx="0.5" opacity="0.7" />
                         ))}
-                        {Array.from({ length: 6 }, (_, i) => (
-                          <rect key={`b${i}`} x={wagon.x + 8 + i * 13} y={wagon.y + wagon.height - 6} width="8" height="3" fill="#5a8aaa" rx="0.5" opacity="0.7" />
-                        ))}
                       </>
                     )}
-                    {wagon.type === 'freight' && (
-                      <>
-                        {Array.from({ length: 4 }, (_, i) => (
-                          <line key={i} x1={wagon.x + 15 + i * 20} y1={wagon.y + 2} x2={wagon.x + 15 + i * 20} y2={wagon.y + wagon.height - 2} stroke="#6a5a4a" strokeWidth="0.5" />
-                        ))}
-                      </>
-                    )}
-                    {wagon.type === 'platform' && (
-                      <rect x={wagon.x + 4} y={wagon.y + 4} width={wagon.width - 8} height={wagon.height - 8} fill="none" stroke="#666" strokeWidth="0.5" strokeDasharray="4,2" />
-                    )}
-                    <rect x={wagon.x + 5} y={wagon.y - 2} width="14" height={wagon.height + 4} fill="#222" rx="2" opacity="0.4" />
-                    <rect x={wagon.x + wagon.width - 19} y={wagon.y - 2} width="14" height={wagon.height + 4} fill="#222" rx="2" opacity="0.4" />
-                    {wagon.id < wagons.length && <rect x={wagon.x + wagon.width} y={wagon.y + wagon.height / 2 - 2} width={WAGON_GAP} height="4" fill="#555" rx="1" />}
                     <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill={isOnFire ? '#ff8800' : '#aaa'} fontSize="7" fontFamily="sans-serif" fontWeight={isOnFire ? 'bold' : 'normal'}>{wagon.label}</text>
                   </g>
                 );
               })}
 
-              {/* Safe distance zone */}
-              {fireSource && deployment && (
-                <>
-                  <circle cx={fireSource.x} cy={fireSource.y} r={deployment.safeRadius} fill="none" stroke="#ff4400" strokeWidth="1.5" strokeDasharray="8,4" opacity="0.5" />
-                  <text x={fireSource.x + deployment.safeRadius + 5} y={fireSource.y - 5} fill="#ff6644" fontSize="7" fontFamily="sans-serif" opacity="0.7">⚠ {(deployment.safeRadius * 0.5).toFixed(0)}м</text>
-                </>
-              )}
-
-              {/* Fire source */}
+              {/* Fire */}
               {fireSource && (
                 <g>
-                  <circle cx={fireSource.x} cy={fireSource.y - 15} r="20" fill="rgba(80,80,80,0.3)">
-                    <animate attributeName="r" values="18;25;18" dur="3s" repeatCount="indefinite" />
-                  </circle>
                   <circle cx={fireSource.x} cy={fireSource.y} r={fireSource.intensity === 'high' ? 35 : fireSource.intensity === 'medium' ? 25 : 18} fill="url(#fireRadial)" opacity="0.7">
                     <animate attributeName="r" values={fireSource.intensity === 'high' ? "33;40;33" : fireSource.intensity === 'medium' ? "23;28;23" : "16;20;16"} dur="0.8s" repeatCount="indefinite" />
                   </circle>
@@ -960,124 +674,135 @@ export default function App() {
 
               {/* Obstacles */}
               {obstacles.map(obs => (
-                <g key={obs.id} onMouseDown={e => handleMouseDown(e, obs.id)} style={{ cursor: toolMode === 'select' ? 'move' : 'default' }}>
+                <g key={obs.id} onMouseDown={e => handleMouseDown(e, 'obstacle', obs.id)} style={{ cursor: toolMode === 'select' ? 'move' : 'default' }}>
                   <rect x={obs.x} y={obs.y} width={obs.width} height={obs.height}
                     fill={obs.type === 'building' ? '#3a3a5a' : obs.type === 'fence' ? '#5a4a3a' : obs.type === 'equipment' ? '#4a4a4a' : obs.type === 'depot' ? '#3a4a5a' : obs.type === 'tree_group' ? '#1a4a1a' : '#2a2a2a'}
                     fillOpacity="0.85" stroke={toolMode === 'select' ? '#4fc3f7' : '#777'}
-                    strokeWidth={toolMode === 'select' ? 2 : 1}
-                    strokeDasharray={obs.type === 'fence' ? '5,3' : obs.type === 'road' ? '8,4' : 'none'}
-                    rx={obs.type === 'tree_group' ? obs.width / 2 : "3"} />
-                  <text x={obs.x + obs.width / 2} y={obs.y + obs.height / 2 + 4} textAnchor="middle" fontSize={Math.min(obs.width, obs.height) > 30 ? '14' : '10'}>{OBSTACLE_DEFAULTS[obs.type]?.icon}</text>
-                  {toolMode === 'select' && <text x={obs.x + obs.width / 2} y={obs.y - 3} textAnchor="middle" fill="#4fc3f7" fontSize="7" fontFamily="sans-serif">{obs.label}</text>}
+                    strokeWidth={toolMode === 'select' ? 2 : 1} rx="3" />
+                  <text x={obs.x + obs.width / 2} y={obs.y + obs.height / 2 + 4} textAnchor="middle" fontSize="14">{OBSTACLE_DEFAULTS[obs.type]?.icon}</text>
                 </g>
               ))}
 
-              {/* Hose lines */}
-              {deployment?.units.map(unit => {
-                if (unit.hoses === 0 || !fireSource) return null;
+              {/* Hose lines for deployment units */}
+              {fireSource && deployment?.units.filter(u => u.hoses > 0).map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
-                const unitHeight = 20;
-                const hoseLine = generateHoseLine(unit, fireSource.x, fireSource.y, unitWidth, unitHeight, wagons, obstacles);
-
+                const fs = fireSource!;
+                const routing = routeHoseAlongCorridor(unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles);
+                
                 return (
                   <g key={`hose-${unit.id}`}>
-                    {/* Main hose segments (BLACK) */}
-                    {hoseLine.segments.map((seg, idx) => (
-                      <line key={`main-${idx}`} x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2}
-                        stroke="#000000" strokeWidth="3.5" strokeLinecap="round" />
+                    {/* Main hose path */}
+                    {routing.path.slice(0, -1).map((point, idx) => (
+                      <line key={idx} x1={point.x} y1={point.y} x2={routing.path[idx + 1].x} y2={routing.path[idx + 1].y}
+                        stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
+                    ))}
+                    
+                    {/* Branch hoses to nozzles */}
+                    {routing.nozzles.map((nozzle, idx) => (
+                      <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
+                        stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
                     ))}
 
-                    {/* Connection points every 20m */}
-                    {hoseLine.connections.map((conn, idx) => (
-                      <g key={`conn-${idx}`}>
-                        <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
-                        <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
-                      </g>
-                    ))}
-
-                    {/* Branch hoses (BLACK) */}
-                    {hoseLine.branchSegments.map((segs, bIdx) => (
-                      <g key={`branch-${bIdx}`}>
-                        {segs.map((seg, sIdx) => (
-                          <line key={`bseg-${bIdx}-${sIdx}`} x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2}
-                            stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
-                        ))}
-                        {/* Branch connections */}
-                        {hoseLine.branchConnections[bIdx]?.map((conn, cIdx) => (
-                          <g key={`bconn-${bIdx}-${cIdx}`}>
-                            <circle cx={conn.x} cy={conn.y} r="2.5" fill="#333" stroke="#666" strokeWidth="0.8" />
-                            <circle cx={conn.x} cy={conn.y} r="1.2" fill="#888" />
-                          </g>
-                        ))}
-                      </g>
-                    ))}
-
-                    {/* Branch point - RT-80 */}
-                    <g>
-                      <rect x={hoseLine.branchPoint.x - 8} y={hoseLine.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
-                      <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-                      <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y - 10} textAnchor="middle" fill="#90caf9" fontSize="5" fontFamily="sans-serif">Разветвление</text>
-                      <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y + 16} textAnchor="middle" fill="#90caf9" fontSize="4.5" fontFamily="sans-serif">трёхходовое</text>
-                    </g>
+                    {/* Branch point RT-80 */}
+                    <rect x={routing.branchPoint.x - 8} y={routing.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                    <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    
+                    {/* Person at branch */}
+                    <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                    <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
 
                     {/* Nozzles with water streams */}
-                    {hoseLine.nozzles.map((nozzle, idx) => {
-                      // Generate water stream path that avoids wagons
-                      const streamPath = generateWaterStreamPath(nozzle.x, nozzle.y, fireSource.x, fireSource.y, wagons);
-
-                      return (
-                        <g key={`nozzle-${idx}`}>
-                          {/* Water stream from nozzle to fire (avoiding wagons) */}
-                          <path d={streamPath}
-                            fill="none" stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
-                            <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
-                          </path>
-                          <path d={streamPath}
-                            fill="none" stroke="#81d4fa" strokeWidth="1" opacity="0.8" strokeDasharray="2,4">
-                            <animate attributeName="stroke-dashoffset" values="0;-12" dur="0.3s" repeatCount="indefinite" />
-                          </path>
-
-                          {/* Water spray at nozzle */}
-                          <circle cx={nozzle.x} cy={nozzle.y} r="6" fill="rgba(100,200,255,0.4)">
-                            <animate attributeName="r" values="5;8;5" dur="0.6s" repeatCount="indefinite" />
-                          </circle>
-
-                          {/* Nozzle */}
-                          <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
-
-                          {/* Firefighter */}
-                          <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
-                          <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
-
-                          {/* Stvol label */}
-                          <text x={nozzle.x} y={nozzle.y + 18} textAnchor="middle" fill="#81d4fa" fontSize="5" fontFamily="sans-serif">Ствол</text>
-                        </g>
-                      );
-                    })}
+                    {routing.nozzles.map((nozzle, idx) => (
+                      <g key={idx}>
+                        <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
+                          stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
+                          <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
+                        </line>
+                        <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
+                        <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
+                        <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+                      </g>
+                    ))}
                   </g>
                 );
               })}
 
-              {/* Deployed units */}
+              {/* Hose lines for manual units with PTW deployed */}
+              {fireSource && manualUnits.filter(u => u.ptvDeployed).map(unit => {
+                const unitWidth = unit.type === 'al' ? 55 : 44;
+                const fs = fireSource!;
+                const routing = routeHoseAlongCorridor(unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles);
+                
+                return (
+                  <g key={`hose-${unit.id}`}>
+                    {routing.path.slice(0, -1).map((point, idx) => (
+                      <line key={idx} x1={point.x} y1={point.y} x2={routing.path[idx + 1].x} y2={routing.path[idx + 1].y}
+                        stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
+                    ))}
+                    {routing.nozzles.map((nozzle, idx) => (
+                      <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
+                        stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
+                    ))}
+                    <rect x={routing.branchPoint.x - 8} y={routing.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                    <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                    <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                    {routing.nozzles.map((nozzle, idx) => (
+                      <g key={idx}>
+                        <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
+                          stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
+                          <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
+                        </line>
+                        <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
+                        <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
+                        <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+                      </g>
+                    ))}
+                  </g>
+                );
+              })}
+
+              {/* Deployment units */}
               {deployment?.units.map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
+                const isSelected = selectedUnitId === unit.id;
                 return (
-                  <g key={unit.id}>
+                  <g key={unit.id} onMouseDown={e => handleMouseDown(e, 'unit', unit.id)} style={{ cursor: toolMode === 'select' ? 'move' : 'pointer' }}>
                     <rect x={unit.x + 1} y={unit.y + 1} width={unitWidth} height="20" fill="rgba(0,0,0,0.4)" rx="3" />
                     <rect x={unit.x} y={unit.y} width={unitWidth} height="20"
                       fill={unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c'}
-                      stroke="#fff" strokeWidth="1.2" rx="3" />
-                    {unit.type === 'al' && (
-                      <>
-                        <rect x={unit.x + 44} y={unit.y + 7} width="18" height="6" fill="#e57373" stroke="#fff" strokeWidth="0.5" rx="1" />
-                        {[46, 50, 54, 58].map(lx => (
-                          <line key={lx} x1={unit.x + lx} y1={unit.y + 8} x2={unit.x + lx} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
-                        ))}
-                      </>
-                    )}
+                      stroke={isSelected ? '#4fc3f7' : '#fff'} strokeWidth={isSelected ? 2 : 1.2} rx="3" />
                     <rect x={unit.x + 2} y={unit.y + 3} width="10" height="14" fill="rgba(0,0,0,0.3)" rx="2" />
                     <text x={unit.x + unitWidth / 2} y={unit.y - 5} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
                     <text x={unit.x + unitWidth / 2} y={unit.y + 32} textAnchor="middle" fill="#aaa" fontSize="6" fontFamily="sans-serif">{unit.role}</text>
+                    {/* Person near unit */}
+                    <circle cx={unit.x + unitWidth + 5} cy={unit.y + 10} r="4" fill="#ffeb3b" opacity="0.6" />
+                    <text x={unit.x + unitWidth + 5} y={unit.y + 12} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                  </g>
+                );
+              })}
+
+              {/* Manual units */}
+              {manualUnits.map(unit => {
+                const unitWidth = unit.type === 'al' ? 55 : 44;
+                const isSelected = selectedUnitId === unit.id;
+                return (
+                  <g key={unit.id} onMouseDown={e => handleMouseDown(e, 'unit', unit.id)} style={{ cursor: 'move' }}>
+                    <rect x={unit.x + 1} y={unit.y + 1} width={unitWidth} height="20" fill="rgba(0,0,0,0.4)" rx="3" />
+                    <rect x={unit.x} y={unit.y} width={unitWidth} height="20"
+                      fill={unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c'}
+                      stroke={isSelected ? '#4fc3f7' : '#fff'} strokeWidth={isSelected ? 2 : 1.2} rx="3" />
+                    <rect x={unit.x + 2} y={unit.y + 3} width="10" height="14" fill="rgba(0,0,0,0.3)" rx="2" />
+                    <text x={unit.x + unitWidth / 2} y={unit.y - 5} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
+                    {unit.division && (
+                      <text x={unit.x + unitWidth / 2} y={unit.y + 32} textAnchor="middle" fill="#81d4fa" fontSize="6" fontFamily="sans-serif">{unit.division}</text>
+                    )}
+                    {!unit.ptvDeployed && (
+                      <text x={unit.x + unitWidth / 2} y={unit.y + 42} textAnchor="middle" fill="#ffeb3b" fontSize="6" fontFamily="sans-serif">Нажмите ПТВ</text>
+                    )}
+                    {/* Person near unit */}
+                    <circle cx={unit.x + unitWidth + 5} cy={unit.y + 10} r="4" fill="#ffeb3b" opacity="0.6" />
+                    <text x={unit.x + unitWidth + 5} y={unit.y + 12} textAnchor="middle" fontSize="5">🧑‍🚒</text>
                   </g>
                 );
               })}
@@ -1088,128 +813,91 @@ export default function App() {
                 <polygon points="0,-14 -3,0 0,-4 3,0" fill="#ff4444" />
                 <polygon points="0,14 -3,0 0,4 3,0" fill="#ccc" />
                 <text x="0" y="-15" textAnchor="middle" fill="#ff6666" fontSize="6" fontWeight="bold">С</text>
-                <text x="0" y="20" textAnchor="middle" fill="#999" fontSize="5">Ю</text>
-                <text x="-15" y="3" textAnchor="middle" fill="#999" fontSize="5">З</text>
-                <text x="15" y="3" textAnchor="middle" fill="#999" fontSize="5">В</text>
               </g>
 
               {/* Scale */}
               <g transform="translate(50, 565)">
                 <line x1="0" y1="0" x2="100" y2="0" stroke="#888" strokeWidth="2" />
                 <line x1="0" y1="-4" x2="0" y2="4" stroke="#888" strokeWidth="2" />
-                <line x1="50" y1="-3" x2="50" y2="3" stroke="#888" strokeWidth="1" />
                 <line x1="100" y1="-4" x2="100" y2="4" stroke="#888" strokeWidth="2" />
                 <text x="50" y="13" textAnchor="middle" fill="#888" fontSize="7" fontFamily="sans-serif">≈ 50 м</text>
               </g>
-
-              {/* Legend */}
-              <g transform="translate(740, 430)">
-                <rect x="0" y="0" width="200" height="160" fill="rgba(0,0,0,0.75)" rx="5" stroke="#444" strokeWidth="1" />
-                <text x="100" y="14" textAnchor="middle" fill="#fff" fontSize="8" fontWeight="bold" fontFamily="sans-serif">Условные обозначения</text>
-                <line x1="8" y1="19" x2="192" y2="19" stroke="#444" strokeWidth="0.5" />
-
-                <rect x="10" y="25" width="16" height="10" fill="#b71c1c" rx="2" stroke="#fff" strokeWidth="0.5" />
-                <text x="32" y="33" fill="#ccc" fontSize="7" fontFamily="sans-serif">АЦ — Автоцистерна</text>
-
-                <rect x="10" y="40" width="16" height="10" fill="#d32f2f" rx="2" stroke="#fff" strokeWidth="0.5" />
-                <text x="32" y="48" fill="#ccc" fontSize="7" fontFamily="sans-serif">АЛ — Автолестница</text>
-
-                <rect x="10" y="55" width="16" height="10" fill="#4a148c" rx="2" stroke="#fff" strokeWidth="0.5" />
-                <text x="32" y="63" fill="#ccc" fontSize="7" fontFamily="sans-serif">АСР — Связь/резерв</text>
-
-                <circle cx="18" cy="77" r="6" fill="#ff4500" opacity="0.8" />
-                <text x="32" y="80" fill="#ccc" fontSize="7" fontFamily="sans-serif">Очаг пожара</text>
-
-                <line x1="10" y1="92" x2="26" y2="92" stroke="#000" strokeWidth="3" />
-                <text x="32" y="95" fill="#ccc" fontSize="7" fontFamily="sans-serif">Рукав (20 м)</text>
-
-                <circle cx="18" cy="106" r="3" fill="#333" stroke="#666" strokeWidth="1" />
-                <text x="32" y="109" fill="#ccc" fontSize="7" fontFamily="sans-serif">Соединение рукавов</text>
-
-                <rect x="10" y="117" width="16" height="10" fill="#1565c0" rx="2" stroke="#fff" strokeWidth="0.5" />
-                <text x="32" y="125" fill="#ccc" fontSize="7" fontFamily="sans-serif">РТ-80 (разветвление)</text>
-
-                <circle cx="18" cy="139" r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1" />
-                <text x="32" y="142" fill="#ccc" fontSize="7" fontFamily="sans-serif">Ствол (ствольщик)</text>
-
-                <line x1="10" y1="153" x2="26" y2="153" stroke="#4fc3f7" strokeWidth="1.5" strokeDasharray="3,2" />
-                <text x="32" y="156" fill="#ccc" fontSize="7" fontFamily="sans-serif">Струя воды</text>
-              </g>
             </svg>
 
-            <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded px-2 py-1 border border-gray-600/50">
-              <span className="text-[10px] text-gray-200 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                {toolMode === 'none' ? 'Просмотр (клик на вагон — смена типа)' : toolMode === 'fire' ? 'Установка очага' : toolMode === 'obstacle' ? 'Препятствия' : 'Перемещение'}
-              </span>
-            </div>
+            {placingUnit && (
+              <div className="absolute top-2 left-2 bg-red-600/90 backdrop-blur-sm rounded px-3 py-2 border border-red-400">
+                <span className="text-xs text-white font-semibold">👆 Кликните на карту для размещения {placingUnit === 'al' ? 'автолестницы (АЛ)' : placingUnit === 'asr' ? 'машины связи (АСР)' : 'автоцистерны (АЦ)'}</span>
+              </div>
+            )}
+            
+            {!placingUnit && (
+              <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded px-2 py-1 border border-gray-600/50">
+                <span className="text-[10px] text-gray-200 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                  {toolMode === 'none' ? 'Просмотр (клик на объект для выбора)' : 
+                   toolMode === 'fire' ? 'Установка очага пожара' : 
+                   toolMode === 'obstacle' ? 'Размещение препятствий' : 
+                   'Перемещение объектов'}
+                </span>
+              </div>
+            )}
           </div>
         </main>
       </div>
 
-      {/* Resources Modal */}
       {showResources && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowResources(false)}>
-          <div className="bg-gray-800 rounded-xl p-5 w-[420px] border border-gray-600 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h2 className="text-base font-bold text-white mb-1 flex items-center gap-2">📋 Задать количество сил и средств</h2>
-            <p className="text-[11px] text-gray-400 mb-4">Укажите имеющиеся в наличии силы. Расстановка будет оптимизирована под заданные ресурсы.</p>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowResources(false)}>
+          <div className="bg-gray-800 rounded-xl p-5 w-[400px] border border-gray-600" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-bold mb-3">📋 Задать количество сил</h2>
             {idealResources && (
-              <div className="mb-3 p-2 bg-yellow-900/20 rounded border border-yellow-500/30">
-                <p className="text-[10px] text-yellow-300">💡 Рекомендуемое: АЦ×{idealResources.ac}, АЛ×{idealResources.al}, АСР×{idealResources.asr}, л/состав: {idealResources.personnel} чел.</p>
-              </div>
+              <p className="text-[10px] text-yellow-300 mb-3">💡 Рекомендуется: АЦ×{idealResources.ac}, АЛ×{idealResources.al}, л/с {idealResources.personnel}ч.</p>
             )}
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-gray-300 block mb-1">🚒 Автоцистерны (АЦ)</label>
-                  <input type="number" min="0" max="20" value={resources.ac} onChange={e => setResources(prev => ({ ...prev, ac: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-gray-300 block mb-1">🪜 Автолестницы (АЛ)</label>
-                  <input type="number" min="0" max="10" value={resources.al} onChange={e => setResources(prev => ({ ...prev, al: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none" />
-                </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="text-[11px] text-gray-300 block mb-1">🚒 АЦ</label>
+                <input type="number" min="0" max="20" value={resources.ac} onChange={e => setResources(prev => ({ ...prev, ac: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-gray-300 block mb-1">📡 Машины связи (АСР)</label>
-                  <input type="number" min="0" max="5" value={resources.asr} onChange={e => setResources(prev => ({ ...prev, asr: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="text-[11px] text-gray-300 block mb-1">👨‍🚒 Личный состав (чел.)</label>
-                  <input type="number" min="0" max="200" value={resources.personnel} onChange={e => setResources(prev => ({ ...prev, personnel: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none" />
-                </div>
+              <div>
+                <label className="text-[11px] text-gray-300 block mb-1">🪜 АЛ</label>
+                <input type="number" min="0" max="10" value={resources.al} onChange={e => setResources(prev => ({ ...prev, al: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-300 block mb-1">📡 АСР</label>
+                <input type="number" min="0" max="5" value={resources.asr} onChange={e => setResources(prev => ({ ...prev, asr: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-300 block mb-1">👨‍🚒 Л/с</label>
+                <input type="number" min="0" max="200" value={resources.personnel} onChange={e => setResources(prev => ({ ...prev, personnel: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
               </div>
             </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={handleApplyResources} className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold transition-colors">✅ Применить и пересчитать</button>
-              <button onClick={() => setShowResources(false)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors">Отмена</button>
+            <div className="flex gap-2">
+              <button onClick={() => { setUseCustomResources(true); if (fireSource) setDeployment(calculateDeployment(wagons, fireSource, obstacles, resources)); setShowResources(false); }} className="flex-1 py-2 bg-indigo-600 rounded-lg text-sm font-semibold">✅ Применить</button>
+              <button onClick={() => setShowResources(false)} className="px-4 py-2 bg-gray-700 rounded-lg text-sm">Отмена</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Help Modal */}
       {showHelp && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowHelp(false)}>
-          <div className="bg-gray-800 rounded-xl p-5 max-w-lg border border-gray-600 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h2 className="text-base font-bold text-white mb-3">📖 Справка</h2>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowHelp(false)}>
+          <div className="bg-gray-800 rounded-xl p-5 max-w-lg border border-gray-600" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-bold mb-3">📖 Справка</h2>
             <div className="space-y-2 text-[12px] text-gray-300">
-              <p><strong className="text-purple-400">0.</strong> Кликните на вагон для изменения его типа, или используйте «Тип поезда» для смены всех вагонов.</p>
-              <p><strong className="text-orange-400">1.</strong> Выберите «Очаг пожара», настройте параметры и кликните на вагон.</p>
-              <p><strong className="text-yellow-400">2.</strong> Разместите препятствия (здания, заборы, депо — рукава их обходят).</p>
-              <p><strong className="text-indigo-400">3.</strong> Нажмите «Задать количество сил» для ограничения ресурсов.</p>
-              <p><strong className="text-green-400">4.</strong> Нажмите «Расставить силы» для расчёта размещения.</p>
+              <p><strong className="text-purple-400">Типы вагонов:</strong> Клик на вагон для смены типа. Кнопки "Тип поезда" для изменения всех вагонов сразу.</p>
+              <p><strong className="text-red-400">+АЦ/+АЛ/+АСР:</strong> Ручное добавление пожарной техники. Выберите тип и кликните на карту.</p>
+              <p><strong className="text-green-400">Расставить ПТВ:</strong> Выберите добавленную машину и нажмите кнопку для автоматической прокладки рукавной линии к очагу пожара.</p>
+              <p><strong className="text-cyan-400">Перемещение:</strong> Режим "Перемещение" позволяет двигать технику, ствольщиков и препятствия. Рукава пересчитываются автоматически.</p>
+              <p><strong className="text-yellow-400">Подразделение:</strong> Выберите машину и укажите принадлежность к подразделению (например, "ПЧ-12").</p>
+              <p><strong className="text-blue-400">Смена типа техники:</strong> Кликните на размещённую машину для изменения её типа (АЦ/АЛ/АСР).</p>
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
-                <p>🚃 <strong>Типы вагонов:</strong> пассажирский, грузовой, цистерна, платформа. Можно менять индивидуально или весь состав.</p>
-                <p>🛡 <strong>Безопасное расстояние:</strong> техника не ближе 100 м от очага.</p>
-                <p>🔗 <strong>Рукавные линии:</strong> чёрные, с соединениями каждые 20 м. Не пересекают вагоны.</p>
-                <p>🧑‍🚒 <strong>Ствольщики:</strong> минимум 2 м от контура вагона.</p>
-                <p>⋔ <strong>РТ-80:</strong> разветвление трёхходовое.</p>
-                <p>💧 <strong>Струи воды:</strong> от стволов к очагу пожара, обходят вагоны.</p>
-                <p>🧱 <strong>Препятствия:</strong> здания, заборы, депо — рукава обходят.</p>
+                <p>🔗 <strong>Рукавные линии:</strong> прокладываются вдоль вагонов на расстоянии 5м снаружи по кратчайшему пути.</p>
+                <p>🧑‍🚒 <strong>Личный состав:</strong> отображается у каждой машины (1 чел.) и у каждого разветвления РТ-80.</p>
+                <p>🎯 <strong>Ствольщики:</strong> размещаются на расстоянии 5-6м от вагона с очагом пожара с противоположных сторон.</p>
+                <p>🛡 <strong>Безопасность:</strong> техника располагается не ближе 100м от очага пожара.</p>
+                <p>⚙️ <strong>Рукава:</strong> каждый рукав длиной 20м, соединения отмечены на схеме.</p>
               </div>
             </div>
-            <button onClick={() => setShowHelp(false)} className="mt-4 w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors">Понятно</button>
+            <button onClick={() => setShowHelp(false)} className="mt-4 w-full py-2 bg-gray-700 rounded-lg text-sm">Понятно</button>
           </div>
         </div>
       )}
