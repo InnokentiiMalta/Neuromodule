@@ -3,6 +3,8 @@ import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, Availa
 import { calculateDeployment, generateDefaultWagons, getIdealResources } from './utils/deployment';
 
 const WAGON_GAP = 6;
+const HOSE_SEGMENT_LENGTH = 40; // 20m = 40 SVG units
+const MIN_NOZZLE_DISTANCE_FROM_WAGON = 10; // 5m = 10 SVG units
 
 const OBSTACLE_DEFAULTS: Record<ObstacleType, { width: number; height: number; label: string; icon: string }> = {
   building: { width: 80, height: 60, label: 'Здание', icon: '🏢' },
@@ -16,20 +18,100 @@ const OBSTACLE_DEFAULTS: Record<ObstacleType, { width: number; height: number; l
 const DEFAULT_RESOURCES: AvailableResources = {
   ac: 6,
   al: 1,
-  ap: 1,
   asr: 1,
   personnel: 60,
 };
 
-// Hose line generation
+// Check if line segment intersects rectangle
+function lineIntersectsRect(
+  x1: number, y1: number, x2: number, y2: number,
+  rx: number, ry: number, rw: number, rh: number
+): boolean {
+  const steps = 20;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const px = x1 + (x2 - x1) * t;
+    const py = y1 + (y2 - y1) * t;
+    if (px >= rx && px <= rx + rw && py >= ry && py <= ry + rh) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Check if point is inside any blocking obstacle
+function isPointInBlockingObstacle(x: number, y: number, obstacles: Obstacle[]): Obstacle | null {
+  for (const obs of obstacles) {
+    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
+    if (x >= obs.x && x <= obs.x + obs.width && y >= obs.y && y <= obs.y + obs.height) {
+      return obs;
+    }
+  }
+  return null;
+}
+
+// Check if line segment crosses any blocking obstacle
+function lineCrossesBlockingObstacle(
+  x1: number, y1: number, x2: number, y2: number, obstacles: Obstacle[]
+): boolean {
+  for (const obs of obstacles) {
+    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
+    if (lineIntersectsRect(x1, y1, x2, y2, obs.x, obs.y, obs.width, obs.height)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Find a point that avoids obstacles
+function findAvoidancePoint(
+  fromX: number, fromY: number, toX: number, toY: number, obstacles: Obstacle[]
+): { x: number; y: number } {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return { x: fromX, y: fromY };
+
+  const nx = -dy / len;
+  const ny = dx / len;
+
+  // Try offsets perpendicular to the line
+  for (let offset = 30; offset <= 150; offset += 20) {
+    for (const sign of [1, -1]) {
+      const midX = (fromX + toX) / 2 + nx * offset * sign;
+      const midY = (fromY + toY) / 2 + ny * offset * sign;
+
+      if (midX < 10 || midX > 990 || midY < 10 || midY > 590) continue;
+
+      // Check if this point is inside any blocking obstacle
+      if (!isPointInBlockingObstacle(midX, midY, obstacles)) {
+        // Check if both segments avoid obstacles
+        if (!lineCrossesBlockingObstacle(fromX, fromY, midX, midY, obstacles) &&
+            !lineCrossesBlockingObstacle(midX, midY, toX, toY, obstacles)) {
+          return { x: midX, y: midY };
+        }
+      }
+    }
+  }
+
+  // Fallback: return midpoint
+  return { x: (fromX + toX) / 2, y: (fromY + toY) / 2 };
+}
+
 interface HoseLine {
-  mainHose: string; // SVG path for main hose from unit to branch
+  segments: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+  connections: Array<{ x: number; y: number }>; // Points every 20m
   branchPoint: { x: number; y: number };
-  branchHoses: string[]; // SVG paths from branch to nozzles
+  branchSegments: Array<{ x1: number; y1: number; x2: number; y2: number }>[];
+  branchConnections: Array<Array<{ x: number; y: number }>>;
   nozzles: Array<{ x: number; y: number }>;
 }
 
-function generateHoseLine(unit: FireUnit, fireX: number, fireY: number, unitWidth: number, unitHeight: number): HoseLine {
+function generateHoseLine(
+  unit: FireUnit, fireX: number, fireY: number,
+  unitWidth: number, unitHeight: number,
+  wagons: Wagon[], obstacles: Obstacle[]
+): HoseLine {
   const startX = unit.x + unitWidth / 2;
   const startY = unit.y + unitHeight / 2;
 
@@ -40,50 +122,128 @@ function generateHoseLine(unit: FireUnit, fireX: number, fireY: number, unitWidt
   const normX = dx / dist;
   const normY = dy / dist;
 
-  // Branch point at ~60% of distance (after first hose section)
-  const branchDist = dist * 0.6;
-  const branchX = startX + normX * branchDist;
-  const branchY = startY + normY * branchDist;
+  // Branch point at ~50% of distance
+  const branchDist = dist * 0.5;
+  let branchX = startX + normX * branchDist;
+  let branchY = startY + normY * branchDist;
 
-  // Generate curved main hose path (with slight bend)
-  const midX = (startX + branchX) / 2;
-  const midY = (startY + branchY) / 2;
-  // Add perpendicular offset for curve
-  const perpX = -normY * 15;
-  const perpY = normX * 15;
-  const controlX = midX + perpX;
-  const controlY = midY + perpY;
+  // Check if branch point is in obstacle and adjust
+  if (isPointInBlockingObstacle(branchX, branchY, obstacles)) {
+    const avoid = findAvoidancePoint(startX, startY, fireX, fireY, obstacles);
+    branchX = avoid.x;
+    branchY = avoid.y;
+  }
 
-  const mainHose = `M ${startX} ${startY} Q ${controlX} ${controlY} ${branchX} ${branchY}`;
+  // Generate main hose segments with obstacle avoidance
+  const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+  const connections: Array<{ x: number; y: number }> = [];
 
-  // Generate two branch hoses to fire (split angle)
-  const splitAngle = 0.3; // radians (~17 degrees)
-  const branchHoses: string[] = [];
+  // Check if direct path crosses obstacle
+  if (lineCrossesBlockingObstacle(startX, startY, branchX, branchY, obstacles)) {
+    const avoid = findAvoidancePoint(startX, startY, branchX, branchY, obstacles);
+    segments.push({ x1: startX, y1: startY, x2: avoid.x, y2: avoid.y });
+    segments.push({ x1: avoid.x, y1: avoid.y, x2: branchX, y2: branchY });
+  } else {
+    segments.push({ x1: startX, y1: startY, x2: branchX, y2: branchY });
+  }
+
+  // Add connection points every 20m (40 units) along main hose
+  let totalDist = 0;
+  for (const seg of segments) {
+    const segLen = Math.sqrt((seg.x2 - seg.x1) ** 2 + (seg.y2 - seg.y1) ** 2);
+    const segNx = (seg.x2 - seg.x1) / segLen;
+    const segNy = (seg.y2 - seg.y1) / segLen;
+
+    let posInSeg = 0;
+    while (totalDist + posInSeg < dist * 0.5) {
+      const nextConnDist = Math.ceil((totalDist + posInSeg) / HOSE_SEGMENT_LENGTH) * HOSE_SEGMENT_LENGTH;
+      if (nextConnDist > totalDist + segLen) break;
+
+      const connDistInSeg = nextConnDist - totalDist;
+      connections.push({
+        x: seg.x1 + segNx * connDistInSeg,
+        y: seg.y1 + segNy * connDistInSeg,
+      });
+      posInSeg = connDistInSeg + 1;
+    }
+    totalDist += segLen;
+  }
+
+  // Generate branch hoses to nozzles
+  const branchSegments: Array<Array<{ x1: number; y1: number; x2: number; y2: number }>> = [];
+  const branchConnections: Array<Array<{ x: number; y: number }>> = [];
   const nozzles: Array<{ x: number; y: number }> = [];
+
+  const splitAngle = 0.35;
 
   for (let i = -1; i <= 1; i += 2) {
     const angle = Math.atan2(dy, dx) + splitAngle * i;
-    const nozzleDist = dist * 0.95;
-    const nozzleX = startX + Math.cos(angle) * nozzleDist;
-    const nozzleY = startY + Math.sin(angle) * nozzleDist;
+
+    // Calculate nozzle position (at fire location but ensure min distance from wagon)
+    let nozzleX = fireX + Math.cos(angle) * 15;
+    let nozzleY = fireY + Math.sin(angle) * 15;
+
+    // Ensure nozzle is at least MIN_NOZZLE_DISTANCE_FROM_WAGON from any wagon
+    for (const wagon of wagons) {
+      const wagonCenterX = wagon.x + wagon.width / 2;
+      const wagonCenterY = wagon.y + wagon.height / 2;
+      const distToWagon = Math.sqrt((nozzleX - wagonCenterX) ** 2 + (nozzleY - wagonCenterY) ** 2);
+
+      if (distToWagon < MIN_NOZZLE_DISTANCE_FROM_WAGON + 20) {
+        // Push nozzle away from wagon
+        const pushAngle = Math.atan2(nozzleY - wagonCenterY, nozzleX - wagonCenterX);
+        nozzleX = wagonCenterX + Math.cos(pushAngle) * (MIN_NOZZLE_DISTANCE_FROM_WAGON + 25);
+        nozzleY = wagonCenterY + Math.sin(pushAngle) * (MIN_NOZZLE_DISTANCE_FROM_WAGON + 25);
+      }
+    }
 
     nozzles.push({ x: nozzleX, y: nozzleY });
 
-    // Curved branch hose
-    const bMidX = (branchX + nozzleX) / 2;
-    const bMidY = (branchY + nozzleY) / 2;
-    const bPerpX = -Math.sin(angle) * (i * 12);
-    const bPerpY = Math.cos(angle) * (i * 12);
-    const bControlX = bMidX + bPerpX;
-    const bControlY = bMidY + bPerpY;
+    // Generate branch segments with obstacle avoidance
+    const bSegs: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+    const bConns: Array<{ x: number; y: number }> = [];
 
-    branchHoses.push(`M ${branchX} ${branchY} Q ${bControlX} ${bControlY} ${nozzleX} ${nozzleY}`);
+    if (lineCrossesBlockingObstacle(branchX, branchY, nozzleX, nozzleY, obstacles)) {
+      const avoid = findAvoidancePoint(branchX, branchY, nozzleX, nozzleY, obstacles);
+      bSegs.push({ x1: branchX, y1: branchY, x2: avoid.x, y2: avoid.y });
+      bSegs.push({ x1: avoid.x, y1: avoid.y, x2: nozzleX, y2: nozzleY });
+    } else {
+      bSegs.push({ x1: branchX, y1: branchY, x2: nozzleX, y2: nozzleY });
+    }
+
+    // Add connection points along branch
+    let bTotalDist = 0;
+    const branchLen = Math.sqrt((nozzleX - branchX) ** 2 + (nozzleY - branchY) ** 2);
+    for (const seg of bSegs) {
+      const segLen = Math.sqrt((seg.x2 - seg.x1) ** 2 + (seg.y2 - seg.y1) ** 2);
+      const segNx = (seg.x2 - seg.x1) / segLen;
+      const segNy = (seg.y2 - seg.y1) / segLen;
+
+      let posInSeg = 0;
+      while (bTotalDist + posInSeg < branchLen) {
+        const nextConnDist = Math.ceil((bTotalDist + posInSeg) / HOSE_SEGMENT_LENGTH) * HOSE_SEGMENT_LENGTH;
+        if (nextConnDist > bTotalDist + segLen) break;
+
+        const connDistInSeg = nextConnDist - bTotalDist;
+        bConns.push({
+          x: seg.x1 + segNx * connDistInSeg,
+          y: seg.y1 + segNy * connDistInSeg,
+        });
+        posInSeg = connDistInSeg + 1;
+      }
+      bTotalDist += segLen;
+    }
+
+    branchSegments.push(bSegs);
+    branchConnections.push(bConns);
   }
 
   return {
-    mainHose,
+    segments,
+    connections,
     branchPoint: { x: branchX, y: branchY },
-    branchHoses,
+    branchSegments,
+    branchConnections,
     nozzles,
   };
 }
@@ -241,7 +401,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowResources(true)}
-              className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
+              className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold transition-colors"
             >
               📋 Задать количество сил
             </button>
@@ -252,18 +412,8 @@ export default function App() {
             >
               🚀 Расставить силы
             </button>
-            <button
-              onClick={() => setShowHelp(true)}
-              className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs transition-colors"
-            >
-              ❓
-            </button>
-            <button
-              onClick={handleReset}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs font-medium transition-colors"
-            >
-              🔄 Сброс
-            </button>
+            <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs transition-colors">❓</button>
+            <button onClick={handleReset} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs font-medium transition-colors">🔄 Сброс</button>
           </div>
         </div>
       </header>
@@ -272,46 +422,16 @@ export default function App() {
         {/* Left Panel */}
         <aside className="w-[270px] bg-gray-800/95 border-r border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
           <div className="p-3 overflow-y-auto flex-1 space-y-3">
-            {/* Tools */}
             <div>
               <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Инструменты</h3>
               <div className="grid grid-cols-2 gap-1">
-                <button
-                  onClick={() => setToolMode(toolMode === 'fire' ? 'none' : 'fire')}
-                  className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${
-                    toolMode === 'fire' ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  🔥 Очаг пожара
-                </button>
-                <button
-                  onClick={() => setToolMode(toolMode === 'obstacle' ? 'none' : 'obstacle')}
-                  className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${
-                    toolMode === 'obstacle' ? 'bg-yellow-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  🧱 Препятствия
-                </button>
-                <button
-                  onClick={() => setToolMode(toolMode === 'select' ? 'none' : 'select')}
-                  className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${
-                    toolMode === 'select' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  ✋ Перемещение
-                </button>
-                <button
-                  onClick={() => setToolMode('none')}
-                  className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${
-                    toolMode === 'none' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  👁 Просмотр
-                </button>
+                <button onClick={() => setToolMode(toolMode === 'fire' ? 'none' : 'fire')} className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${toolMode === 'fire' ? 'bg-orange-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'}`}>🔥 Очаг пожара</button>
+                <button onClick={() => setToolMode(toolMode === 'obstacle' ? 'none' : 'obstacle')} className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${toolMode === 'obstacle' ? 'bg-yellow-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'}`}>🧱 Препятствия</button>
+                <button onClick={() => setToolMode(toolMode === 'select' ? 'none' : 'select')} className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${toolMode === 'select' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'}`}>✋ Перемещение</button>
+                <button onClick={() => setToolMode('none')} className={`px-2 py-1.5 rounded text-[11px] font-medium transition-all ${toolMode === 'none' ? 'bg-green-600 text-white shadow-md' : 'bg-gray-700/80 text-gray-300 hover:bg-gray-600'}`}>👁 Просмотр</button>
               </div>
             </div>
 
-            {/* Fire Settings */}
             {toolMode === 'fire' && (
               <div className="p-2.5 bg-orange-900/20 rounded-lg border border-orange-500/30">
                 <h3 className="text-[11px] font-semibold text-orange-400 mb-1.5">🔥 Параметры пожара</h3>
@@ -320,27 +440,13 @@ export default function App() {
                     <label className="text-[10px] text-gray-400 block mb-0.5">Интенсивность</label>
                     <div className="flex gap-1">
                       {([['low', 'Слабая'], ['medium', 'Средняя'], ['high', 'Сильная']] as const).map(([val, label]) => (
-                        <button
-                          key={val}
-                          onClick={() => setFireIntensity(val)}
-                          className={`flex-1 px-1 py-1 rounded text-[10px] font-medium transition-all ${
-                            fireIntensity === val
-                              ? val === 'low' ? 'bg-yellow-700 ring-1 ring-yellow-400' : val === 'medium' ? 'bg-orange-700 ring-1 ring-orange-400' : 'bg-red-700 ring-1 ring-red-400'
-                              : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-                          }`}
-                        >
-                          {label}
-                        </button>
+                        <button key={val} onClick={() => setFireIntensity(val)} className={`flex-1 px-1 py-1 rounded text-[10px] font-medium transition-all ${fireIntensity === val ? val === 'low' ? 'bg-yellow-700 ring-1 ring-yellow-400' : val === 'medium' ? 'bg-orange-700 ring-1 ring-orange-400' : 'bg-red-700 ring-1 ring-red-400' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>{label}</button>
                       ))}
                     </div>
                   </div>
                   <div>
                     <label className="text-[10px] text-gray-400 block mb-0.5">Характер</label>
-                    <select
-                      value={fireType}
-                      onChange={e => setFireType(e.target.value as FireSource['type'])}
-                      className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] text-white border border-gray-600"
-                    >
+                    <select value={fireType} onChange={e => setFireType(e.target.value as FireSource['type'])} className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] text-white border border-gray-600">
                       <option value="wagon_body">Корпус вагона</option>
                       <option value="tank">Цистерна (ГЖ/ЛЖ)</option>
                       <option value="undercarriage">Ходовая часть</option>
@@ -352,19 +458,12 @@ export default function App() {
               </div>
             )}
 
-            {/* Obstacle Settings */}
             {toolMode === 'obstacle' && (
               <div className="p-2.5 bg-yellow-900/20 rounded-lg border border-yellow-500/30">
                 <h3 className="text-[11px] font-semibold text-yellow-400 mb-1.5">🧱 Тип препятствия</h3>
                 <div className="grid grid-cols-2 gap-1">
                   {(Object.keys(OBSTACLE_DEFAULTS) as ObstacleType[]).map(type => (
-                    <button
-                      key={type}
-                      onClick={() => setObstacleType(type)}
-                      className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                        obstacleType === type ? 'bg-yellow-600 text-white ring-1 ring-yellow-400' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      }`}
-                    >
+                    <button key={type} onClick={() => setObstacleType(type)} className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${obstacleType === type ? 'bg-yellow-600 text-white ring-1 ring-yellow-400' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
                       <span className="text-xs">{OBSTACLE_DEFAULTS[type].icon}</span>
                       <span>{OBSTACLE_DEFAULTS[type].label}</span>
                     </button>
@@ -374,7 +473,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Current fire info */}
             {fireSource && (
               <div className="p-2 bg-red-900/20 rounded-lg border border-red-500/30">
                 <div className="flex items-center justify-between mb-1">
@@ -386,13 +484,12 @@ export default function App() {
                   <p>Интенсивность: <span className="text-white">{fireSource.intensity === 'low' ? 'Слабая' : fireSource.intensity === 'medium' ? 'Средняя' : 'Сильная'}</span></p>
                   <p>Тип: <span className="text-white">{fireSource.type === 'wagon_body' ? 'Корпус' : fireSource.type === 'tank' ? 'Цистерна' : fireSource.type === 'undercarriage' ? 'Ходовая' : 'Груз'}</span></p>
                   {idealResources && (
-                    <p className="text-yellow-400 mt-1">Оптимально: АЦ×{idealResources.ac}, АЛ×{idealResources.al}, АП×{idealResources.ap}, л/с {idealResources.personnel}ч.</p>
+                    <p className="text-yellow-400 mt-1">Оптимально: АЦ×{idealResources.ac}, АЛ×{idealResources.al}, л/с {idealResources.personnel}ч.</p>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Resources indicator */}
             {useCustomResources && (
               <div className="p-2 bg-indigo-900/20 rounded-lg border border-indigo-500/30">
                 <div className="flex items-center justify-between mb-1">
@@ -402,23 +499,19 @@ export default function App() {
                 <div className="text-[10px] text-gray-300 grid grid-cols-2 gap-x-2 gap-y-0.5">
                   <span>АЦ: {resources.ac}</span>
                   <span>АЛ: {resources.al}</span>
-                  <span>АП: {resources.ap}</span>
                   <span>АСР: {resources.asr}</span>
-                  <span className="col-span-2">Л/состав: {resources.personnel} чел.</span>
+                  <span>Л/состав: {resources.personnel} чел.</span>
                 </div>
               </div>
             )}
 
-            {/* Obstacles list */}
             {obstacles.length > 0 && (
               <div>
                 <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Препятствия ({obstacles.length})</h3>
                 <div className="space-y-0.5 max-h-24 overflow-y-auto">
                   {obstacles.map(obs => (
                     <div key={obs.id} className="flex items-center justify-between bg-gray-700/60 rounded px-2 py-0.5">
-                      <span className="text-[10px] text-gray-300 flex items-center gap-1">
-                        <span>{OBSTACLE_DEFAULTS[obs.type]?.icon}</span>{obs.label}
-                      </span>
+                      <span className="text-[10px] text-gray-300 flex items-center gap-1"><span>{OBSTACLE_DEFAULTS[obs.type]?.icon}</span>{obs.label}</span>
                       <button onClick={() => handleDeleteObstacle(obs.id)} className="text-red-400 hover:text-red-300 text-[10px]">✕</button>
                     </div>
                   ))}
@@ -426,11 +519,9 @@ export default function App() {
               </div>
             )}
 
-            {/* Deployment results */}
             {deployment && (
               <div className="p-2.5 bg-green-900/20 rounded-lg border border-green-500/30">
                 <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка выполнена</h3>
-
                 <div className="grid grid-cols-3 gap-1 mb-2">
                   <div className="bg-gray-700/80 rounded p-1 text-center">
                     <div className="text-sm font-bold text-white">{deployment.units.length}</div>
@@ -445,12 +536,9 @@ export default function App() {
                     <div className="text-[8px] text-gray-400">Стволов</div>
                   </div>
                 </div>
-
                 <div className="mb-2">
-                  <div className="text-[9px] text-cyan-400 mb-0.5">🛡 Безопасное расстояние: {(deployment.safeRadius * 0.5).toFixed(0)} м</div>
+                  <div className="text-[9px] text-cyan-400">🛡 Безопасное расстояние: {(deployment.safeRadius * 0.5).toFixed(0)} м</div>
                 </div>
-
-                {/* Warnings */}
                 {deployment.warnings.length > 0 && (
                   <div className="mb-2 space-y-0.5">
                     {deployment.warnings.map((w, i) => (
@@ -458,12 +546,10 @@ export default function App() {
                     ))}
                   </div>
                 )}
-
                 <div className="mb-1.5">
                   <h4 className="text-[9px] font-semibold text-gray-300">Стратегия:</h4>
                   <p className="text-[9px] text-gray-400 leading-relaxed">{deployment.strategy}</p>
                 </div>
-
                 <div>
                   <h4 className="text-[9px] font-semibold text-gray-300 mb-0.5">Подразделения:</h4>
                   <div className="space-y-0.5 max-h-36 overflow-y-auto">
@@ -508,67 +594,41 @@ export default function App() {
                 </radialGradient>
                 <filter id="glow">
                   <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-                  <feMerge>
-                    <feMergeNode in="coloredBlur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-                <filter id="shadow">
-                  <feDropShadow dx="1" dy="1" stdDeviation="1.5" floodOpacity="0.4" />
+                  <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
                 </filter>
               </defs>
 
-              {/* Background */}
               <rect width="1000" height="600" fill="#1e2a1e" />
               <rect width="1000" height="600" fill="url(#grid)" />
-
-              {/* Ground texture */}
               <rect x="0" y="0" width="1000" height="260" fill="#1a2a1a" opacity="0.3" />
               <rect x="0" y="360" width="1000" height="240" fill="#1a2a1a" opacity="0.3" />
 
-              {/* === RAILWAY TRACKS (top view) === */}
+              {/* Railway tracks */}
               <g>
                 <rect x="55" y="280" width="890" height="60" fill="#3a3a3a" rx="3" />
                 <rect x="55" y="283" width="890" height="54" fill="#444" rx="2" />
-
                 {Array.from({ length: 50 }, (_, i) => (
                   <rect key={i} x={62 + i * 18} y="278" width="5" height="64" fill="#5a4a3a" rx="1" opacity="0.7" />
                 ))}
-
                 <line x1="60" y1="290" x2="940" y2="290" stroke="#aaa" strokeWidth="2.5" />
                 <line x1="60" y1="330" x2="940" y2="330" stroke="#aaa" strokeWidth="2.5" />
                 <line x1="60" y1="289" x2="940" y2="289" stroke="#ccc" strokeWidth="0.5" />
                 <line x1="60" y1="329" x2="940" y2="329" stroke="#ccc" strokeWidth="0.5" />
               </g>
 
-              {/* === WAGONS (top view) === */}
+              {/* Wagons */}
               {wagons.map(wagon => {
                 const isOnFire = fireSource?.wagonId === wagon.id;
                 return (
                   <g key={wagon.id}>
                     <rect x={wagon.x + 2} y={wagon.y + 2} width={wagon.width} height={wagon.height} fill="rgba(0,0,0,0.3)" rx="3" />
-
-                    <rect
-                      x={wagon.x}
-                      y={wagon.y}
-                      width={wagon.width}
-                      height={wagon.height}
-                      fill={
-                        wagon.type === 'tank' ? '#3a5a35' :
-                        wagon.type === 'passenger' ? '#3a4a5a' :
-                        wagon.type === 'platform' ? '#4a4a4a' : '#5a4a3a'
-                      }
-                      stroke={isOnFire ? '#ff4500' : '#666'}
-                      strokeWidth={isOnFire ? 2.5 : 1}
-                      rx="3"
-                    />
-
+                    <rect x={wagon.x} y={wagon.y} width={wagon.width} height={wagon.height}
+                      fill={wagon.type === 'tank' ? '#3a5a35' : wagon.type === 'passenger' ? '#3a4a5a' : wagon.type === 'platform' ? '#4a4a4a' : '#5a4a3a'}
+                      stroke={isOnFire ? '#ff4500' : '#666'} strokeWidth={isOnFire ? 2.5 : 1} rx="3" />
                     {wagon.type === 'tank' && (
                       <>
                         <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 4} fill="none" stroke="#5a7a55" strokeWidth="1.5" />
                         <circle cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} r="4" fill="#4a6a45" stroke="#6a8a65" strokeWidth="0.5" />
-                        <line x1={wagon.x + 8} y1={wagon.y + 3} x2={wagon.x + 8} y2={wagon.y + wagon.height - 3} stroke="#5a7a55" strokeWidth="0.5" />
-                        <line x1={wagon.x + wagon.width - 8} y1={wagon.y + 3} x2={wagon.x + wagon.width - 8} y2={wagon.y + wagon.height - 3} stroke="#5a7a55" strokeWidth="0.5" />
                       </>
                     )}
                     {wagon.type === 'passenger' && (
@@ -579,7 +639,6 @@ export default function App() {
                         {Array.from({ length: 6 }, (_, i) => (
                           <rect key={`b${i}`} x={wagon.x + 8 + i * 13} y={wagon.y + wagon.height - 6} width="8" height="3" fill="#5a8aaa" rx="0.5" opacity="0.7" />
                         ))}
-                        <line x1={wagon.x + 5} y1={wagon.y + wagon.height / 2} x2={wagon.x + wagon.width - 5} y2={wagon.y + wagon.height / 2} stroke="#4a5a6a" strokeWidth="0.5" strokeDasharray="3,2" />
                       </>
                     )}
                     {wagon.type === 'freight' && (
@@ -590,217 +649,160 @@ export default function App() {
                       </>
                     )}
                     {wagon.type === 'platform' && (
-                      <>
-                        <rect x={wagon.x + 4} y={wagon.y + 4} width={wagon.width - 8} height={wagon.height - 8} fill="none" stroke="#666" strokeWidth="0.5" strokeDasharray="4,2" />
-                        <line x1={wagon.x + wagon.width / 2} y1={wagon.y + 4} x2={wagon.x + wagon.width / 2} y2={wagon.y + wagon.height - 4} stroke="#555" strokeWidth="0.5" />
-                      </>
+                      <rect x={wagon.x + 4} y={wagon.y + 4} width={wagon.width - 8} height={wagon.height - 8} fill="none" stroke="#666" strokeWidth="0.5" strokeDasharray="4,2" />
                     )}
-
                     <rect x={wagon.x + 5} y={wagon.y - 2} width="14" height={wagon.height + 4} fill="#222" rx="2" opacity="0.4" />
                     <rect x={wagon.x + wagon.width - 19} y={wagon.y - 2} width="14" height={wagon.height + 4} fill="#222" rx="2" opacity="0.4" />
-
-                    {wagon.id < wagons.length && (
-                      <rect x={wagon.x + wagon.width} y={wagon.y + wagon.height / 2 - 2} width={WAGON_GAP} height="4" fill="#555" rx="1" />
-                    )}
-
-                    <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill={isOnFire ? '#ff8800' : '#aaa'} fontSize="7" fontFamily="sans-serif" fontWeight={isOnFire ? 'bold' : 'normal'}>
-                      {wagon.label}
-                    </text>
+                    {wagon.id < wagons.length && <rect x={wagon.x + wagon.width} y={wagon.y + wagon.height / 2 - 2} width={WAGON_GAP} height="4" fill="#555" rx="1" />}
+                    <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill={isOnFire ? '#ff8800' : '#aaa'} fontSize="7" fontFamily="sans-serif" fontWeight={isOnFire ? 'bold' : 'normal'}>{wagon.label}</text>
                   </g>
                 );
               })}
 
-              {/* === SAFE DISTANCE ZONE === */}
+              {/* Safe distance zone */}
               {fireSource && deployment && (
                 <>
                   <circle cx={fireSource.x} cy={fireSource.y} r={deployment.safeRadius} fill="none" stroke="#ff4400" strokeWidth="1.5" strokeDasharray="8,4" opacity="0.5" />
-                  <text x={fireSource.x + deployment.safeRadius + 5} y={fireSource.y - 5} fill="#ff6644" fontSize="7" fontFamily="sans-serif" opacity="0.7">
-                    ⚠ {(deployment.safeRadius * 0.5).toFixed(0)}м
-                  </text>
+                  <text x={fireSource.x + deployment.safeRadius + 5} y={fireSource.y - 5} fill="#ff6644" fontSize="7" fontFamily="sans-serif" opacity="0.7">⚠ {(deployment.safeRadius * 0.5).toFixed(0)}м</text>
                 </>
               )}
 
-              {/* === FIRE SOURCE (top view) === */}
+              {/* Fire source */}
               {fireSource && (
                 <g>
                   <circle cx={fireSource.x} cy={fireSource.y - 15} r="20" fill="rgba(80,80,80,0.3)">
                     <animate attributeName="r" values="18;25;18" dur="3s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.3;0.15;0.3" dur="3s" repeatCount="indefinite" />
                   </circle>
-
                   <circle cx={fireSource.x} cy={fireSource.y} r={fireSource.intensity === 'high' ? 35 : fireSource.intensity === 'medium' ? 25 : 18} fill="url(#fireRadial)" opacity="0.7">
                     <animate attributeName="r" values={fireSource.intensity === 'high' ? "33;40;33" : fireSource.intensity === 'medium' ? "23;28;23" : "16;20;16"} dur="0.8s" repeatCount="indefinite" />
                   </circle>
-
                   <circle cx={fireSource.x} cy={fireSource.y} r={fireSource.intensity === 'high' ? 12 : fireSource.intensity === 'medium' ? 9 : 6} fill="#ff4500" filter="url(#glow)" opacity="0.9">
                     <animate attributeName="r" values={fireSource.intensity === 'high' ? "10;14;10" : fireSource.intensity === 'medium' ? "7;11;7" : "5;8;5"} dur="0.5s" repeatCount="indefinite" />
                   </circle>
-
                   <text x={fireSource.x} y={fireSource.y + 3} textAnchor="middle" fill="#fff" fontSize="10" fontWeight="bold">🔥</text>
                 </g>
               )}
 
-              {/* === OBSTACLES (top view) === */}
+              {/* Obstacles */}
               {obstacles.map(obs => (
                 <g key={obs.id} onMouseDown={e => handleMouseDown(e, obs.id)} style={{ cursor: toolMode === 'select' ? 'move' : 'default' }}>
-                  <rect
-                    x={obs.x}
-                    y={obs.y}
-                    width={obs.width}
-                    height={obs.height}
-                    fill={
-                      obs.type === 'building' ? '#3a3a5a' :
-                      obs.type === 'fence' ? '#5a4a3a' :
-                      obs.type === 'equipment' ? '#4a4a4a' :
-                      obs.type === 'depot' ? '#3a4a5a' :
-                      obs.type === 'tree_group' ? '#1a4a1a' :
-                      '#2a2a2a'
-                    }
-                    fillOpacity="0.85"
-                    stroke={toolMode === 'select' ? '#4fc3f7' : '#777'}
+                  <rect x={obs.x} y={obs.y} width={obs.width} height={obs.height}
+                    fill={obs.type === 'building' ? '#3a3a5a' : obs.type === 'fence' ? '#5a4a3a' : obs.type === 'equipment' ? '#4a4a4a' : obs.type === 'depot' ? '#3a4a5a' : obs.type === 'tree_group' ? '#1a4a1a' : '#2a2a2a'}
+                    fillOpacity="0.85" stroke={toolMode === 'select' ? '#4fc3f7' : '#777'}
                     strokeWidth={toolMode === 'select' ? 2 : 1}
                     strokeDasharray={obs.type === 'fence' ? '5,3' : obs.type === 'road' ? '8,4' : 'none'}
-                    rx={obs.type === 'tree_group' ? obs.width / 2 : "3"}
-                  />
-                  <text x={obs.x + obs.width / 2} y={obs.y + obs.height / 2 + 4} textAnchor="middle" fontSize={Math.min(obs.width, obs.height) > 30 ? '14' : '10'}>
-                    {OBSTACLE_DEFAULTS[obs.type]?.icon}
-                  </text>
-                  {toolMode === 'select' && (
-                    <text x={obs.x + obs.width / 2} y={obs.y - 3} textAnchor="middle" fill="#4fc3f7" fontSize="7" fontFamily="sans-serif">
-                      {obs.label}
-                    </text>
-                  )}
+                    rx={obs.type === 'tree_group' ? obs.width / 2 : "3"} />
+                  <text x={obs.x + obs.width / 2} y={obs.y + obs.height / 2 + 4} textAnchor="middle" fontSize={Math.min(obs.width, obs.height) > 30 ? '14' : '10'}>{OBSTACLE_DEFAULTS[obs.type]?.icon}</text>
+                  {toolMode === 'select' && <text x={obs.x + obs.width / 2} y={obs.y - 3} textAnchor="middle" fill="#4fc3f7" fontSize="7" fontFamily="sans-serif">{obs.label}</text>}
                 </g>
               ))}
 
-              {/* === HOSE LINES (with branches and nozzles) === */}
+              {/* Hose lines */}
               {deployment?.units.map(unit => {
-                if (unit.hoses === 0) return null;
+                if (unit.hoses === 0 || !fireSource) return null;
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 const unitHeight = 20;
-                const hoseLine = generateHoseLine(unit, fireSource!.x, fireSource!.y, unitWidth, unitHeight);
+                const hoseLine = generateHoseLine(unit, fireSource.x, fireSource.y, unitWidth, unitHeight, wagons, obstacles);
 
                 return (
                   <g key={`hose-${unit.id}`}>
-                    {/* Main hose (from unit to branch) */}
-                    <path
-                      d={hoseLine.mainHose}
-                      fill="none"
-                      stroke="#4fc3f7"
-                      strokeWidth="3"
-                      opacity="0.7"
-                      strokeLinecap="round"
-                    >
-                      <animate attributeName="stroke-dashoffset" values="0;-20" dur="1.5s" repeatCount="indefinite" />
-                    </path>
-                    <path
-                      d={hoseLine.mainHose}
-                      fill="none"
-                      stroke="#29b6f6"
-                      strokeWidth="1.5"
-                      strokeDasharray="8,4"
-                      opacity="0.9"
-                      strokeLinecap="round"
-                    >
-                      <animate attributeName="stroke-dashoffset" values="0;-24" dur="1s" repeatCount="indefinite" />
-                    </path>
+                    {/* Main hose segments (BLACK) */}
+                    {hoseLine.segments.map((seg, idx) => (
+                      <line key={`main-${idx}`} x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2}
+                        stroke="#000000" strokeWidth="3.5" strokeLinecap="round" />
+                    ))}
 
-                    {/* Branch hoses (from branch to nozzles) */}
-                    {hoseLine.branchHoses.map((path, idx) => (
-                      <g key={idx}>
-                        <path
-                          d={path}
-                          fill="none"
-                          stroke="#4fc3f7"
-                          strokeWidth="2.5"
-                          opacity="0.6"
-                          strokeLinecap="round"
-                        />
-                        <path
-                          d={path}
-                          fill="none"
-                          stroke="#29b6f6"
-                          strokeWidth="1.2"
-                          strokeDasharray="6,3"
-                          opacity="0.8"
-                          strokeLinecap="round"
-                        >
-                          <animate attributeName="stroke-dashoffset" values="0;-18" dur="1s" repeatCount="indefinite" />
-                        </path>
+                    {/* Connection points every 20m */}
+                    {hoseLine.connections.map((conn, idx) => (
+                      <g key={`conn-${idx}`}>
+                        <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                        <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
                       </g>
                     ))}
 
-                    {/* Branch point (three-way valve) */}
-                    <circle cx={hoseLine.branchPoint.x} cy={hoseLine.branchPoint.y} r="5" fill="#1565c0" stroke="#fff" strokeWidth="1" />
-                    <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">⋔</text>
-                    <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y - 8} textAnchor="middle" fill="#81d4fa" fontSize="5" fontFamily="sans-serif">
-                      РВ
-                    </text>
+                    {/* Branch hoses (BLACK) */}
+                    {hoseLine.branchSegments.map((segs, bIdx) => (
+                      <g key={`branch-${bIdx}`}>
+                        {segs.map((seg, sIdx) => (
+                          <line key={`bseg-${bIdx}-${sIdx}`} x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2}
+                            stroke="#000000" strokeWidth="2.5" strokeLinecap="round" />
+                        ))}
+                        {/* Branch connections */}
+                        {hoseLine.branchConnections[bIdx]?.map((conn, cIdx) => (
+                          <g key={`bconn-${bIdx}-${cIdx}`}>
+                            <circle cx={conn.x} cy={conn.y} r="2.5" fill="#333" stroke="#666" strokeWidth="0.8" />
+                            <circle cx={conn.x} cy={conn.y} r="1.2" fill="#888" />
+                          </g>
+                        ))}
+                      </g>
+                    ))}
 
-                    {/* Nozzles (firefighter with hose) */}
+                    {/* Branch point - RT-80 */}
+                    <g>
+                      <rect x={hoseLine.branchPoint.x - 8} y={hoseLine.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                      <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                      <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y - 10} textAnchor="middle" fill="#90caf9" fontSize="5" fontFamily="sans-serif">Разветвление</text>
+                      <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y + 16} textAnchor="middle" fill="#90caf9" fontSize="4.5" fontFamily="sans-serif">трёхходовое</text>
+                    </g>
+
+                    {/* Nozzles with water streams */}
                     {hoseLine.nozzles.map((nozzle, idx) => (
-                      <g key={idx}>
-                        {/* Nozzle spray */}
-                        <circle cx={nozzle.x} cy={nozzle.y} r="8" fill="rgba(100,200,255,0.3)">
-                          <animate attributeName="r" values="6;10;6" dur="0.8s" repeatCount="indefinite" />
+                      <g key={`nozzle-${idx}`}>
+                        {/* Water stream from nozzle to fire */}
+                        <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
+                          stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
+                          <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
+                        </line>
+                        <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
+                          stroke="#81d4fa" strokeWidth="1" opacity="0.8" strokeDasharray="2,4">
+                          <animate attributeName="stroke-dashoffset" values="0;-12" dur="0.3s" repeatCount="indefinite" />
+                        </line>
+
+                        {/* Water spray at nozzle */}
+                        <circle cx={nozzle.x} cy={nozzle.y} r="6" fill="rgba(100,200,255,0.4)">
+                          <animate attributeName="r" values="5;8;5" dur="0.6s" repeatCount="indefinite" />
                         </circle>
-                        {/* Nozzle point */}
-                        <circle cx={nozzle.x} cy={nozzle.y} r="3" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1" />
-                        {/* Firefighter icon */}
-                        <text x={nozzle.x} y={nozzle.y + 2} textAnchor="middle" fill="#fff" fontSize="5">👨‍🚒</text>
+
+                        {/* Nozzle */}
+                        <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
+
+                        {/* Firefighter */}
+                        <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
+                        <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+
+                        {/* Stvol label */}
+                        <text x={nozzle.x} y={nozzle.y + 18} textAnchor="middle" fill="#81d4fa" fontSize="5" fontFamily="sans-serif">Ствол</text>
                       </g>
                     ))}
                   </g>
                 );
               })}
 
-              {/* === DEPLOYED UNITS (top view) === */}
+              {/* Deployed units */}
               {deployment?.units.map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 return (
                   <g key={unit.id}>
                     <rect x={unit.x + 1} y={unit.y + 1} width={unitWidth} height="20" fill="rgba(0,0,0,0.4)" rx="3" />
-
-                    <rect
-                      x={unit.x}
-                      y={unit.y}
-                      width={unitWidth}
-                      height="20"
-                      fill={
-                        unit.type === 'aca' ? '#b71c1c' :
-                        unit.type === 'ac' ? '#c62828' :
-                        unit.type === 'al' ? '#d32f2f' :
-                        unit.type === 'ap' ? '#e65100' :
-                        '#4a148c'
-                      }
-                      stroke="#fff"
-                      strokeWidth="1.2"
-                      rx="3"
-                    />
-
+                    <rect x={unit.x} y={unit.y} width={unitWidth} height="20"
+                      fill={unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c'}
+                      stroke="#fff" strokeWidth="1.2" rx="3" />
                     {unit.type === 'al' && (
                       <>
                         <rect x={unit.x + 44} y={unit.y + 7} width="18" height="6" fill="#e57373" stroke="#fff" strokeWidth="0.5" rx="1" />
-                        <line x1={unit.x + 46} y1={unit.y + 8} x2={unit.x + 46} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
-                        <line x1={unit.x + 50} y1={unit.y + 8} x2={unit.x + 50} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
-                        <line x1={unit.x + 54} y1={unit.y + 8} x2={unit.x + 54} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
-                        <line x1={unit.x + 58} y1={unit.y + 8} x2={unit.x + 58} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
+                        {[46, 50, 54, 58].map(lx => (
+                          <line key={lx} x1={unit.x + lx} y1={unit.y + 8} x2={unit.x + lx} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
+                        ))}
                       </>
                     )}
-
                     <rect x={unit.x + 2} y={unit.y + 3} width="10" height="14" fill="rgba(0,0,0,0.3)" rx="2" />
-
-                    <text x={unit.x + unitWidth / 2} y={unit.y - 5} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold" fontFamily="sans-serif">
-                      {unit.name}
-                    </text>
-                    <text x={unit.x + unitWidth / 2} y={unit.y + 32} textAnchor="middle" fill="#aaa" fontSize="6" fontFamily="sans-serif">
-                      {unit.role}
-                    </text>
+                    <text x={unit.x + unitWidth / 2} y={unit.y - 5} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
+                    <text x={unit.x + unitWidth / 2} y={unit.y + 32} textAnchor="middle" fill="#aaa" fontSize="6" fontFamily="sans-serif">{unit.role}</text>
                   </g>
                 );
               })}
 
-              {/* === COMPASS === */}
+              {/* Compass */}
               <g transform="translate(955, 40)">
                 <circle cx="0" cy="0" r="20" fill="rgba(0,0,0,0.6)" stroke="#555" strokeWidth="1" />
                 <polygon points="0,-14 -3,0 0,-4 3,0" fill="#ff4444" />
@@ -811,7 +813,7 @@ export default function App() {
                 <text x="15" y="3" textAnchor="middle" fill="#999" fontSize="5">В</text>
               </g>
 
-              {/* === SCALE === */}
+              {/* Scale */}
               <g transform="translate(50, 565)">
                 <line x1="0" y1="0" x2="100" y2="0" stroke="#888" strokeWidth="2" />
                 <line x1="0" y1="-4" x2="0" y2="4" stroke="#888" strokeWidth="2" />
@@ -820,11 +822,11 @@ export default function App() {
                 <text x="50" y="13" textAnchor="middle" fill="#888" fontSize="7" fontFamily="sans-serif">≈ 50 м</text>
               </g>
 
-              {/* === LEGEND === */}
+              {/* Legend */}
               <g transform="translate(740, 430)">
-                <rect x="0" y="0" width="195" height="155" fill="rgba(0,0,0,0.75)" rx="5" stroke="#444" strokeWidth="1" />
-                <text x="97" y="14" textAnchor="middle" fill="#fff" fontSize="8" fontWeight="bold" fontFamily="sans-serif">Условные обозначения</text>
-                <line x1="8" y1="19" x2="187" y2="19" stroke="#444" strokeWidth="0.5" />
+                <rect x="0" y="0" width="200" height="160" fill="rgba(0,0,0,0.75)" rx="5" stroke="#444" strokeWidth="1" />
+                <text x="100" y="14" textAnchor="middle" fill="#fff" fontSize="8" fontWeight="bold" fontFamily="sans-serif">Условные обозначения</text>
+                <line x1="8" y1="19" x2="192" y2="19" stroke="#444" strokeWidth="0.5" />
 
                 <rect x="10" y="25" width="16" height="10" fill="#b71c1c" rx="2" stroke="#fff" strokeWidth="0.5" />
                 <text x="32" y="33" fill="#ccc" fontSize="7" fontFamily="sans-serif">АЦ — Автоцистерна</text>
@@ -832,163 +834,99 @@ export default function App() {
                 <rect x="10" y="40" width="16" height="10" fill="#d32f2f" rx="2" stroke="#fff" strokeWidth="0.5" />
                 <text x="32" y="48" fill="#ccc" fontSize="7" fontFamily="sans-serif">АЛ — Автолестница</text>
 
-                <rect x="10" y="55" width="16" height="10" fill="#e65100" rx="2" stroke="#fff" strokeWidth="0.5" />
-                <text x="32" y="63" fill="#ccc" fontSize="7" fontFamily="sans-serif">АП — Автопена</text>
+                <rect x="10" y="55" width="16" height="10" fill="#4a148c" rx="2" stroke="#fff" strokeWidth="0.5" />
+                <text x="32" y="63" fill="#ccc" fontSize="7" fontFamily="sans-serif">АСР — Связь/резерв</text>
 
-                <rect x="10" y="70" width="16" height="10" fill="#4a148c" rx="2" stroke="#fff" strokeWidth="0.5" />
-                <text x="32" y="78" fill="#ccc" fontSize="7" fontFamily="sans-serif">АСР — Связь/резерв</text>
+                <circle cx="18" cy="77" r="6" fill="#ff4500" opacity="0.8" />
+                <text x="32" y="80" fill="#ccc" fontSize="7" fontFamily="sans-serif">Очаг пожара</text>
 
-                <circle cx="18" cy="92" r="6" fill="#ff4500" opacity="0.8" />
-                <text x="32" y="95" fill="#ccc" fontSize="7" fontFamily="sans-serif">Очаг пожара</text>
+                <line x1="10" y1="92" x2="26" y2="92" stroke="#000" strokeWidth="3" />
+                <text x="32" y="95" fill="#ccc" fontSize="7" fontFamily="sans-serif">Рукав (20 м)</text>
 
-                <path d="M 10 108 Q 18 104 26 108" fill="none" stroke="#4fc3f7" strokeWidth="2" />
-                <text x="32" y="111" fill="#ccc" fontSize="7" fontFamily="sans-serif">Рукавная линия (20м)</text>
+                <circle cx="18" cy="106" r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                <text x="32" y="109" fill="#ccc" fontSize="7" fontFamily="sans-serif">Соединение рукавов</text>
 
-                <circle cx="18" cy="124" r="4" fill="#1565c0" stroke="#fff" strokeWidth="0.5" />
-                <text x="32" y="127" fill="#ccc" fontSize="7" fontFamily="sans-serif">Разветвление (РВ)</text>
+                <rect x="10" y="117" width="16" height="10" fill="#1565c0" rx="2" stroke="#fff" strokeWidth="0.5" />
+                <text x="32" y="125" fill="#ccc" fontSize="7" fontFamily="sans-serif">РТ-80 (разветвление)</text>
 
-                <circle cx="18" cy="140" r="3" fill="#e3f2fd" stroke="#1565c0" strokeWidth="0.5" />
-                <text x="32" y="143" fill="#ccc" fontSize="7" fontFamily="sans-serif">Ствол (ствольщик)</text>
+                <circle cx="18" cy="139" r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1" />
+                <text x="32" y="142" fill="#ccc" fontSize="7" fontFamily="sans-serif">Ствол (ствольщик)</text>
 
-                <circle cx="18" cy="152" r="6" fill="none" stroke="#ff4400" strokeWidth="1" strokeDasharray="4,2" />
-                <text x="32" y="155" fill="#ccc" fontSize="7" fontFamily="sans-serif">Зона безопасности (100м)</text>
+                <line x1="10" y1="153" x2="26" y2="153" stroke="#4fc3f7" strokeWidth="1.5" strokeDasharray="3,2" />
+                <text x="32" y="156" fill="#ccc" fontSize="7" fontFamily="sans-serif">Струя воды</text>
               </g>
             </svg>
 
-            {/* Mode indicator */}
             <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded px-2 py-1 border border-gray-600/50">
               <span className="text-[10px] text-gray-200 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                {toolMode === 'none' ? 'Просмотр' :
-                 toolMode === 'fire' ? 'Установка очага' :
-                 toolMode === 'obstacle' ? 'Препятствия' :
-                 'Перемещение'}
+                {toolMode === 'none' ? 'Просмотр' : toolMode === 'fire' ? 'Установка очага' : toolMode === 'obstacle' ? 'Препятствия' : 'Перемещение'}
               </span>
             </div>
           </div>
         </main>
       </div>
 
-      {/* === RESOURCES MODAL === */}
+      {/* Resources Modal */}
       {showResources && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowResources(false)}>
           <div className="bg-gray-800 rounded-xl p-5 w-[420px] border border-gray-600 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h2 className="text-base font-bold text-white mb-1 flex items-center gap-2">
-              📋 Задать количество сил и средств
-            </h2>
-            <p className="text-[11px] text-gray-400 mb-4">
-              Укажите имеющиеся в наличии силы. Расстановка будет оптимизирована под заданные ресурсы.
-            </p>
-
+            <h2 className="text-base font-bold text-white mb-1 flex items-center gap-2">📋 Задать количество сил и средств</h2>
+            <p className="text-[11px] text-gray-400 mb-4">Укажите имеющиеся в наличии силы. Расстановка будет оптимизирована под заданные ресурсы.</p>
             {idealResources && (
               <div className="mb-3 p-2 bg-yellow-900/20 rounded border border-yellow-500/30">
-                <p className="text-[10px] text-yellow-300">
-                  💡 Рекомендуемое количество для данного пожара: АЦ×{idealResources.ac}, АЛ×{idealResources.al}, АП×{idealResources.ap}, АСР×{idealResources.asr}, л/состав: {idealResources.personnel} чел.
-                </p>
+                <p className="text-[10px] text-yellow-300">💡 Рекомендуемое: АЦ×{idealResources.ac}, АЛ×{idealResources.al}, АСР×{idealResources.asr}, л/состав: {idealResources.personnel} чел.</p>
               </div>
             )}
-
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[11px] text-gray-300 block mb-1">🚒 Автоцистерны (АЦ)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    value={resources.ac}
-                    onChange={e => setResources(prev => ({ ...prev, ac: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none"
-                  />
+                  <input type="number" min="0" max="20" value={resources.ac} onChange={e => setResources(prev => ({ ...prev, ac: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-[11px] text-gray-300 block mb-1">🪜 Автолестницы (АЛ)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={resources.al}
-                    onChange={e => setResources(prev => ({ ...prev, al: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none"
-                  />
+                  <input type="number" min="0" max="10" value={resources.al} onChange={e => setResources(prev => ({ ...prev, al: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none" />
                 </div>
-                <div>
-                  <label className="text-[11px] text-gray-300 block mb-1">🧯 Автопены (АП)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={resources.ap}
-                    onChange={e => setResources(prev => ({ ...prev, ap: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none"
-                  />
-                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[11px] text-gray-300 block mb-1">📡 Машины связи (АСР)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="5"
-                    value={resources.asr}
-                    onChange={e => setResources(prev => ({ ...prev, asr: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none"
-                  />
+                  <input type="number" min="0" max="5" value={resources.asr} onChange={e => setResources(prev => ({ ...prev, asr: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-[11px] text-gray-300 block mb-1">👨‍🚒 Личный состав (чел.)</label>
+                  <input type="number" min="0" max="200" value={resources.personnel} onChange={e => setResources(prev => ({ ...prev, personnel: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none" />
                 </div>
               </div>
-              <div>
-                <label className="text-[11px] text-gray-300 block mb-1">👨‍🚒 Личный состав (чел.)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="200"
-                  value={resources.personnel}
-                  onChange={e => setResources(prev => ({ ...prev, personnel: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm text-white border border-gray-600 focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
             </div>
-
             <div className="flex gap-2 mt-5">
-              <button
-                onClick={handleApplyResources}
-                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold transition-colors"
-              >
-                ✅ Применить и пересчитать
-              </button>
-              <button
-                onClick={() => setShowResources(false)}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
-              >
-                Отмена
-              </button>
+              <button onClick={handleApplyResources} className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold transition-colors">✅ Применить и пересчитать</button>
+              <button onClick={() => setShowResources(false)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors">Отмена</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* === HELP MODAL === */}
+      {/* Help Modal */}
       {showHelp && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowHelp(false)}>
           <div className="bg-gray-800 rounded-xl p-5 max-w-lg border border-gray-600 shadow-2xl" onClick={e => e.stopPropagation()}>
             <h2 className="text-base font-bold text-white mb-3">📖 Справка</h2>
             <div className="space-y-2 text-[12px] text-gray-300">
               <p><strong className="text-orange-400">1.</strong> Выберите «Очаг пожара», настройте параметры и кликните на вагон.</p>
-              <p><strong className="text-yellow-400">2.</strong> Разместите препятствия в зоне работы (здания, заборы, техника).</p>
+              <p><strong className="text-yellow-400">2.</strong> Разместите препятствия (здания, заборы, депо — рукава их обходят).</p>
               <p><strong className="text-indigo-400">3.</strong> Нажмите «Задать количество сил» для ограничения ресурсов.</p>
-              <p><strong className="text-green-400">4.</strong> Нажмите «Расставить силы» — программа рассчитает оптимальное размещение.</p>
+              <p><strong className="text-green-400">4.</strong> Нажмите «Расставить силы» для расчёта размещения.</p>
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
-                <p>🛡 <strong>Безопасное расстояние:</strong> техника размещается не ближе 100 м от очага пожара.</p>
-                <p>🔗 <strong>Рукавные линии:</strong> от каждой техники прокладываются рукава по схеме: машина → рукав → разветвление (РВ) → рукава → ствольщики со стволами.</p>
-                <p>📏 <strong>Длина рукава:</strong> 20 м. Линии рукавов изогнуты для реалистичности.</p>
-                <p>📋 При нехватке сил программа выдаст предупреждения.</p>
+                <p>🛡 <strong>Безопасное расстояние:</strong> техника не ближе 100 м от очага.</p>
+                <p>🔗 <strong>Рукавные линии:</strong> чёрные, с соединениями каждые 20 м.</p>
+                <p>⋔ <strong>РТ-80:</strong> разветвление трёхходовое.</p>
+                <p>💧 <strong>Струи воды:</strong> от стволов к очагу пожара.</p>
+                <p>🧱 <strong>Препятствия:</strong> здания, заборы, депо — рукава обходят.</p>
               </div>
             </div>
-            <button
-              onClick={() => setShowHelp(false)}
-              className="mt-4 w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
-            >
-              Понятно
-            </button>
+            <button onClick={() => setShowHelp(false)} className="mt-4 w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors">Понятно</button>
           </div>
         </div>
       )}

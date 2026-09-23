@@ -28,7 +28,7 @@ export interface Obstacle {
 
 export interface FireUnit {
   id: string;
-  type: 'aca' | 'ac' | 'al' | 'ap' | 'asr';
+  type: 'aca' | 'ac' | 'al' | 'asr';
   name: string;
   x: number;
   y: number;
@@ -51,7 +51,6 @@ export interface Deployment {
 export interface AvailableResources {
   ac: number;      // Автоцистерны (включая АЦ-40/АЦ-30)
   al: number;      // Автолестницы
-  ap: number;      // Автопены
   asr: number;     // Машины связи
   personnel: number; // Личный состав (чел.)
 }
