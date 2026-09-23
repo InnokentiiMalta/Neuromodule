@@ -5,7 +5,7 @@ import { calculateDeployment, generateDefaultWagons, getIdealResources } from '.
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
 const HOSE_SEGMENT_LENGTH = 40; // 20m = 40 SVG units
-const MIN_NOZZLE_DISTANCE_FROM_WAGON = 10; // 5m = 10 SVG units
+const MIN_NOZZLE_DISTANCE_FROM_WAGON = 4; // 2m = 4 SVG units
 const MIN_NOZZLE_DISTANCE_FROM_FIRE = 6; // 3m = 6 SVG units
 
 const OBSTACLE_DEFAULTS: Record<ObstacleType, { width: number; height: number; label: string; icon: string }> = {
@@ -73,6 +73,30 @@ function lineCrossesBlockingObstacle(
   // Check wagons
   for (const wagon of wagons) {
     if (lineIntersectsRect(x1, y1, x2, y2, wagon.x, wagon.y, wagon.width, wagon.height)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Calculate minimum distance from point to rectangle contour
+function distanceToRectContour(px: number, py: number, rx: number, ry: number, rw: number, rh: number): number {
+  // If point is inside rectangle, distance is 0
+  if (px >= rx && px <= rx + rw && py >= ry && py <= ry + rh) {
+    return 0;
+  }
+
+  // Calculate distance to each edge
+  const dx = Math.max(rx - px, 0, px - (rx + rw));
+  const dy = Math.max(ry - py, 0, py - (ry + rh));
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Check if point is too close to any wagon contour
+function isPointTooCloseToWagon(px: number, py: number, wagons: Wagon[], minDistance: number): boolean {
+  for (const wagon of wagons) {
+    const dist = distanceToRectContour(px, py, wagon.x, wagon.y, wagon.width, wagon.height);
+    if (dist < minDistance) {
       return true;
     }
   }
@@ -206,17 +230,40 @@ function generateHoseLine(
       nozzleY = fireY + Math.sin(pushAngle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
     }
 
-    // Ensure nozzle is at least MIN_NOZZLE_DISTANCE_FROM_WAGON from any wagon
-    for (const wagon of wagons) {
-      const wagonCenterX = wagon.x + wagon.width / 2;
-      const wagonCenterY = wagon.y + wagon.height / 2;
-      const distToWagon = Math.sqrt((nozzleX - wagonCenterX) ** 2 + (nozzleY - wagonCenterY) ** 2);
+    // Ensure nozzle is at least MIN_NOZZLE_DISTANCE_FROM_WAGON from any wagon contour
+    // Try multiple positions if needed
+    let nozzleValid = false;
+    let attempts = 0;
+    const maxAttempts = 8;
+    const baseDistance = 20;
 
-      if (distToWagon < MIN_NOZZLE_DISTANCE_FROM_WAGON + 20) {
-        // Push nozzle away from wagon
-        const pushAngle = Math.atan2(nozzleY - wagonCenterY, nozzleX - wagonCenterX);
-        nozzleX = wagonCenterX + Math.cos(pushAngle) * (MIN_NOZZLE_DISTANCE_FROM_WAGON + 25);
-        nozzleY = wagonCenterY + Math.sin(pushAngle) * (MIN_NOZZLE_DISTANCE_FROM_WAGON + 25);
+    while (!nozzleValid && attempts < maxAttempts) {
+      if (!isPointTooCloseToWagon(nozzleX, nozzleY, wagons, MIN_NOZZLE_DISTANCE_FROM_WAGON)) {
+        nozzleValid = true;
+      } else {
+        // Move nozzle further from fire
+        const currentDist = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
+        const newDist = currentDist + 10;
+        nozzleX = fireX + Math.cos(angle) * newDist;
+        nozzleY = fireY + Math.sin(angle) * newDist;
+        attempts++;
+      }
+    }
+
+    // Final check - if still too close, push away from nearest wagon
+    if (isPointTooCloseToWagon(nozzleX, nozzleY, wagons, MIN_NOZZLE_DISTANCE_FROM_WAGON)) {
+      for (const wagon of wagons) {
+        const dist = distanceToRectContour(nozzleX, nozzleY, wagon.x, wagon.y, wagon.width, wagon.height);
+        if (dist < MIN_NOZZLE_DISTANCE_FROM_WAGON) {
+          // Find nearest point on wagon contour
+          const wagonCenterX = wagon.x + wagon.width / 2;
+          const wagonCenterY = wagon.y + wagon.height / 2;
+          const pushAngle = Math.atan2(nozzleY - wagonCenterY, nozzleX - wagonCenterX);
+          const pushDist = Math.max(wagon.width, wagon.height) / 2 + MIN_NOZZLE_DISTANCE_FROM_WAGON + 5;
+          nozzleX = wagonCenterX + Math.cos(pushAngle) * pushDist;
+          nozzleY = wagonCenterY + Math.sin(pushAngle) * pushDist;
+          break;
+        }
       }
     }
 
@@ -269,6 +316,23 @@ function generateHoseLine(
     branchConnections,
     nozzles,
   };
+}
+
+// Generate water stream path that avoids wagons
+function generateWaterStreamPath(
+  fromX: number, fromY: number,
+  toX: number, toY: number,
+  wagons: Wagon[]
+): string {
+  // Check if direct line crosses any wagon
+  if (!lineCrossesBlockingObstacle(fromX, fromY, toX, toY, [], wagons)) {
+    // Direct path is clear
+    return `M ${fromX} ${fromY} L ${toX} ${toY}`;
+  }
+
+  // Need to find a path around wagons
+  const avoid = findAvoidancePoint(fromX, fromY, toX, toY, [], wagons);
+  return `M ${fromX} ${fromY} Q ${avoid.x} ${avoid.y} ${toX} ${toY}`;
 }
 
 type WagonType = 'passenger' | 'freight' | 'tank' | 'platform';
@@ -870,34 +934,39 @@ export default function App() {
                     </g>
 
                     {/* Nozzles with water streams */}
-                    {hoseLine.nozzles.map((nozzle, idx) => (
-                      <g key={`nozzle-${idx}`}>
-                        {/* Water stream from nozzle to fire */}
-                        <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
-                          stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
-                          <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
-                        </line>
-                        <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
-                          stroke="#81d4fa" strokeWidth="1" opacity="0.8" strokeDasharray="2,4">
-                          <animate attributeName="stroke-dashoffset" values="0;-12" dur="0.3s" repeatCount="indefinite" />
-                        </line>
+                    {hoseLine.nozzles.map((nozzle, idx) => {
+                      // Generate water stream path that avoids wagons
+                      const streamPath = generateWaterStreamPath(nozzle.x, nozzle.y, fireSource.x, fireSource.y, wagons);
 
-                        {/* Water spray at nozzle */}
-                        <circle cx={nozzle.x} cy={nozzle.y} r="6" fill="rgba(100,200,255,0.4)">
-                          <animate attributeName="r" values="5;8;5" dur="0.6s" repeatCount="indefinite" />
-                        </circle>
+                      return (
+                        <g key={`nozzle-${idx}`}>
+                          {/* Water stream from nozzle to fire (avoiding wagons) */}
+                          <path d={streamPath}
+                            fill="none" stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
+                            <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
+                          </path>
+                          <path d={streamPath}
+                            fill="none" stroke="#81d4fa" strokeWidth="1" opacity="0.8" strokeDasharray="2,4">
+                            <animate attributeName="stroke-dashoffset" values="0;-12" dur="0.3s" repeatCount="indefinite" />
+                          </path>
 
-                        {/* Nozzle */}
-                        <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
+                          {/* Water spray at nozzle */}
+                          <circle cx={nozzle.x} cy={nozzle.y} r="6" fill="rgba(100,200,255,0.4)">
+                            <animate attributeName="r" values="5;8;5" dur="0.6s" repeatCount="indefinite" />
+                          </circle>
 
-                        {/* Firefighter */}
-                        <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
-                        <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+                          {/* Nozzle */}
+                          <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
 
-                        {/* Stvol label */}
-                        <text x={nozzle.x} y={nozzle.y + 18} textAnchor="middle" fill="#81d4fa" fontSize="5" fontFamily="sans-serif">Ствол</text>
-                      </g>
-                    ))}
+                          {/* Firefighter */}
+                          <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
+                          <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+
+                          {/* Stvol label */}
+                          <text x={nozzle.x} y={nozzle.y + 18} textAnchor="middle" fill="#81d4fa" fontSize="5" fontFamily="sans-serif">Ствол</text>
+                        </g>
+                      );
+                    })}
                   </g>
                 );
               })}
@@ -1046,9 +1115,10 @@ export default function App() {
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
                 <p>🚃 <strong>Типы вагонов:</strong> пассажирский, грузовой, цистерна, платформа. Можно менять индивидуально или весь состав.</p>
                 <p>🛡 <strong>Безопасное расстояние:</strong> техника не ближе 100 м от очага.</p>
-                <p>🔗 <strong>Рукавные линии:</strong> чёрные, с соединениями каждые 20 м.</p>
+                <p>🔗 <strong>Рукавные линии:</strong> чёрные, с соединениями каждые 20 м. Не пересекают вагоны.</p>
+                <p>🧑‍🚒 <strong>Ствольщики:</strong> минимум 2 м от контура вагона.</p>
                 <p>⋔ <strong>РТ-80:</strong> разветвление трёхходовое.</p>
-                <p>💧 <strong>Струи воды:</strong> от стволов к очагу пожара.</p>
+                <p>💧 <strong>Струи воды:</strong> от стволов к очагу пожара, обходят вагоны.</p>
                 <p>🧱 <strong>Препятствия:</strong> здания, заборы, депо — рукава обходят.</p>
               </div>
             </div>
