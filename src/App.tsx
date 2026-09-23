@@ -3,6 +3,7 @@ import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, Availa
 import { calculateDeployment, generateDefaultWagons, getIdealResources } from './utils/deployment';
 
 const WAGON_GAP = 6;
+const TRACK_Y = 300;
 const HOSE_SEGMENT_LENGTH = 40; // 20m = 40 SVG units
 const MIN_NOZZLE_DISTANCE_FROM_WAGON = 10; // 5m = 10 SVG units
 const MIN_NOZZLE_DISTANCE_FROM_FIRE = 6; // 3m = 6 SVG units
@@ -270,8 +271,17 @@ function generateHoseLine(
   };
 }
 
+type WagonType = 'passenger' | 'freight' | 'tank' | 'platform';
+
+const WAGON_TYPE_INFO: Record<WagonType, { label: string; icon: string; color: string }> = {
+  passenger: { label: 'Пассажирский', icon: '🚃', color: '#3a4a5a' },
+  freight: { label: 'Грузовой', icon: '📦', color: '#5a4a3a' },
+  tank: { label: 'Цистерна', icon: '🛢', color: '#3a5a35' },
+  platform: { label: 'Платформа', icon: '🚛', color: '#4a4a4a' },
+};
+
 export default function App() {
-  const [wagons] = useState<Wagon[]>(generateDefaultWagons());
+  const [wagons, setWagons] = useState<Wagon[]>(generateDefaultWagons());
   const [fireSource, setFireSource] = useState<FireSource | null>(null);
   const [obstacles, setObstacles] = useState<Obstacle[]>([]);
   const [toolMode, setToolMode] = useState<ToolMode>('none');
@@ -285,6 +295,7 @@ export default function App() {
   const [showResources, setShowResources] = useState(false);
   const [resources, setResources] = useState<AvailableResources>(DEFAULT_RESOURCES);
   const [useCustomResources, setUseCustomResources] = useState(false);
+  const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const idealResources = useMemo(() => {
@@ -332,8 +343,50 @@ export default function App() {
       };
       setObstacles(prev => [...prev, newObs]);
       setDeployment(null);
+    } else if (toolMode === 'none' || toolMode === 'select') {
+      // Check if clicked on a wagon to select it for type change
+      const clickedWagon = wagons.find(
+        w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height
+      );
+      if (clickedWagon) {
+        setSelectedWagonId(clickedWagon.id);
+      } else {
+        setSelectedWagonId(null);
+      }
     }
   }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragging]);
+
+  const changeWagonType = useCallback((wagonId: number, newType: WagonType) => {
+    setWagons(prev => prev.map(w => {
+      if (w.id === wagonId) {
+        const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
+        return {
+          ...w,
+          type: newType,
+          height,
+          y: TRACK_Y - height / 2,
+          label: `${WAGON_TYPE_INFO[newType].label} №${w.id}`,
+        };
+      }
+      return w;
+    }));
+    setSelectedWagonId(null);
+    setDeployment(null);
+  }, []);
+
+  const changeAllWagonsType = useCallback((newType: WagonType) => {
+    setWagons(prev => prev.map(w => {
+      const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
+      return {
+        ...w,
+        type: newType,
+        height,
+        y: TRACK_Y - height / 2,
+        label: `${WAGON_TYPE_INFO[newType].label} №${w.id}`,
+      };
+    }));
+    setDeployment(null);
+  }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, obsId: string) => {
     if (toolMode !== 'select') return;
@@ -527,6 +580,53 @@ export default function App() {
               </div>
             )}
 
+            {/* Train type selector */}
+            <div>
+              <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Тип поезда</h3>
+              <div className="grid grid-cols-2 gap-1">
+                {(Object.keys(WAGON_TYPE_INFO) as WagonType[]).map(type => (
+                  <button
+                    key={type}
+                    onClick={() => changeAllWagonsType(type)}
+                    className="px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 bg-gray-700/80 text-gray-300 hover:bg-gray-600"
+                  >
+                    <span className="text-xs">{WAGON_TYPE_INFO[type].icon}</span>
+                    <span>{WAGON_TYPE_INFO[type].label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[9px] text-gray-500 italic mt-1">Нажмите для смены типа всех вагонов</p>
+            </div>
+
+            {/* Selected wagon type changer */}
+            {selectedWagonId && (
+              <div className="p-2.5 bg-purple-900/20 rounded-lg border border-purple-500/30">
+                <div className="flex items-center justify-between mb-1.5">
+                  <h3 className="text-[11px] font-semibold text-purple-400">
+                    {WAGON_TYPE_INFO[wagons.find(w => w.id === selectedWagonId)?.type || 'freight'].icon} Вагон №{selectedWagonId}
+                  </h3>
+                  <button onClick={() => setSelectedWagonId(null)} className="text-[9px] text-purple-400 hover:text-purple-300">✕</button>
+                </div>
+                <p className="text-[9px] text-gray-400 mb-1.5">Выберите тип вагона:</p>
+                <div className="grid grid-cols-2 gap-1">
+                  {(Object.keys(WAGON_TYPE_INFO) as WagonType[]).map(type => (
+                    <button
+                      key={type}
+                      onClick={() => changeWagonType(selectedWagonId, type)}
+                      className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
+                        wagons.find(w => w.id === selectedWagonId)?.type === type
+                          ? 'bg-purple-600 text-white ring-1 ring-purple-400'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      <span className="text-xs">{WAGON_TYPE_INFO[type].icon}</span>
+                      <span>{WAGON_TYPE_INFO[type].label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {obstacles.length > 0 && (
               <div>
                 <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Препятствия ({obstacles.length})</h3>
@@ -602,7 +702,7 @@ export default function App() {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              style={{ cursor: toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : 'default' }}
+              style={{ cursor: toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : 'pointer' }}
             >
               <defs>
                 <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -641,12 +741,14 @@ export default function App() {
               {/* Wagons */}
               {wagons.map(wagon => {
                 const isOnFire = fireSource?.wagonId === wagon.id;
+                const isSelected = selectedWagonId === wagon.id;
+                const wagonColor = WAGON_TYPE_INFO[wagon.type].color;
                 return (
-                  <g key={wagon.id}>
+                  <g key={wagon.id} style={{ cursor: 'pointer' }}>
                     <rect x={wagon.x + 2} y={wagon.y + 2} width={wagon.width} height={wagon.height} fill="rgba(0,0,0,0.3)" rx="3" />
                     <rect x={wagon.x} y={wagon.y} width={wagon.width} height={wagon.height}
-                      fill={wagon.type === 'tank' ? '#3a5a35' : wagon.type === 'passenger' ? '#3a4a5a' : wagon.type === 'platform' ? '#4a4a4a' : '#5a4a3a'}
-                      stroke={isOnFire ? '#ff4500' : '#666'} strokeWidth={isOnFire ? 2.5 : 1} rx="3" />
+                      fill={wagonColor}
+                      stroke={isOnFire ? '#ff4500' : isSelected ? '#a855f7' : '#666'} strokeWidth={isOnFire ? 2.5 : isSelected ? 2 : 1} rx="3" />
                     {wagon.type === 'tank' && (
                       <>
                         <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 4} fill="none" stroke="#5a7a55" strokeWidth="1.5" />
@@ -882,7 +984,7 @@ export default function App() {
             <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded px-2 py-1 border border-gray-600/50">
               <span className="text-[10px] text-gray-200 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                {toolMode === 'none' ? 'Просмотр' : toolMode === 'fire' ? 'Установка очага' : toolMode === 'obstacle' ? 'Препятствия' : 'Перемещение'}
+                {toolMode === 'none' ? 'Просмотр (клик на вагон — смена типа)' : toolMode === 'fire' ? 'Установка очага' : toolMode === 'obstacle' ? 'Препятствия' : 'Перемещение'}
               </span>
             </div>
           </div>
@@ -936,11 +1038,13 @@ export default function App() {
           <div className="bg-gray-800 rounded-xl p-5 max-w-lg border border-gray-600 shadow-2xl" onClick={e => e.stopPropagation()}>
             <h2 className="text-base font-bold text-white mb-3">📖 Справка</h2>
             <div className="space-y-2 text-[12px] text-gray-300">
+              <p><strong className="text-purple-400">0.</strong> Кликните на вагон для изменения его типа, или используйте «Тип поезда» для смены всех вагонов.</p>
               <p><strong className="text-orange-400">1.</strong> Выберите «Очаг пожара», настройте параметры и кликните на вагон.</p>
               <p><strong className="text-yellow-400">2.</strong> Разместите препятствия (здания, заборы, депо — рукава их обходят).</p>
               <p><strong className="text-indigo-400">3.</strong> Нажмите «Задать количество сил» для ограничения ресурсов.</p>
               <p><strong className="text-green-400">4.</strong> Нажмите «Расставить силы» для расчёта размещения.</p>
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
+                <p>🚃 <strong>Типы вагонов:</strong> пассажирский, грузовой, цистерна, платформа. Можно менять индивидуально или весь состав.</p>
                 <p>🛡 <strong>Безопасное расстояние:</strong> техника не ближе 100 м от очага.</p>
                 <p>🔗 <strong>Рукавные линии:</strong> чёрные, с соединениями каждые 20 м.</p>
                 <p>⋔ <strong>РТ-80:</strong> разветвление трёхходовое.</p>
