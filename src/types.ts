@@ -36,6 +36,7 @@ export interface FireUnit {
   personnel: number;
   hoses: number;
   role: string;
+  safeDistance: number;
 }
 
 export interface Deployment {
@@ -43,6 +44,16 @@ export interface Deployment {
   totalPersonnel: number;
   totalHoses: number;
   strategy: string;
+  warnings: string[];
+  safeRadius: number;
+}
+
+export interface AvailableResources {
+  ac: number;      // Автоцистерны (включая АЦ-40/АЦ-30)
+  al: number;      // Автолестницы
+  ap: number;      // Автопены
+  asr: number;     // Машины связи
+  personnel: number; // Личный состав (чел.)
 }
 
 export type ToolMode = 'none' | 'fire' | 'obstacle' | 'select';

@@ -1,8 +1,29 @@
-import { Wagon, FireSource, Obstacle, FireUnit, Deployment } from '../types';
+import { Wagon, FireSource, Obstacle, FireUnit, Deployment, AvailableResources } from '../types';
 
-const WAGON_GAP = 4;
+const WAGON_GAP = 6;
 const TRACK_Y = 300;
 const TRACK_START_X = 80;
+
+// Safe distances in SVG units (1 unit ≈ 0.5m)
+const SAFE_DISTANCES: Record<string, number> = {
+  low_wagon_body: 50,
+  low_cargo: 50,
+  low_undercarriage: 40,
+  low_tank: 70,
+  medium_wagon_body: 65,
+  medium_cargo: 65,
+  medium_undercarriage: 55,
+  medium_tank: 90,
+  high_wagon_body: 80,
+  high_cargo: 80,
+  high_undercarriage: 70,
+  high_tank: 110,
+};
+
+function getSafeDistance(fireSource: FireSource): number {
+  const key = `${fireSource.intensity}_${fireSource.type}`;
+  return SAFE_DISTANCES[key] || 60;
+}
 
 function rectIntersects(
   ax: number, ay: number, aw: number, ah: number,
@@ -41,80 +62,112 @@ function isLineBlocked(
   return false;
 }
 
+function distanceBetween(x1: number, y1: number, x2: number, y2: number): number {
+  return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+}
+
 function findAccessiblePosition(
   targetX: number, targetY: number,
   unitWidth: number, unitHeight: number,
   obstacles: Obstacle[],
   preferredSide: 'top' | 'bottom' | 'left' | 'right',
-  minDistance: number = 30,
-  maxDistance: number = 140
+  minDistance: number,
+  maxDistance: number,
+  safeDistance: number,
+  occupiedPositions: Array<{ x: number; y: number; w: number; h: number }>
 ): { x: number; y: number; angle: number } | null {
   const offsets = {
     top: [
       { dx: 0, dy: -1, angle: 90 },
-      { dx: -0.7, dy: -1, angle: 125 },
-      { dx: 0.7, dy: -1, angle: 55 },
-      { dx: -1, dy: -0.7, angle: 145 },
-      { dx: 1, dy: -0.7, angle: 35 },
-      { dx: -1, dy: 0, angle: 180 },
-      { dx: 1, dy: 0, angle: 0 },
+      { dx: -0.5, dy: -1, angle: 115 },
+      { dx: 0.5, dy: -1, angle: 65 },
+      { dx: -0.8, dy: -0.8, angle: 135 },
+      { dx: 0.8, dy: -0.8, angle: 45 },
+      { dx: -1, dy: -0.5, angle: 155 },
+      { dx: 1, dy: -0.5, angle: 25 },
     ],
     bottom: [
       { dx: 0, dy: 1, angle: 270 },
-      { dx: -0.7, dy: 1, angle: 235 },
-      { dx: 0.7, dy: 1, angle: 305 },
-      { dx: -1, dy: 0.7, angle: 215 },
-      { dx: 1, dy: 0.7, angle: 325 },
-      { dx: -1, dy: 0, angle: 180 },
-      { dx: 1, dy: 0, angle: 0 },
+      { dx: -0.5, dy: 1, angle: 245 },
+      { dx: 0.5, dy: 1, angle: 295 },
+      { dx: -0.8, dy: 0.8, angle: 225 },
+      { dx: 0.8, dy: 0.8, angle: 315 },
+      { dx: -1, dy: 0.5, angle: 205 },
+      { dx: 1, dy: 0.5, angle: 335 },
     ],
     left: [
       { dx: -1, dy: 0, angle: 0 },
       { dx: -1, dy: -0.5, angle: 25 },
       { dx: -1, dy: 0.5, angle: 335 },
-      { dx: -0.7, dy: -1, angle: 55 },
-      { dx: -0.7, dy: 1, angle: 305 },
+      { dx: -0.8, dy: -0.8, angle: 45 },
+      { dx: -0.8, dy: 0.8, angle: 315 },
     ],
     right: [
       { dx: 1, dy: 0, angle: 180 },
       { dx: 1, dy: -0.5, angle: 155 },
       { dx: 1, dy: 0.5, angle: 205 },
-      { dx: 0.7, dy: -1, angle: 125 },
-      { dx: 0.7, dy: 1, angle: 235 },
+      { dx: 0.8, dy: -0.8, angle: 135 },
+      { dx: 0.8, dy: 0.8, angle: 225 },
     ],
   };
 
   const dirs = offsets[preferredSide];
 
+  // First pass: clear line of sight + safe distance
   for (const dir of dirs) {
-    for (let dist = minDistance; dist <= maxDistance; dist += 12) {
+    for (let dist = Math.max(minDistance, safeDistance); dist <= maxDistance; dist += 10) {
       const px = targetX + dir.dx * dist;
       const py = targetY + dir.dy * dist;
 
-      // Check bounds
       if (px < 10 || px + unitWidth > 990 || py < 10 || py + unitHeight > 590) continue;
 
+      // Check safe distance from fire
+      const distToFire = distanceBetween(px + unitWidth / 2, py + unitHeight / 2, targetX, targetY);
+      if (distToFire < safeDistance) continue;
+
       // Check obstacle collision
-      if (!isPositionBlocked(px, py, unitWidth, unitHeight, obstacles)) {
-        // Check if line of sight is clear
-        if (!isLineBlocked(px + unitWidth / 2, py + unitHeight / 2, targetX, targetY, obstacles)) {
-          return { x: px, y: py, angle: dir.angle };
+      if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles)) continue;
+
+      // Check collision with other units
+      let collidesWithUnit = false;
+      for (const pos of occupiedPositions) {
+        if (rectIntersects(px - 5, py - 5, unitWidth + 10, unitHeight + 10, pos.x, pos.y, pos.w, pos.h)) {
+          collidesWithUnit = true;
+          break;
         }
+      }
+      if (collidesWithUnit) continue;
+
+      // Check line of sight
+      if (!isLineBlocked(px + unitWidth / 2, py + unitHeight / 2, targetX, targetY, obstacles)) {
+        return { x: px, y: py, angle: dir.angle };
       }
     }
   }
 
-  // Second pass - allow blocked line of sight (hoses can go around)
+  // Second pass: allow blocked line of sight (hoses route around obstacles)
   for (const dir of dirs) {
-    for (let dist = minDistance; dist <= maxDistance; dist += 12) {
+    for (let dist = Math.max(minDistance, safeDistance); dist <= maxDistance; dist += 10) {
       const px = targetX + dir.dx * dist;
       const py = targetY + dir.dy * dist;
 
       if (px < 10 || px + unitWidth > 990 || py < 10 || py + unitHeight > 590) continue;
 
-      if (!isPositionBlocked(px, py, unitWidth, unitHeight, obstacles)) {
-        return { x: px, y: py, angle: dir.angle };
+      const distToFire = distanceBetween(px + unitWidth / 2, py + unitHeight / 2, targetX, targetY);
+      if (distToFire < safeDistance) continue;
+
+      if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles)) continue;
+
+      let collidesWithUnit = false;
+      for (const pos of occupiedPositions) {
+        if (rectIntersects(px - 5, py - 5, unitWidth + 10, unitHeight + 10, pos.x, pos.y, pos.w, pos.h)) {
+          collidesWithUnit = true;
+          break;
+        }
       }
+      if (collidesWithUnit) continue;
+
+      return { x: px, y: py, angle: dir.angle };
     }
   }
 
@@ -124,7 +177,8 @@ function findAccessiblePosition(
 export function calculateDeployment(
   wagons: Wagon[],
   fireSource: FireSource | null,
-  obstacles: Obstacle[]
+  obstacles: Obstacle[],
+  resources?: AvailableResources | null
 ): Deployment | null {
   if (!fireSource) return null;
 
@@ -132,115 +186,133 @@ export function calculateDeployment(
   if (!fireWagon) return null;
 
   const units: FireUnit[] = [];
+  const warnings: string[] = [];
   let unitId = 1;
 
   const fireX = fireSource.x;
   const fireY = fireSource.y;
+  const safeDist = getSafeDistance(fireSource);
 
-  // Determine intensity-based requirements
-  const intensityMultiplier = fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1.5 : 1;
+  // Available resources tracking
+  let availAC = resources ? resources.ac : 10;
+  let availAL = resources ? resources.al : 3;
+  let availAP = resources ? resources.ap : 2;
+  let availASR = resources ? resources.asr : 1;
+  let availPersonnel = resources ? resources.personnel : 100;
 
-  // === PRIMARY ATTACK POSITIONS ===
+  const occupiedPositions: Array<{ x: number; y: number; w: number; h: number }> = [];
 
-  // Position 1: Top side - primary attack
-  const topPos1 = findAccessiblePosition(fireX, fireY, 50, 25, obstacles, 'top', 35, 110);
-  if (topPos1) {
+  const addUnit = (unit: Omit<FireUnit, 'id' | 'safeDistance'>): boolean => {
+    if (unit.type === 'aca' || unit.type === 'ac') {
+      if (availAC <= 0) return false;
+      if (availPersonnel < unit.personnel) return false;
+      availAC--;
+    } else if (unit.type === 'al') {
+      if (availAL <= 0) return false;
+      if (availPersonnel < unit.personnel) return false;
+      availAL--;
+    } else if (unit.type === 'ap') {
+      if (availAP <= 0) return false;
+      if (availPersonnel < unit.personnel) return false;
+      availAP--;
+    } else if (unit.type === 'asr') {
+      if (availASR <= 0) return false;
+      if (availPersonnel < unit.personnel) return false;
+      availASR--;
+    }
+    availPersonnel -= unit.personnel;
+
     units.push({
+      ...unit,
       id: `unit-${unitId++}`,
+      safeDistance: safeDist,
+    });
+    occupiedPositions.push({ x: unit.x, y: unit.y, w: 50, h: 22 });
+    return true;
+  };
+
+  // === DETERMINE REQUIRED FORCES ===
+  const intensityMult = fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1.5 : 1;
+
+  // Calculate ideal number of units
+  const idealAC = Math.ceil(2 * intensityMult) + (fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1 : 0);
+  const idealAL = (fireSource.type === 'wagon_body' || fireSource.type === 'tank') ? 1 : 0;
+  const idealAP = fireSource.type === 'tank' ? 1 : 0;
+  const idealASR = 1;
+
+  // === PRIMARY ATTACK ===
+  // Top side
+  const topPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'top', 30, 150, safeDist, occupiedPositions);
+  if (topPos && availAC > 0) {
+    addUnit({
       type: 'aca',
-      name: 'АЦ-40 (1/6)',
-      x: topPos1.x,
-      y: topPos1.y,
-      angle: topPos1.angle,
+      name: 'АЦ-40',
+      x: topPos.x,
+      y: topPos.y,
+      angle: topPos.angle,
       personnel: 7,
-      hoses: Math.ceil(2 * intensityMultiplier),
-      role: 'Основной ствол (верх)',
+      hoses: Math.ceil(2 * intensityMult),
+      role: 'Ствол №1 (верх)',
     });
   }
 
-  // Position 2: Bottom side - primary attack
-  const bottomPos1 = findAccessiblePosition(fireX, fireY, 50, 25, obstacles, 'bottom', 35, 110);
-  if (bottomPos1) {
-    units.push({
-      id: `unit-${unitId++}`,
+  // Bottom side
+  const bottomPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'bottom', 30, 150, safeDist, occupiedPositions);
+  if (bottomPos && availAC > 0) {
+    addUnit({
       type: 'aca',
-      name: 'АЦ-40 (2/6)',
-      x: bottomPos1.x,
-      y: bottomPos1.y,
-      angle: bottomPos1.angle,
+      name: 'АЦ-40',
+      x: bottomPos.x,
+      y: bottomPos.y,
+      angle: bottomPos.angle,
       personnel: 7,
-      hoses: Math.ceil(2 * intensityMultiplier),
-      role: 'Основной ствол (низ)',
+      hoses: Math.ceil(2 * intensityMult),
+      role: 'Ствол №2 (низ)',
     });
   }
 
-  // === FLANK POSITIONS (for medium/high intensity) ===
+  // === FLANK POSITIONS ===
   if (fireSource.intensity === 'medium' || fireSource.intensity === 'high') {
-    // Left flank
     const leftPos = findAccessiblePosition(
-      fireWagon.x - 10, fireY, 50, 25, obstacles, 'top', 40, 120
+      fireWagon.x - 10, fireY, 50, 22, obstacles, 'top', 35, 140, safeDist, occupiedPositions
     );
-    if (leftPos) {
-      units.push({
-        id: `unit-${unitId++}`,
+    if (leftPos && availAC > 0) {
+      addUnit({
         type: 'ac',
-        name: 'АЦ-40 (3/6)',
+        name: 'АЦ-40',
         x: leftPos.x,
         y: leftPos.y,
         angle: leftPos.angle,
         personnel: 6,
-        hoses: Math.ceil(1.5 * intensityMultiplier),
-        role: 'Левый фланг / защита смежных',
+        hoses: 2,
+        role: 'Левый фланг',
       });
     }
   }
 
   if (fireSource.intensity === 'high') {
-    // Right flank
     const rightPos = findAccessiblePosition(
-      fireWagon.x + fireWagon.width + 10, fireY, 50, 25, obstacles, 'top', 40, 120
+      fireWagon.x + fireWagon.width + 10, fireY, 50, 22, obstacles, 'top', 35, 140, safeDist, occupiedPositions
     );
-    if (rightPos) {
-      units.push({
-        id: `unit-${unitId++}`,
+    if (rightPos && availAC > 0) {
+      addUnit({
         type: 'ac',
-        name: 'АЦ-40 (4/6)',
+        name: 'АЦ-40',
         x: rightPos.x,
         y: rightPos.y,
         angle: rightPos.angle,
         personnel: 6,
         hoses: 2,
-        role: 'Правый фланг / защита смежных',
+        role: 'Правый фланг',
       });
-    }
-
-    // Undercarriage attack (if applicable)
-    if (fireSource.type === 'undercarriage') {
-      const underPos = findAccessiblePosition(fireX, fireY + 30, 50, 25, obstacles, 'bottom', 25, 80);
-      if (underPos) {
-        units.push({
-          id: `unit-${unitId++}`,
-          type: 'ac',
-          name: 'АЦ-40 (5/6)',
-          x: underPos.x,
-          y: underPos.y,
-          angle: underPos.angle,
-          personnel: 6,
-          hoses: 2,
-          role: 'Атака ходовой части',
-        });
-      }
     }
   }
 
   // === SPECIALIZED UNITS ===
-
-  // Aerial ladder for tall objects
-  if (fireSource.type === 'wagon_body' || fireSource.type === 'tank') {
-    const ladderPos = findAccessiblePosition(fireX, fireY, 60, 25, obstacles, 'top', 55, 140);
+  if (idealAL > 0 && availAL > 0) {
+    const ladderPos = findAccessiblePosition(fireX, fireY, 55, 22, obstacles, 'top', 50, 160, safeDist, occupiedPositions);
     if (ladderPos) {
-      units.push({
-        id: `unit-${unitId++}`,
+      addUnit({
         type: 'al',
         name: 'АЛ-30(40)',
         x: ladderPos.x,
@@ -248,17 +320,15 @@ export function calculateDeployment(
         angle: ladderPos.angle,
         personnel: 5,
         hoses: 1,
-        role: 'Подача ОТВ сверху',
+        role: 'Подача сверху',
       });
     }
   }
 
-  // Foam unit for tank/LV fires
-  if (fireSource.type === 'tank') {
-    const foamPos = findAccessiblePosition(fireX, fireY, 50, 25, obstacles, 'bottom', 55, 130);
+  if (idealAP > 0 && availAP > 0) {
+    const foamPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'bottom', 50, 150, safeDist, occupiedPositions);
     if (foamPos) {
-      units.push({
-        id: `unit-${unitId++}`,
+      addUnit({
         type: 'ap',
         name: 'АП-40(50)',
         x: foamPos.x,
@@ -266,62 +336,85 @@ export function calculateDeployment(
         angle: foamPos.angle,
         personnel: 6,
         hoses: 2,
-        role: 'Пенная атака цистерны',
+        role: 'Пенная атака',
       });
     }
   }
 
-  // === SUPPORT UNITS ===
-
-  // Command/communication vehicle
-  const reservePos = findAccessiblePosition(fireX, fireY, 50, 25, obstacles, 'top', 90, 170);
-  if (reservePos) {
-    units.push({
-      id: `unit-${unitId++}`,
-      type: 'asr',
-      name: 'АСР',
-      x: reservePos.x,
-      y: reservePos.y,
-      angle: reservePos.angle,
-      personnel: 4,
-      hoses: 0,
-      role: 'Штаб / связь / резерв',
-    });
+  // === SUPPORT ===
+  if (availASR > 0) {
+    const reservePos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'top', 80, 180, safeDist, occupiedPositions);
+    if (reservePos) {
+      addUnit({
+        type: 'asr',
+        name: 'АСР',
+        x: reservePos.x,
+        y: reservePos.y,
+        angle: reservePos.angle,
+        personnel: 3,
+        hoses: 0,
+        role: 'Штаб / связь',
+      });
+    }
   }
 
-  // === DETERMINE STRATEGY ===
+  // === GENERATE WARNINGS ===
+  if (resources) {
+    if (availAC < idealAC - units.filter(u => u.type === 'aca' || u.type === 'ac').length + units.filter(u => u.type === 'aca' || u.type === 'ac').length) {
+      // Check if we deployed less than ideal
+    }
+    const deployedAC = units.filter(u => u.type === 'aca' || u.type === 'ac').length;
+    const deployedAL = units.filter(u => u.type === 'al').length;
+    const deployedAP = units.filter(u => u.type === 'ap').length;
+
+    if (deployedAC < idealAC) {
+      warnings.push(`⚠ Недостаточно АЦ: требуется ${idealAC}, имеется ${resources.ac}, размещено ${deployedAC}`);
+    }
+    if (idealAL > 0 && deployedAL < idealAL) {
+      warnings.push(`⚠ Недостаточно АЛ: требуется ${idealAL}, размещено ${deployedAL}`);
+    }
+    if (idealAP > 0 && deployedAP < idealAP) {
+      warnings.push(`⚠ Недостаточно АП: требуется ${idealAP}, размещено ${deployedAP}`);
+    }
+
+    const totalPersonnelNeeded = Math.ceil((7 * 2 + 6 * (fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1 : 0) + 5 * idealAL + 6 * idealAP + 3) * intensityMult);
+    if (resources.personnel < totalPersonnelNeeded) {
+      warnings.push(`⚠ Недостаточно л/состава: оптимально ${totalPersonnelNeeded} чел., имеется ${resources.personnel}`);
+    }
+  }
+
+  // Check access limitations
+  const topAccess = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'top', 20, safeDist + 10, safeDist, []);
+  const bottomAccess = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'bottom', 20, safeDist + 10, safeDist, []);
+  if (!topAccess && !bottomAccess) {
+    warnings.push('🚫 Критически ограниченный доступ! Препятствия блокируют все подходы.');
+  } else if (!topAccess) {
+    warnings.push('⚠ Доступ сверху заблокирован препятствиями.');
+  } else if (!bottomAccess) {
+    warnings.push('⚠ Доступ снизу заблокирован препятствиями.');
+  }
+
+  // === STRATEGY ===
   let strategy = '';
+  const deployedAC = units.filter(u => u.type === 'aca' || u.type === 'ac').length;
+
+  if (deployedAC >= 4) {
+    strategy = 'Атака с 3-4 направлений. Полная локализация и ликвидация. ';
+  } else if (deployedAC >= 2) {
+    strategy = 'Атака с 2 направлений (верх/низ). ';
+  } else if (deployedAC === 1) {
+    strategy = 'Единственное направление атаки. Ограниченные силы. ';
+  } else {
+    strategy = 'Недостаточно сил для эффективной атаки! ';
+  }
 
   if (fireSource.intensity === 'high') {
-    strategy = 'Локализация и ликвидация с трёх-четырёх направлений. ';
     strategy += 'Охлаждение смежных вагонов. ';
-    if (fireSource.type === 'tank') {
-      strategy += 'Пенная атака на цистерну. Контроль растекания ГЖ. ';
-    }
-    strategy += 'Защита соседних путей и объектов.';
-  } else if (fireSource.intensity === 'medium') {
-    strategy = 'Атака с двух направлений (верх/низ). ';
-    strategy += 'Защита смежных вагонов водяными завесами. ';
-    if (fireSource.type === 'tank') {
-      strategy += 'Пенное тушение резервуара. ';
-    }
-    strategy += 'Контроль распространения огня.';
-  } else {
-    strategy = 'Локализация пожара. ';
-    strategy += 'Подача стволов с ближайших доступных направлений. ';
-    strategy += 'Разведка и дотушивание.';
   }
-
-  if (fireSource.type === 'undercarriage') {
-    strategy += ' Особое внимание: тушение ходовой части снизу.';
+  if (fireSource.type === 'tank') {
+    strategy += 'Пенная атака цистерны. ';
   }
-
-  // Check if obstacles significantly limit access
-  const topAccess = findAccessiblePosition(fireX, fireY, 50, 25, obstacles, 'top', 30, 50);
-  const bottomAccess = findAccessiblePosition(fireX, fireY, 50, 25, obstacles, 'bottom', 30, 50);
-  if (!topAccess || !bottomAccess) {
-    strategy += ' ⚠ Ограниченный доступ! Требуется прокладка дополнительных рукавных линий.';
-  }
+  strategy += `Безопасное расстояние: ${(safeDist * 0.5).toFixed(0)} м.`;
 
   const totalPersonnel = units.reduce((sum, u) => sum + u.personnel, 0);
   const totalHoses = units.reduce((sum, u) => sum + u.hoses, 0);
@@ -331,6 +424,8 @@ export function calculateDeployment(
     totalPersonnel,
     totalHoses,
     strategy,
+    warnings,
+    safeRadius: safeDist,
   };
 }
 
@@ -347,13 +442,15 @@ export function generateDefaultWagons(): Wagon[] {
   let currentX = TRACK_START_X;
 
   for (let i = 0; i < types.length; i++) {
-    const width = types[i] === 'platform' ? 90 : 100;
+    // Top view: wagons are longer than wide
+    const width = types[i] === 'platform' ? 80 : 90;
+    const height = types[i] === 'tank' ? 32 : types[i] === 'passenger' ? 28 : 26;
     wagons.push({
       id: i + 1,
       x: currentX,
-      y: TRACK_Y - 20,
+      y: TRACK_Y - height / 2,
       width,
-      height: 40,
+      height,
       type: types[i],
       label: labels[i],
     });
@@ -361,4 +458,14 @@ export function generateDefaultWagons(): Wagon[] {
   }
 
   return wagons;
+}
+
+export function getIdealResources(fireSource: FireSource): { ac: number; al: number; ap: number; asr: number; personnel: number } {
+  const intensityMult = fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1.5 : 1;
+  const ac = Math.ceil(2 * intensityMult) + (fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1 : 0);
+  const al = (fireSource.type === 'wagon_body' || fireSource.type === 'tank') ? 1 : 0;
+  const ap = fireSource.type === 'tank' ? 1 : 0;
+  const asr = 1;
+  const personnel = Math.ceil((7 * 2 + 6 * (fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1 : 0) + 5 * al + 6 * ap + 3) * intensityMult);
+  return { ac, al, ap, asr, personnel };
 }
