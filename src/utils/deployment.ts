@@ -6,23 +6,25 @@ const TRACK_START_X = 80;
 
 // Safe distances in SVG units (1 unit ≈ 0.5m)
 const SAFE_DISTANCES: Record<string, number> = {
-  low_wagon_body: 50,
-  low_cargo: 50,
-  low_undercarriage: 40,
-  low_tank: 70,
-  medium_wagon_body: 65,
-  medium_cargo: 65,
-  medium_undercarriage: 55,
-  medium_tank: 90,
-  high_wagon_body: 80,
-  high_cargo: 80,
-  high_undercarriage: 70,
-  high_tank: 110,
+  low_wagon_body: 200,
+  low_cargo: 200,
+  low_undercarriage: 200,
+  low_tank: 200,
+  medium_wagon_body: 200,
+  medium_cargo: 200,
+  medium_undercarriage: 200,
+  medium_tank: 200,
+  high_wagon_body: 200,
+  high_cargo: 200,
+  high_undercarriage: 200,
+  high_tank: 200,
 };
 
+// Minimum distance from fire (100m = 200 SVG units)
+const MIN_DISTANCE_FROM_FIRE = 200;
+
 function getSafeDistance(fireSource: FireSource): number {
-  const key = `${fireSource.intensity}_${fireSource.type}`;
-  return SAFE_DISTANCES[key] || 60;
+  return MIN_DISTANCE_FROM_FIRE;
 }
 
 function rectIntersects(
@@ -138,10 +140,7 @@ function findAccessiblePosition(
       }
       if (collidesWithUnit) continue;
 
-      // Check line of sight
-      if (!isLineBlocked(px + unitWidth / 2, py + unitHeight / 2, targetX, targetY, obstacles)) {
-        return { x: px, y: py, angle: dir.angle };
-      }
+      return { x: px, y: py, angle: dir.angle };
     }
   }
 
@@ -242,7 +241,7 @@ export function calculateDeployment(
 
   // === PRIMARY ATTACK ===
   // Top side
-  const topPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'top', 30, 150, safeDist, occupiedPositions);
+  const topPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'top', 30, 300, safeDist, occupiedPositions);
   if (topPos && availAC > 0) {
     addUnit({
       type: 'aca',
@@ -257,7 +256,7 @@ export function calculateDeployment(
   }
 
   // Bottom side
-  const bottomPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'bottom', 30, 150, safeDist, occupiedPositions);
+  const bottomPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'bottom', 30, 300, safeDist, occupiedPositions);
   if (bottomPos && availAC > 0) {
     addUnit({
       type: 'aca',
@@ -274,7 +273,7 @@ export function calculateDeployment(
   // === FLANK POSITIONS ===
   if (fireSource.intensity === 'medium' || fireSource.intensity === 'high') {
     const leftPos = findAccessiblePosition(
-      fireWagon.x - 10, fireY, 50, 22, obstacles, 'top', 35, 140, safeDist, occupiedPositions
+      fireWagon.x - 10, fireY, 50, 22, obstacles, 'top', 35, 280, safeDist, occupiedPositions
     );
     if (leftPos && availAC > 0) {
       addUnit({
@@ -292,7 +291,7 @@ export function calculateDeployment(
 
   if (fireSource.intensity === 'high') {
     const rightPos = findAccessiblePosition(
-      fireWagon.x + fireWagon.width + 10, fireY, 50, 22, obstacles, 'top', 35, 140, safeDist, occupiedPositions
+      fireWagon.x + fireWagon.width + 10, fireY, 50, 22, obstacles, 'top', 35, 280, safeDist, occupiedPositions
     );
     if (rightPos && availAC > 0) {
       addUnit({
@@ -310,7 +309,7 @@ export function calculateDeployment(
 
   // === SPECIALIZED UNITS ===
   if (idealAL > 0 && availAL > 0) {
-    const ladderPos = findAccessiblePosition(fireX, fireY, 55, 22, obstacles, 'top', 50, 160, safeDist, occupiedPositions);
+    const ladderPos = findAccessiblePosition(fireX, fireY, 55, 22, obstacles, 'top', 50, 300, safeDist, occupiedPositions);
     if (ladderPos) {
       addUnit({
         type: 'al',
@@ -326,7 +325,7 @@ export function calculateDeployment(
   }
 
   if (idealAP > 0 && availAP > 0) {
-    const foamPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'bottom', 50, 150, safeDist, occupiedPositions);
+    const foamPos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'bottom', 50, 280, safeDist, occupiedPositions);
     if (foamPos) {
       addUnit({
         type: 'ap',
@@ -343,7 +342,7 @@ export function calculateDeployment(
 
   // === SUPPORT ===
   if (availASR > 0) {
-    const reservePos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'top', 80, 180, safeDist, occupiedPositions);
+    const reservePos = findAccessiblePosition(fireX, fireY, 50, 22, obstacles, 'top', 80, 320, safeDist, occupiedPositions);
     if (reservePos) {
       addUnit({
         type: 'asr',
@@ -360,9 +359,6 @@ export function calculateDeployment(
 
   // === GENERATE WARNINGS ===
   if (resources) {
-    if (availAC < idealAC - units.filter(u => u.type === 'aca' || u.type === 'ac').length + units.filter(u => u.type === 'aca' || u.type === 'ac').length) {
-      // Check if we deployed less than ideal
-    }
     const deployedAC = units.filter(u => u.type === 'aca' || u.type === 'ac').length;
     const deployedAL = units.filter(u => u.type === 'al').length;
     const deployedAP = units.filter(u => u.type === 'ap').length;

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources } from './types';
+import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit } from './types';
 import { calculateDeployment, generateDefaultWagons, getIdealResources } from './utils/deployment';
 
 const WAGON_GAP = 6;
@@ -20,6 +20,73 @@ const DEFAULT_RESOURCES: AvailableResources = {
   asr: 1,
   personnel: 60,
 };
+
+// Hose line generation
+interface HoseLine {
+  mainHose: string; // SVG path for main hose from unit to branch
+  branchPoint: { x: number; y: number };
+  branchHoses: string[]; // SVG paths from branch to nozzles
+  nozzles: Array<{ x: number; y: number }>;
+}
+
+function generateHoseLine(unit: FireUnit, fireX: number, fireY: number, unitWidth: number, unitHeight: number): HoseLine {
+  const startX = unit.x + unitWidth / 2;
+  const startY = unit.y + unitHeight / 2;
+
+  // Calculate direction to fire
+  const dx = fireX - startX;
+  const dy = fireY - startY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const normX = dx / dist;
+  const normY = dy / dist;
+
+  // Branch point at ~60% of distance (after first hose section)
+  const branchDist = dist * 0.6;
+  const branchX = startX + normX * branchDist;
+  const branchY = startY + normY * branchDist;
+
+  // Generate curved main hose path (with slight bend)
+  const midX = (startX + branchX) / 2;
+  const midY = (startY + branchY) / 2;
+  // Add perpendicular offset for curve
+  const perpX = -normY * 15;
+  const perpY = normX * 15;
+  const controlX = midX + perpX;
+  const controlY = midY + perpY;
+
+  const mainHose = `M ${startX} ${startY} Q ${controlX} ${controlY} ${branchX} ${branchY}`;
+
+  // Generate two branch hoses to fire (split angle)
+  const splitAngle = 0.3; // radians (~17 degrees)
+  const branchHoses: string[] = [];
+  const nozzles: Array<{ x: number; y: number }> = [];
+
+  for (let i = -1; i <= 1; i += 2) {
+    const angle = Math.atan2(dy, dx) + splitAngle * i;
+    const nozzleDist = dist * 0.95;
+    const nozzleX = startX + Math.cos(angle) * nozzleDist;
+    const nozzleY = startY + Math.sin(angle) * nozzleDist;
+
+    nozzles.push({ x: nozzleX, y: nozzleY });
+
+    // Curved branch hose
+    const bMidX = (branchX + nozzleX) / 2;
+    const bMidY = (branchY + nozzleY) / 2;
+    const bPerpX = -Math.sin(angle) * (i * 12);
+    const bPerpY = Math.cos(angle) * (i * 12);
+    const bControlX = bMidX + bPerpX;
+    const bControlY = bMidY + bPerpY;
+
+    branchHoses.push(`M ${branchX} ${branchY} Q ${bControlX} ${bControlY} ${nozzleX} ${nozzleY}`);
+  }
+
+  return {
+    mainHose,
+    branchPoint: { x: branchX, y: branchY },
+    branchHoses,
+    nozzles,
+  };
+}
 
 export default function App() {
   const [wagons] = useState<Wagon[]>(generateDefaultWagons());
@@ -439,11 +506,6 @@ export default function App() {
                   <stop offset="70%" stopColor="#ff3300" stopOpacity="0.4" />
                   <stop offset="100%" stopColor="#ff0000" stopOpacity="0" />
                 </radialGradient>
-                <radialGradient id="safeZone">
-                  <stop offset="0%" stopColor="transparent" />
-                  <stop offset="85%" stopColor="transparent" />
-                  <stop offset="100%" stopColor="#ff4400" stopOpacity="0.15" />
-                </radialGradient>
                 <filter id="glow">
                   <feGaussianBlur stdDeviation="3" result="coloredBlur" />
                   <feMerge>
@@ -460,25 +522,21 @@ export default function App() {
               <rect width="1000" height="600" fill="#1e2a1e" />
               <rect width="1000" height="600" fill="url(#grid)" />
 
-              {/* Ground texture - top area */}
+              {/* Ground texture */}
               <rect x="0" y="0" width="1000" height="260" fill="#1a2a1a" opacity="0.3" />
               <rect x="0" y="360" width="1000" height="240" fill="#1a2a1a" opacity="0.3" />
 
               {/* === RAILWAY TRACKS (top view) === */}
               <g>
-                {/* Ballast */}
                 <rect x="55" y="280" width="890" height="60" fill="#3a3a3a" rx="3" />
                 <rect x="55" y="283" width="890" height="54" fill="#444" rx="2" />
 
-                {/* Sleepers (top view - perpendicular to rails) */}
                 {Array.from({ length: 50 }, (_, i) => (
                   <rect key={i} x={62 + i * 18} y="278" width="5" height="64" fill="#5a4a3a" rx="1" opacity="0.7" />
                 ))}
 
-                {/* Rails (top view - two parallel lines) */}
                 <line x1="60" y1="290" x2="940" y2="290" stroke="#aaa" strokeWidth="2.5" />
                 <line x1="60" y1="330" x2="940" y2="330" stroke="#aaa" strokeWidth="2.5" />
-                {/* Rail shine */}
                 <line x1="60" y1="289" x2="940" y2="289" stroke="#ccc" strokeWidth="0.5" />
                 <line x1="60" y1="329" x2="940" y2="329" stroke="#ccc" strokeWidth="0.5" />
               </g>
@@ -488,10 +546,8 @@ export default function App() {
                 const isOnFire = fireSource?.wagonId === wagon.id;
                 return (
                   <g key={wagon.id}>
-                    {/* Wagon shadow */}
                     <rect x={wagon.x + 2} y={wagon.y + 2} width={wagon.width} height={wagon.height} fill="rgba(0,0,0,0.3)" rx="3" />
 
-                    {/* Wagon body (top view) */}
                     <rect
                       x={wagon.x}
                       y={wagon.y}
@@ -507,101 +563,47 @@ export default function App() {
                       rx="3"
                     />
 
-                    {/* Type-specific top view details */}
                     {wagon.type === 'tank' && (
                       <>
-                        {/* Tank cylinder top view */}
-                        <ellipse
-                          cx={wagon.x + wagon.width / 2}
-                          cy={wagon.y + wagon.height / 2}
-                          rx={wagon.width / 2 - 6}
-                          ry={wagon.height / 2 - 4}
-                          fill="none"
-                          stroke="#5a7a55"
-                          strokeWidth="1.5"
-                        />
-                        {/* Dome hatch */}
+                        <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 4} fill="none" stroke="#5a7a55" strokeWidth="1.5" />
                         <circle cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} r="4" fill="#4a6a45" stroke="#6a8a65" strokeWidth="0.5" />
-                        {/* End caps */}
                         <line x1={wagon.x + 8} y1={wagon.y + 3} x2={wagon.x + 8} y2={wagon.y + wagon.height - 3} stroke="#5a7a55" strokeWidth="0.5" />
                         <line x1={wagon.x + wagon.width - 8} y1={wagon.y + 3} x2={wagon.x + wagon.width - 8} y2={wagon.y + wagon.height - 3} stroke="#5a7a55" strokeWidth="0.5" />
                       </>
                     )}
                     {wagon.type === 'passenger' && (
                       <>
-                        {/* Windows row (top view) */}
                         {Array.from({ length: 6 }, (_, i) => (
-                          <rect
-                            key={i}
-                            x={wagon.x + 8 + i * 13}
-                            y={wagon.y + 3}
-                            width="8"
-                            height="3"
-                            fill="#5a8aaa"
-                            rx="0.5"
-                            opacity="0.7"
-                          />
+                          <rect key={i} x={wagon.x + 8 + i * 13} y={wagon.y + 3} width="8" height="3" fill="#5a8aaa" rx="0.5" opacity="0.7" />
                         ))}
                         {Array.from({ length: 6 }, (_, i) => (
-                          <rect
-                            key={`b${i}`}
-                            x={wagon.x + 8 + i * 13}
-                            y={wagon.y + wagon.height - 6}
-                            width="8"
-                            height="3"
-                            fill="#5a8aaa"
-                            rx="0.5"
-                            opacity="0.7"
-                          />
+                          <rect key={`b${i}`} x={wagon.x + 8 + i * 13} y={wagon.y + wagon.height - 6} width="8" height="3" fill="#5a8aaa" rx="0.5" opacity="0.7" />
                         ))}
-                        {/* Center corridor */}
                         <line x1={wagon.x + 5} y1={wagon.y + wagon.height / 2} x2={wagon.x + wagon.width - 5} y2={wagon.y + wagon.height / 2} stroke="#4a5a6a" strokeWidth="0.5" strokeDasharray="3,2" />
                       </>
                     )}
                     {wagon.type === 'freight' && (
                       <>
-                        {/* Cargo cover ribs */}
                         {Array.from({ length: 4 }, (_, i) => (
-                          <line
-                            key={i}
-                            x1={wagon.x + 15 + i * 20}
-                            y1={wagon.y + 2}
-                            x2={wagon.x + 15 + i * 20}
-                            y2={wagon.y + wagon.height - 2}
-                            stroke="#6a5a4a"
-                            strokeWidth="0.5"
-                          />
+                          <line key={i} x1={wagon.x + 15 + i * 20} y1={wagon.y + 2} x2={wagon.x + 15 + i * 20} y2={wagon.y + wagon.height - 2} stroke="#6a5a4a" strokeWidth="0.5" />
                         ))}
                       </>
                     )}
                     {wagon.type === 'platform' && (
                       <>
-                        {/* Platform frame */}
                         <rect x={wagon.x + 4} y={wagon.y + 4} width={wagon.width - 8} height={wagon.height - 8} fill="none" stroke="#666" strokeWidth="0.5" strokeDasharray="4,2" />
-                        {/* Cross beams */}
                         <line x1={wagon.x + wagon.width / 2} y1={wagon.y + 4} x2={wagon.x + wagon.width / 2} y2={wagon.y + wagon.height - 4} stroke="#555" strokeWidth="0.5" />
                       </>
                     )}
 
-                    {/* Bogies/wheels (top view - visible as dark rectangles under wagon) */}
                     <rect x={wagon.x + 5} y={wagon.y - 2} width="14" height={wagon.height + 4} fill="#222" rx="2" opacity="0.4" />
                     <rect x={wagon.x + wagon.width - 19} y={wagon.y - 2} width="14" height={wagon.height + 4} fill="#222" rx="2" opacity="0.4" />
 
-                    {/* Coupling */}
                     {wagon.id < wagons.length && (
                       <rect x={wagon.x + wagon.width} y={wagon.y + wagon.height / 2 - 2} width={WAGON_GAP} height="4" fill="#555" rx="1" />
                     )}
 
-                    {/* Label */}
-                    <text
-                      x={wagon.x + wagon.width / 2}
-                      y={wagon.y - 8}
-                      textAnchor="middle"
-                      fill={isOnFire ? '#ff8800' : '#aaa'}
-                      fontSize="7"
-                      fontFamily="sans-serif"
-                      fontWeight={isOnFire ? 'bold' : 'normal'}
-                    >
+                    <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill={isOnFire ? '#ff8800' : '#aaa'} fontSize="7" fontFamily="sans-serif" fontWeight={isOnFire ? 'bold' : 'normal'}>
                       {wagon.label}
                     </text>
                   </g>
@@ -610,61 +612,37 @@ export default function App() {
 
               {/* === SAFE DISTANCE ZONE === */}
               {fireSource && deployment && (
-                <circle
-                  cx={fireSource.x}
-                  cy={fireSource.y}
-                  r={deployment.safeRadius}
-                  fill="none"
-                  stroke="#ff4400"
-                  strokeWidth="1.5"
-                  strokeDasharray="8,4"
-                  opacity="0.5"
-                />
-              )}
-              {fireSource && deployment && (
-                <text
-                  x={fireSource.x + deployment.safeRadius + 5}
-                  y={fireSource.y - 5}
-                  fill="#ff6644"
-                  fontSize="7"
-                  fontFamily="sans-serif"
-                  opacity="0.7"
-                >
-                  ⚠ {(deployment.safeRadius * 0.5).toFixed(0)}м
-                </text>
+                <>
+                  <circle cx={fireSource.x} cy={fireSource.y} r={deployment.safeRadius} fill="none" stroke="#ff4400" strokeWidth="1.5" strokeDasharray="8,4" opacity="0.5" />
+                  <text x={fireSource.x + deployment.safeRadius + 5} y={fireSource.y - 5} fill="#ff6644" fontSize="7" fontFamily="sans-serif" opacity="0.7">
+                    ⚠ {(deployment.safeRadius * 0.5).toFixed(0)}м
+                  </text>
+                </>
               )}
 
               {/* === FIRE SOURCE (top view) === */}
               {fireSource && (
                 <g>
-                  {/* Smoke plume (top view - spreading circle) */}
                   <circle cx={fireSource.x} cy={fireSource.y - 15} r="20" fill="rgba(80,80,80,0.3)">
                     <animate attributeName="r" values="18;25;18" dur="3s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="0.3;0.15;0.3" dur="3s" repeatCount="indefinite" />
                   </circle>
 
-                  {/* Fire glow (top view) */}
                   <circle cx={fireSource.x} cy={fireSource.y} r={fireSource.intensity === 'high' ? 35 : fireSource.intensity === 'medium' ? 25 : 18} fill="url(#fireRadial)" opacity="0.7">
                     <animate attributeName="r" values={fireSource.intensity === 'high' ? "33;40;33" : fireSource.intensity === 'medium' ? "23;28;23" : "16;20;16"} dur="0.8s" repeatCount="indefinite" />
                   </circle>
 
-                  {/* Fire core */}
                   <circle cx={fireSource.x} cy={fireSource.y} r={fireSource.intensity === 'high' ? 12 : fireSource.intensity === 'medium' ? 9 : 6} fill="#ff4500" filter="url(#glow)" opacity="0.9">
                     <animate attributeName="r" values={fireSource.intensity === 'high' ? "10;14;10" : fireSource.intensity === 'medium' ? "7;11;7" : "5;8;5"} dur="0.5s" repeatCount="indefinite" />
                   </circle>
 
-                  {/* Fire label */}
                   <text x={fireSource.x} y={fireSource.y + 3} textAnchor="middle" fill="#fff" fontSize="10" fontWeight="bold">🔥</text>
                 </g>
               )}
 
               {/* === OBSTACLES (top view) === */}
               {obstacles.map(obs => (
-                <g
-                  key={obs.id}
-                  onMouseDown={e => handleMouseDown(e, obs.id)}
-                  style={{ cursor: toolMode === 'select' ? 'move' : 'default' }}
-                >
+                <g key={obs.id} onMouseDown={e => handleMouseDown(e, obs.id)} style={{ cursor: toolMode === 'select' ? 'move' : 'default' }}>
                   <rect
                     x={obs.x}
                     y={obs.y}
@@ -684,12 +662,7 @@ export default function App() {
                     strokeDasharray={obs.type === 'fence' ? '5,3' : obs.type === 'road' ? '8,4' : 'none'}
                     rx={obs.type === 'tree_group' ? obs.width / 2 : "3"}
                   />
-                  <text
-                    x={obs.x + obs.width / 2}
-                    y={obs.y + obs.height / 2 + 4}
-                    textAnchor="middle"
-                    fontSize={Math.min(obs.width, obs.height) > 30 ? '14' : '10'}
-                  >
+                  <text x={obs.x + obs.width / 2} y={obs.y + obs.height / 2 + 4} textAnchor="middle" fontSize={Math.min(obs.width, obs.height) > 30 ? '14' : '10'}>
                     {OBSTACLE_DEFAULTS[obs.type]?.icon}
                   </text>
                   {toolMode === 'select' && (
@@ -700,83 +673,132 @@ export default function App() {
                 </g>
               ))}
 
-              {/* === DEPLOYED UNITS (top view) === */}
-              {deployment?.units.map(unit => (
-                <g key={unit.id}>
-                  {/* Hose line (curved) */}
-                  {fireSource && (
+              {/* === HOSE LINES (with branches and nozzles) === */}
+              {deployment?.units.map(unit => {
+                if (unit.hoses === 0) return null;
+                const unitWidth = unit.type === 'al' ? 55 : 44;
+                const unitHeight = 20;
+                const hoseLine = generateHoseLine(unit, fireSource!.x, fireSource!.y, unitWidth, unitHeight);
+
+                return (
+                  <g key={`hose-${unit.id}`}>
+                    {/* Main hose (from unit to branch) */}
                     <path
-                      d={`M ${unit.x + 22} ${unit.y + 11} Q ${(unit.x + 22 + fireSource.x) / 2 + (unit.y > fireSource.y ? 15 : -15)} ${(unit.y + 11 + fireSource.y) / 2} ${fireSource.x} ${fireSource.y}`}
+                      d={hoseLine.mainHose}
                       fill="none"
                       stroke="#4fc3f7"
-                      strokeWidth="1.5"
-                      strokeDasharray="5,3"
-                      opacity="0.6"
+                      strokeWidth="3"
+                      opacity="0.7"
+                      strokeLinecap="round"
                     >
-                      <animate attributeName="stroke-dashoffset" values="0;-16" dur="1s" repeatCount="indefinite" />
+                      <animate attributeName="stroke-dashoffset" values="0;-20" dur="1.5s" repeatCount="indefinite" />
                     </path>
-                  )}
+                    <path
+                      d={hoseLine.mainHose}
+                      fill="none"
+                      stroke="#29b6f6"
+                      strokeWidth="1.5"
+                      strokeDasharray="8,4"
+                      opacity="0.9"
+                      strokeLinecap="round"
+                    >
+                      <animate attributeName="stroke-dashoffset" values="0;-24" dur="1s" repeatCount="indefinite" />
+                    </path>
 
-                  {/* Unit shadow */}
-                  <rect x={unit.x + 1} y={unit.y + 1} width={unit.type === 'al' ? 55 : 44} height="20" fill="rgba(0,0,0,0.4)" rx="3" />
+                    {/* Branch hoses (from branch to nozzles) */}
+                    {hoseLine.branchHoses.map((path, idx) => (
+                      <g key={idx}>
+                        <path
+                          d={path}
+                          fill="none"
+                          stroke="#4fc3f7"
+                          strokeWidth="2.5"
+                          opacity="0.6"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d={path}
+                          fill="none"
+                          stroke="#29b6f6"
+                          strokeWidth="1.2"
+                          strokeDasharray="6,3"
+                          opacity="0.8"
+                          strokeLinecap="round"
+                        >
+                          <animate attributeName="stroke-dashoffset" values="0;-18" dur="1s" repeatCount="indefinite" />
+                        </path>
+                      </g>
+                    ))}
 
-                  {/* Unit body (top view) */}
-                  <rect
-                    x={unit.x}
-                    y={unit.y}
-                    width={unit.type === 'al' ? 55 : 44}
-                    height="20"
-                    fill={
-                      unit.type === 'aca' ? '#b71c1c' :
-                      unit.type === 'ac' ? '#c62828' :
-                      unit.type === 'al' ? '#d32f2f' :
-                      unit.type === 'ap' ? '#e65100' :
-                      '#4a148c'
-                    }
-                    stroke="#fff"
-                    strokeWidth="1.2"
-                    rx="3"
-                  />
+                    {/* Branch point (three-way valve) */}
+                    <circle cx={hoseLine.branchPoint.x} cy={hoseLine.branchPoint.y} r="5" fill="#1565c0" stroke="#fff" strokeWidth="1" />
+                    <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">⋔</text>
+                    <text x={hoseLine.branchPoint.x} y={hoseLine.branchPoint.y - 8} textAnchor="middle" fill="#81d4fa" fontSize="5" fontFamily="sans-serif">
+                      РВ
+                    </text>
 
-                  {/* Unit details (top view) */}
-                  {unit.type === 'al' && (
-                    <>
-                      {/* Ladder extended */}
-                      <rect x={unit.x + 44} y={unit.y + 7} width="18" height="6" fill="#e57373" stroke="#fff" strokeWidth="0.5" rx="1" />
-                      <line x1={unit.x + 46} y1={unit.y + 8} x2={unit.x + 46} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
-                      <line x1={unit.x + 50} y1={unit.y + 8} x2={unit.x + 50} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
-                      <line x1={unit.x + 54} y1={unit.y + 8} x2={unit.x + 54} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
-                      <line x1={unit.x + 58} y1={unit.y + 8} x2={unit.x + 58} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
-                    </>
-                  )}
+                    {/* Nozzles (firefighter with hose) */}
+                    {hoseLine.nozzles.map((nozzle, idx) => (
+                      <g key={idx}>
+                        {/* Nozzle spray */}
+                        <circle cx={nozzle.x} cy={nozzle.y} r="8" fill="rgba(100,200,255,0.3)">
+                          <animate attributeName="r" values="6;10;6" dur="0.8s" repeatCount="indefinite" />
+                        </circle>
+                        {/* Nozzle point */}
+                        <circle cx={nozzle.x} cy={nozzle.y} r="3" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1" />
+                        {/* Firefighter icon */}
+                        <text x={nozzle.x} y={nozzle.y + 2} textAnchor="middle" fill="#fff" fontSize="5">👨‍🚒</text>
+                      </g>
+                    ))}
+                  </g>
+                );
+              })}
 
-                  {/* Cab (top view) */}
-                  <rect x={unit.x + 2} y={unit.y + 3} width="10" height="14" fill="rgba(0,0,0,0.3)" rx="2" />
+              {/* === DEPLOYED UNITS (top view) === */}
+              {deployment?.units.map(unit => {
+                const unitWidth = unit.type === 'al' ? 55 : 44;
+                return (
+                  <g key={unit.id}>
+                    <rect x={unit.x + 1} y={unit.y + 1} width={unitWidth} height="20" fill="rgba(0,0,0,0.4)" rx="3" />
 
-                  {/* Unit label */}
-                  <text
-                    x={unit.x + (unit.type === 'al' ? 27 : 22)}
-                    y={unit.y - 5}
-                    textAnchor="middle"
-                    fill="#fff"
-                    fontSize="7"
-                    fontWeight="bold"
-                    fontFamily="sans-serif"
-                  >
-                    {unit.name}
-                  </text>
-                  <text
-                    x={unit.x + (unit.type === 'al' ? 27 : 22)}
-                    y={unit.y + 32}
-                    textAnchor="middle"
-                    fill="#aaa"
-                    fontSize="6"
-                    fontFamily="sans-serif"
-                  >
-                    {unit.role}
-                  </text>
-                </g>
-              ))}
+                    <rect
+                      x={unit.x}
+                      y={unit.y}
+                      width={unitWidth}
+                      height="20"
+                      fill={
+                        unit.type === 'aca' ? '#b71c1c' :
+                        unit.type === 'ac' ? '#c62828' :
+                        unit.type === 'al' ? '#d32f2f' :
+                        unit.type === 'ap' ? '#e65100' :
+                        '#4a148c'
+                      }
+                      stroke="#fff"
+                      strokeWidth="1.2"
+                      rx="3"
+                    />
+
+                    {unit.type === 'al' && (
+                      <>
+                        <rect x={unit.x + 44} y={unit.y + 7} width="18" height="6" fill="#e57373" stroke="#fff" strokeWidth="0.5" rx="1" />
+                        <line x1={unit.x + 46} y1={unit.y + 8} x2={unit.x + 46} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
+                        <line x1={unit.x + 50} y1={unit.y + 8} x2={unit.x + 50} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
+                        <line x1={unit.x + 54} y1={unit.y + 8} x2={unit.x + 54} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
+                        <line x1={unit.x + 58} y1={unit.y + 8} x2={unit.x + 58} y2={unit.y + 12} stroke="#fff" strokeWidth="0.3" />
+                      </>
+                    )}
+
+                    <rect x={unit.x + 2} y={unit.y + 3} width="10" height="14" fill="rgba(0,0,0,0.3)" rx="2" />
+
+                    <text x={unit.x + unitWidth / 2} y={unit.y - 5} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold" fontFamily="sans-serif">
+                      {unit.name}
+                    </text>
+                    <text x={unit.x + unitWidth / 2} y={unit.y + 32} textAnchor="middle" fill="#aaa" fontSize="6" fontFamily="sans-serif">
+                      {unit.role}
+                    </text>
+                  </g>
+                );
+              })}
 
               {/* === COMPASS === */}
               <g transform="translate(955, 40)">
@@ -800,7 +822,7 @@ export default function App() {
 
               {/* === LEGEND === */}
               <g transform="translate(740, 430)">
-                <rect x="0" y="0" width="195" height="145" fill="rgba(0,0,0,0.75)" rx="5" stroke="#444" strokeWidth="1" />
+                <rect x="0" y="0" width="195" height="155" fill="rgba(0,0,0,0.75)" rx="5" stroke="#444" strokeWidth="1" />
                 <text x="97" y="14" textAnchor="middle" fill="#fff" fontSize="8" fontWeight="bold" fontFamily="sans-serif">Условные обозначения</text>
                 <line x1="8" y1="19" x2="187" y2="19" stroke="#444" strokeWidth="0.5" />
 
@@ -819,14 +841,17 @@ export default function App() {
                 <circle cx="18" cy="92" r="6" fill="#ff4500" opacity="0.8" />
                 <text x="32" y="95" fill="#ccc" fontSize="7" fontFamily="sans-serif">Очаг пожара</text>
 
-                <line x1="10" y1="108" x2="26" y2="108" stroke="#4fc3f7" strokeWidth="1.5" strokeDasharray="4,3" />
-                <text x="32" y="111" fill="#ccc" fontSize="7" fontFamily="sans-serif">Рукавная линия</text>
+                <path d="M 10 108 Q 18 104 26 108" fill="none" stroke="#4fc3f7" strokeWidth="2" />
+                <text x="32" y="111" fill="#ccc" fontSize="7" fontFamily="sans-serif">Рукавная линия (20м)</text>
 
-                <circle cx="18" cy="124" r="8" fill="none" stroke="#ff4400" strokeWidth="1" strokeDasharray="4,2" />
-                <text x="32" y="127" fill="#ccc" fontSize="7" fontFamily="sans-serif">Зона безопасности</text>
+                <circle cx="18" cy="124" r="4" fill="#1565c0" stroke="#fff" strokeWidth="0.5" />
+                <text x="32" y="127" fill="#ccc" fontSize="7" fontFamily="sans-serif">Разветвление (РВ)</text>
 
-                <rect x="10" y="133" width="16" height="8" fill="#3a3a5a" stroke="#777" rx="2" />
-                <text x="32" y="140" fill="#ccc" fontSize="7" fontFamily="sans-serif">Препятствие</text>
+                <circle cx="18" cy="140" r="3" fill="#e3f2fd" stroke="#1565c0" strokeWidth="0.5" />
+                <text x="32" y="143" fill="#ccc" fontSize="7" fontFamily="sans-serif">Ствол (ствольщик)</text>
+
+                <circle cx="18" cy="152" r="6" fill="none" stroke="#ff4400" strokeWidth="1" strokeDasharray="4,2" />
+                <text x="32" y="155" fill="#ccc" fontSize="7" fontFamily="sans-serif">Зона безопасности (100м)</text>
               </g>
             </svg>
 
@@ -950,11 +975,12 @@ export default function App() {
               <p><strong className="text-orange-400">1.</strong> Выберите «Очаг пожара», настройте параметры и кликните на вагон.</p>
               <p><strong className="text-yellow-400">2.</strong> Разместите препятствия в зоне работы (здания, заборы, техника).</p>
               <p><strong className="text-indigo-400">3.</strong> Нажмите «Задать количество сил» для ограничения ресурсов.</p>
-              <p><strong className="text-green-400">4.</strong> Нажмите «Расставить силы» — программа рассчитает оптимальное размещение с учётом безопасного расстояния и препятствий.</p>
+              <p><strong className="text-green-400">4.</strong> Нажмите «Расставить силы» — программа рассчитает оптимальное размещение.</p>
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
-                <p>🛡 <strong>Безопасное расстояние</strong> зависит от интенсивности и типа пожара (от 20 до 55 м).</p>
-                <p>📋 При нехватке сил программа выдаст предупреждения и расставит имеющуюся технику оптимально.</p>
-                <p>🔄 Препятствия можно перемещать в режиме «Перемещение».</p>
+                <p>🛡 <strong>Безопасное расстояние:</strong> техника размещается не ближе 100 м от очага пожара.</p>
+                <p>🔗 <strong>Рукавные линии:</strong> от каждой техники прокладываются рукава по схеме: машина → рукав → разветвление (РВ) → рукава → ствольщики со стволами.</p>
+                <p>📏 <strong>Длина рукава:</strong> 20 м. Линии рукавов изогнуты для реалистичности.</p>
+                <p>📋 При нехватке сил программа выдаст предупреждения.</p>
               </div>
             </div>
             <button
