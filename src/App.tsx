@@ -5,6 +5,7 @@ import { calculateDeployment, generateDefaultWagons, getIdealResources } from '.
 const WAGON_GAP = 6;
 const HOSE_SEGMENT_LENGTH = 40; // 20m = 40 SVG units
 const MIN_NOZZLE_DISTANCE_FROM_WAGON = 10; // 5m = 10 SVG units
+const MIN_NOZZLE_DISTANCE_FROM_FIRE = 6; // 3m = 6 SVG units
 
 const OBSTACLE_DEFAULTS: Record<ObstacleType, { width: number; height: number; label: string; icon: string }> = {
   building: { width: 80, height: 60, label: 'Здание', icon: '🏢' },
@@ -39,33 +40,48 @@ function lineIntersectsRect(
   return false;
 }
 
-// Check if point is inside any blocking obstacle
-function isPointInBlockingObstacle(x: number, y: number, obstacles: Obstacle[]): Obstacle | null {
+// Check if point is inside any blocking obstacle or wagon
+function isPointInBlockingObstacle(x: number, y: number, obstacles: Obstacle[], wagons: Wagon[]): boolean {
   for (const obs of obstacles) {
     if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
     if (x >= obs.x && x <= obs.x + obs.width && y >= obs.y && y <= obs.y + obs.height) {
-      return obs;
+      return true;
     }
   }
-  return null;
-}
-
-// Check if line segment crosses any blocking obstacle
-function lineCrossesBlockingObstacle(
-  x1: number, y1: number, x2: number, y2: number, obstacles: Obstacle[]
-): boolean {
-  for (const obs of obstacles) {
-    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
-    if (lineIntersectsRect(x1, y1, x2, y2, obs.x, obs.y, obs.width, obs.height)) {
+  // Check wagons
+  for (const wagon of wagons) {
+    if (x >= wagon.x && x <= wagon.x + wagon.width && y >= wagon.y && y <= wagon.y + wagon.height) {
       return true;
     }
   }
   return false;
 }
 
-// Find a point that avoids obstacles
+// Check if line segment crosses any blocking obstacle or wagon
+function lineCrossesBlockingObstacle(
+  x1: number, y1: number, x2: number, y2: number,
+  obstacles: Obstacle[], wagons: Wagon[]
+): boolean {
+  // Check obstacles (except road, tree_group, equipment)
+  for (const obs of obstacles) {
+    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
+    if (lineIntersectsRect(x1, y1, x2, y2, obs.x, obs.y, obs.width, obs.height)) {
+      return true;
+    }
+  }
+  // Check wagons
+  for (const wagon of wagons) {
+    if (lineIntersectsRect(x1, y1, x2, y2, wagon.x, wagon.y, wagon.width, wagon.height)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Find a point that avoids obstacles and wagons
 function findAvoidancePoint(
-  fromX: number, fromY: number, toX: number, toY: number, obstacles: Obstacle[]
+  fromX: number, fromY: number, toX: number, toY: number,
+  obstacles: Obstacle[], wagons: Wagon[]
 ): { x: number; y: number } {
   const dx = toX - fromX;
   const dy = toY - fromY;
@@ -76,25 +92,22 @@ function findAvoidancePoint(
   const ny = dx / len;
 
   // Try offsets perpendicular to the line
-  for (let offset = 30; offset <= 150; offset += 20) {
+  for (let offset = 30; offset <= 180; offset += 15) {
     for (const sign of [1, -1]) {
       const midX = (fromX + toX) / 2 + nx * offset * sign;
       const midY = (fromY + toY) / 2 + ny * offset * sign;
 
       if (midX < 10 || midX > 990 || midY < 10 || midY > 590) continue;
 
-      // Check if this point is inside any blocking obstacle
-      if (!isPointInBlockingObstacle(midX, midY, obstacles)) {
-        // Check if both segments avoid obstacles
-        if (!lineCrossesBlockingObstacle(fromX, fromY, midX, midY, obstacles) &&
-            !lineCrossesBlockingObstacle(midX, midY, toX, toY, obstacles)) {
+      if (!isPointInBlockingObstacle(midX, midY, obstacles, wagons)) {
+        if (!lineCrossesBlockingObstacle(fromX, fromY, midX, midY, obstacles, wagons) &&
+            !lineCrossesBlockingObstacle(midX, midY, toX, toY, obstacles, wagons)) {
           return { x: midX, y: midY };
         }
       }
     }
   }
 
-  // Fallback: return midpoint
   return { x: (fromX + toX) / 2, y: (fromY + toY) / 2 };
 }
 
@@ -127,20 +140,20 @@ function generateHoseLine(
   let branchX = startX + normX * branchDist;
   let branchY = startY + normY * branchDist;
 
-  // Check if branch point is in obstacle and adjust
-  if (isPointInBlockingObstacle(branchX, branchY, obstacles)) {
-    const avoid = findAvoidancePoint(startX, startY, fireX, fireY, obstacles);
+  // Check if branch point is in obstacle/wagon and adjust
+  if (isPointInBlockingObstacle(branchX, branchY, obstacles, wagons)) {
+    const avoid = findAvoidancePoint(startX, startY, fireX, fireY, obstacles, wagons);
     branchX = avoid.x;
     branchY = avoid.y;
   }
 
-  // Generate main hose segments with obstacle avoidance
+  // Generate main hose segments with obstacle/wagon avoidance
   const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
   const connections: Array<{ x: number; y: number }> = [];
 
-  // Check if direct path crosses obstacle
-  if (lineCrossesBlockingObstacle(startX, startY, branchX, branchY, obstacles)) {
-    const avoid = findAvoidancePoint(startX, startY, branchX, branchY, obstacles);
+  // Check if direct path crosses obstacle or wagon
+  if (lineCrossesBlockingObstacle(startX, startY, branchX, branchY, obstacles, wagons)) {
+    const avoid = findAvoidancePoint(startX, startY, branchX, branchY, obstacles, wagons);
     segments.push({ x1: startX, y1: startY, x2: avoid.x, y2: avoid.y });
     segments.push({ x1: avoid.x, y1: avoid.y, x2: branchX, y2: branchY });
   } else {
@@ -179,9 +192,18 @@ function generateHoseLine(
   for (let i = -1; i <= 1; i += 2) {
     const angle = Math.atan2(dy, dx) + splitAngle * i;
 
-    // Calculate nozzle position (at fire location but ensure min distance from wagon)
-    let nozzleX = fireX + Math.cos(angle) * 15;
-    let nozzleY = fireY + Math.sin(angle) * 15;
+    // Calculate nozzle position - must be at least MIN_NOZZLE_DISTANCE_FROM_FIRE (3m = 6 units) from fire
+    // and at least MIN_NOZZLE_DISTANCE_FROM_WAGON (5m = 10 units) from any wagon
+    let nozzleX = fireX + Math.cos(angle) * 20;
+    let nozzleY = fireY + Math.sin(angle) * 20;
+
+    // Ensure nozzle is at least MIN_NOZZLE_DISTANCE_FROM_FIRE from fire
+    const distToFire = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
+    if (distToFire < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
+      const pushAngle = Math.atan2(nozzleY - fireY, nozzleX - fireX);
+      nozzleX = fireX + Math.cos(pushAngle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
+      nozzleY = fireY + Math.sin(pushAngle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
+    }
 
     // Ensure nozzle is at least MIN_NOZZLE_DISTANCE_FROM_WAGON from any wagon
     for (const wagon of wagons) {
@@ -199,12 +221,12 @@ function generateHoseLine(
 
     nozzles.push({ x: nozzleX, y: nozzleY });
 
-    // Generate branch segments with obstacle avoidance
+    // Generate branch segments with obstacle/wagon avoidance
     const bSegs: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
     const bConns: Array<{ x: number; y: number }> = [];
 
-    if (lineCrossesBlockingObstacle(branchX, branchY, nozzleX, nozzleY, obstacles)) {
-      const avoid = findAvoidancePoint(branchX, branchY, nozzleX, nozzleY, obstacles);
+    if (lineCrossesBlockingObstacle(branchX, branchY, nozzleX, nozzleY, obstacles, wagons)) {
+      const avoid = findAvoidancePoint(branchX, branchY, nozzleX, nozzleY, obstacles, wagons);
       bSegs.push({ x1: branchX, y1: branchY, x2: avoid.x, y2: avoid.y });
       bSegs.push({ x1: avoid.x, y1: avoid.y, x2: nozzleX, y2: nozzleY });
     } else {
