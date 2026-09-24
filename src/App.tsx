@@ -173,40 +173,55 @@ function routeHoseAlongCorridor(
   const path = findShortestPath(unitCenterX, unitCenterY, branchX, branchY, wagons, obstacles);
 
   // Nozzles: 5-6m from fire wagon, on opposite sides
-  const nozzles: Array<{ x: number; y: number }> = customNozzles || [];
+  const nozzles: Array<{ x: number; y: number }> = [];
   
-  if (!customNozzles) {
-    const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
+  // Calculate default nozzle positions
+  const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
+  const defaultNozzles: Array<{ x: number; y: number }> = [];
 
-    for (const angle of nozzleAngles) {
-      let nozzleX = fireX + Math.cos(angle) * 12;
-      let nozzleY = fireY + Math.sin(angle) * 12;
+  for (const angle of nozzleAngles) {
+    let nozzleX = fireX + Math.cos(angle) * 12;
+    let nozzleY = fireY + Math.sin(angle) * 12;
 
-      // Ensure minimum distance from fire
-      const distToFireCheck = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
-      if (distToFireCheck < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
-        nozzleX = fireX + Math.cos(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
-        nozzleY = fireY + Math.sin(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
-      }
-
-      // Ensure distance from wagon contour
-      for (let attempt = 0; attempt < 10; attempt++) {
-        let tooClose = false;
-        for (const wagon of wagons) {
-          const dist = distanceToRectContour(nozzleX, nozzleY, wagon.x, wagon.y, wagon.width, wagon.height);
-          if (dist < NOZZLE_DISTANCE_FROM_WAGON) {
-            tooClose = true;
-            break;
-          }
-        }
-        if (!tooClose) break;
-        const currentDist = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
-        nozzleX = fireX + Math.cos(angle) * (currentDist + 3);
-        nozzleY = fireY + Math.sin(angle) * (currentDist + 3);
-      }
-
-      nozzles.push({ x: nozzleX, y: nozzleY });
+    // Ensure minimum distance from fire
+    const distToFireCheck = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
+    if (distToFireCheck < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
+      nozzleX = fireX + Math.cos(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
+      nozzleY = fireY + Math.sin(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
     }
+
+    // Ensure distance from wagon contour
+    for (let attempt = 0; attempt < 10; attempt++) {
+      let tooClose = false;
+      for (const wagon of wagons) {
+        const dist = distanceToRectContour(nozzleX, nozzleY, wagon.x, wagon.y, wagon.width, wagon.height);
+        if (dist < NOZZLE_DISTANCE_FROM_WAGON) {
+          tooClose = true;
+          break;
+        }
+      }
+      if (!tooClose) break;
+      const currentDist = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
+      nozzleX = fireX + Math.cos(angle) * (currentDist + 3);
+      nozzleY = fireY + Math.sin(angle) * (currentDist + 3);
+    }
+
+    defaultNozzles.push({ x: nozzleX, y: nozzleY });
+  }
+
+  // Use custom positions if valid, otherwise use defaults
+  if (customNozzles && customNozzles.length > 0) {
+    for (let i = 0; i < defaultNozzles.length; i++) {
+      const custom = customNozzles[i];
+      // Check if custom position is valid (not zero/undefined)
+      if (custom && (custom.x !== 0 || custom.y !== 0)) {
+        nozzles.push({ x: custom.x, y: custom.y });
+      } else {
+        nozzles.push(defaultNozzles[i]);
+      }
+    }
+  } else {
+    nozzles.push(...defaultNozzles);
   }
 
   return { path, branchPoint: { x: branchX, y: branchY }, nozzles };
@@ -328,7 +343,7 @@ export default function App() {
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
     // Allow dragging in select mode for all types
     // Allow dragging firefighters and branches in any mode (including 'none')
-    if (toolMode !== 'select') {
+    if (toolMode !== 'select' && toolMode !== 'none') {
       if (type !== 'firefighter' && type !== 'branch') return;
     }
     e.stopPropagation();
@@ -395,12 +410,37 @@ export default function App() {
         const nozzles = positions.nozzles || [];
         const newNozzles = [...nozzles];
         
-        // Ensure array is large enough
-        while (newNozzles.length <= nozzleIndex) {
-          newNozzles.push({ x: 0, y: 0 });
+        // If this is the first drag for this unit, initialize all nozzle positions
+        if (newNozzles.length === 0) {
+          // Get the unit to calculate initial positions
+          const allUnits = [...(deployment?.units || []), ...manualUnits];
+          const unit = allUnits.find(u => u.id === dragState.unitId);
+          
+          if (unit && fireSource) {
+            const unitWidth = unit.type === 'al' ? 55 : 44;
+            const unitCenterX = unit.x + unitWidth / 2;
+            const unitCenterY = unit.y + 10;
+            const angleToFire = Math.atan2(fireSource.y - unitCenterY, fireSource.x - unitCenterX);
+            
+            // Initialize both nozzle positions (for 2 nozzles per unit)
+            const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
+            for (const angle of nozzleAngles) {
+              const nozzleX = fireSource.x + Math.cos(angle) * 12;
+              const nozzleY = fireSource.y + Math.sin(angle) * 12;
+              newNozzles.push({ x: nozzleX, y: nozzleY });
+            }
+          } else {
+            // Fallback: just add empty positions
+            while (newNozzles.length <= nozzleIndex) {
+              newNozzles.push({ x: 0, y: 0 });
+            }
+          }
         }
         
-        newNozzles[nozzleIndex] = { x, y };
+        // Update only the dragged nozzle
+        if (nozzleIndex < newNozzles.length) {
+          newNozzles[nozzleIndex] = { x, y };
+        }
         
         return {
           ...prev,
@@ -411,7 +451,7 @@ export default function App() {
         };
       });
     }
-  }, [dragState, getSVGCoords, deployment, customPositions]);
+  }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource]);
 
   const handleMouseUp = useCallback(() => {
     setDragState(null);
