@@ -33,128 +33,180 @@ interface ManualUnit extends FireUnit {
 }
 
 interface DragState {
-  type: 'unit' | 'nozzle' | 'obstacle';
+  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter';
   id: string;
   unitId?: string;
   offsetX: number;
   offsetY: number;
 }
 
-// Hose routing along train corridor
+interface CustomPositions {
+  [unitId: string]: {
+    branchPoint?: { x: number; y: number };
+    nozzles?: Array<{ x: number; y: number }>;
+  };
+}
+
+// Find shortest path avoiding obstacles and wagons
+function findShortestPath(
+  fromX: number, fromY: number, toX: number, toY: number,
+  wagons: Wagon[], obstacles: Obstacle[]
+): Array<{ x: number; y: number }> {
+  // Check if direct line is clear
+  const directClear = !lineCrossesBlockingObstacle(fromX, fromY, toX, toY, obstacles, wagons, 3);
+  if (directClear) {
+    return [{ x: fromX, y: fromY }, { x: toX, y: toY }];
+  }
+
+  // Need to find waypoints around obstacles
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return [{ x: fromX, y: fromY }];
+
+  // Perpendicular direction
+  const perpX = -dy / len;
+  const perpY = dx / len;
+
+  // Try different offset distances and directions
+  for (let offset = 30; offset <= 200; offset += 15) {
+    for (const sign of [1, -1]) {
+      const midX = (fromX + toX) / 2 + perpX * offset * sign;
+      const midY = (fromY + toY) / 2 + perpY * offset * sign;
+
+      if (midX < 5 || midX > 995 || midY < 5 || midY > 595) continue;
+      if (isPointInBlockingObstacle(midX, midY, obstacles, wagons)) continue;
+
+      if (!lineCrossesBlockingObstacle(fromX, fromY, midX, midY, obstacles, wagons, 3) &&
+          !lineCrossesBlockingObstacle(midX, midY, toX, toY, obstacles, wagons, 3)) {
+        return [{ x: fromX, y: fromY }, { x: midX, y: midY }, { x: toX, y: toY }];
+      }
+    }
+  }
+
+  // Fallback: direct path
+  return [{ x: fromX, y: fromY }, { x: toX, y: toY }];
+}
+
+// Check if line crosses obstacles
+function lineCrossesBlockingObstacle(
+  x1: number, y1: number, x2: number, y2: number,
+  obstacles: Obstacle[], wagons: Wagon[], margin: number = 0
+): boolean {
+  for (const obs of obstacles) {
+    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
+    if (lineIntersectsRect(x1, y1, x2, y2, obs.x, obs.y, obs.width, obs.height, margin)) {
+      return true;
+    }
+  }
+  for (const wagon of wagons) {
+    if (lineIntersectsRect(x1, y1, x2, y2, wagon.x, wagon.y, wagon.width, wagon.height, margin)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function lineIntersectsRect(
+  x1: number, y1: number, x2: number, y2: number,
+  rx: number, ry: number, rw: number, rh: number, margin: number = 0
+): boolean {
+  const steps = 30;
+  const expandedRx = rx - margin;
+  const expandedRy = ry - margin;
+  const expandedRw = rw + margin * 2;
+  const expandedRh = rh + margin * 2;
+  
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const px = x1 + (x2 - x1) * t;
+    const py = y1 + (y2 - y1) * t;
+    if (px >= expandedRx && px <= expandedRx + expandedRw && 
+        py >= expandedRy && py <= expandedRy + expandedRh) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isPointInBlockingObstacle(x: number, y: number, obstacles: Obstacle[], wagons: Wagon[]): boolean {
+  for (const obs of obstacles) {
+    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
+    if (x >= obs.x && x <= obs.x + obs.width && y >= obs.y && y <= obs.y + obs.height) {
+      return true;
+    }
+  }
+  for (const wagon of wagons) {
+    if (x >= wagon.x && x <= wagon.x + wagon.width && y >= wagon.y && y <= wagon.y + wagon.height) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Hose routing - shortest path from unit to fire
 function routeHoseAlongCorridor(
   unitX: number, unitY: number, unitWidth: number, unitHeight: number,
   fireX: number, fireY: number,
-  wagons: Wagon[], obstacles: Obstacle[]
+  wagons: Wagon[], obstacles: Obstacle[],
+  customBranchPoint?: { x: number; y: number },
+  customNozzles?: Array<{ x: number; y: number }>
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }> } {
-  const corridor = getTrainCorridor(wagons);
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
 
-  // Find closest corridor side to unit
-  const distToTop = Math.abs(unitCenterY - corridor.topY);
-  const distToBottom = Math.abs(unitCenterY - corridor.bottomY);
-  const distToLeft = Math.abs(unitCenterX - corridor.leftX);
-  const distToRight = Math.abs(unitCenterX - corridor.rightX);
-
-  const minDist = Math.min(distToTop, distToBottom, distToLeft, distToRight);
-  
-  let corridorEntryX: number, corridorEntryY: number;
-  let corridorSide: 'top' | 'bottom' | 'left' | 'right';
-
-  if (minDist === distToTop) {
-    corridorEntryX = Math.max(corridor.leftX, Math.min(corridor.rightX, unitCenterX));
-    corridorEntryY = corridor.topY;
-    corridorSide = 'top';
-  } else if (minDist === distToBottom) {
-    corridorEntryX = Math.max(corridor.leftX, Math.min(corridor.rightX, unitCenterX));
-    corridorEntryY = corridor.bottomY;
-    corridorSide = 'bottom';
-  } else if (minDist === distToLeft) {
-    corridorEntryX = corridor.leftX;
-    corridorEntryY = Math.max(corridor.topY, Math.min(corridor.bottomY, unitCenterY));
-    corridorSide = 'left';
-  } else {
-    corridorEntryX = corridor.rightX;
-    corridorEntryY = Math.max(corridor.topY, Math.min(corridor.bottomY, unitCenterY));
-    corridorSide = 'right';
-  }
-
-  // Point along corridor opposite to fire
-  let corridorFirePointX: number, corridorFirePointY: number;
-  if (corridorSide === 'top' || corridorSide === 'bottom') {
-    corridorFirePointX = fireX;
-    corridorFirePointY = corridorSide === 'top' ? corridor.topY : corridor.bottomY;
-  } else {
-    corridorFirePointX = corridorSide === 'left' ? corridor.leftX : corridor.rightX;
-    corridorFirePointY = fireY;
-  }
-
-  // Branch point: 15 units from fire (shorter than distance to fire)
-  const distToFire = Math.sqrt((unitCenterX - fireX) ** 2 + (unitCenterY - fireY) ** 2);
-  const branchDist = distToFire * 0.7; // 70% of distance
   const angleToFire = Math.atan2(fireY - unitCenterY, fireX - unitCenterX);
-  
-  // Place branch point along corridor near fire
-  let branchX = corridorFirePointX;
-  let branchY = corridorFirePointY;
+  const distToFire = Math.sqrt((unitCenterX - fireX) ** 2 + (unitCenterY - fireY) ** 2);
 
-  // Build path: unit -> corridor entry -> along corridor -> branch point
-  const path: Array<{ x: number; y: number }> = [
-    { x: unitCenterX, y: unitCenterY },
-    { x: corridorEntryX, y: corridorEntryY },
-  ];
-
-  // Add intermediate points along corridor if needed
-  if (corridorSide === 'top' || corridorSide === 'bottom') {
-    if (Math.abs(corridorEntryX - corridorFirePointX) > 5) {
-      path.push({ x: corridorFirePointX, y: corridorEntryY });
-    }
+  // Branch point: 70% of distance to fire (shorter than distance to fire)
+  let branchX: number, branchY: number;
+  if (customBranchPoint) {
+    branchX = customBranchPoint.x;
+    branchY = customBranchPoint.y;
   } else {
-    if (Math.abs(corridorEntryY - corridorFirePointY) > 5) {
-      path.push({ x: corridorEntryX, y: corridorFirePointY });
-    }
+    const branchDist = distToFire * 0.7;
+    branchX = unitCenterX + Math.cos(angleToFire) * branchDist;
+    branchY = unitCenterY + Math.sin(angleToFire) * branchDist;
   }
 
-  path.push({ x: branchX, y: branchY });
+  // Find shortest path from unit to branch point
+  const path = findShortestPath(unitCenterX, unitCenterY, branchX, branchY, wagons, obstacles);
 
   // Nozzles: 5-6m from fire wagon, on opposite sides
-  const fireWagon = wagons.find(w => {
-    const cx = w.x + w.width / 2;
-    const cy = w.y + w.height / 2;
-    return Math.sqrt((fireX - cx) ** 2 + (fireY - cy) ** 2) < 60;
-  });
+  const nozzles: Array<{ x: number; y: number }> = customNozzles || [];
+  
+  if (!customNozzles) {
+    const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
 
-  const nozzles: Array<{ x: number; y: number }> = [];
-  const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
+    for (const angle of nozzleAngles) {
+      let nozzleX = fireX + Math.cos(angle) * 12;
+      let nozzleY = fireY + Math.sin(angle) * 12;
 
-  for (const angle of nozzleAngles) {
-    let nozzleX = fireX + Math.cos(angle) * 12;
-    let nozzleY = fireY + Math.sin(angle) * 12;
-
-    // Ensure minimum distance from fire
-    const distToFireCheck = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
-    if (distToFireCheck < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
-      nozzleX = fireX + Math.cos(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
-      nozzleY = fireY + Math.sin(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
-    }
-
-    // Ensure distance from wagon contour
-    for (let attempt = 0; attempt < 10; attempt++) {
-      let tooClose = false;
-      for (const wagon of wagons) {
-        const dist = distanceToRectContour(nozzleX, nozzleY, wagon.x, wagon.y, wagon.width, wagon.height);
-        if (dist < NOZZLE_DISTANCE_FROM_WAGON) {
-          tooClose = true;
-          break;
-        }
+      // Ensure minimum distance from fire
+      const distToFireCheck = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
+      if (distToFireCheck < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
+        nozzleX = fireX + Math.cos(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
+        nozzleY = fireY + Math.sin(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
       }
-      if (!tooClose) break;
-      const currentDist = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
-      nozzleX = fireX + Math.cos(angle) * (currentDist + 3);
-      nozzleY = fireY + Math.sin(angle) * (currentDist + 3);
-    }
 
-    nozzles.push({ x: nozzleX, y: nozzleY });
+      // Ensure distance from wagon contour
+      for (let attempt = 0; attempt < 10; attempt++) {
+        let tooClose = false;
+        for (const wagon of wagons) {
+          const dist = distanceToRectContour(nozzleX, nozzleY, wagon.x, wagon.y, wagon.width, wagon.height);
+          if (dist < NOZZLE_DISTANCE_FROM_WAGON) {
+            tooClose = true;
+            break;
+          }
+        }
+        if (!tooClose) break;
+        const currentDist = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
+        nozzleX = fireX + Math.cos(angle) * (currentDist + 3);
+        nozzleY = fireY + Math.sin(angle) * (currentDist + 3);
+      }
+
+      nozzles.push({ x: nozzleX, y: nozzleY });
+    }
   }
 
   return { path, branchPoint: { x: branchX, y: branchY }, nozzles };
@@ -178,6 +230,7 @@ export default function App() {
   const [showResources, setShowResources] = useState(false);
   const [resources, setResources] = useState<AvailableResources>(DEFAULT_RESOURCES);
   const [useCustomResources, setUseCustomResources] = useState(false);
+  const [customPositions, setCustomPositions] = useState<CustomPositions>({});
   const svgRef = useRef<SVGSVGElement>(null);
 
   const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
@@ -259,7 +312,7 @@ export default function App() {
     }
   }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle', id: string, unitId?: string) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
     if (toolMode !== 'select' && type !== 'unit') return;
     e.stopPropagation();
     const { x, y } = getSVGCoords(e);
@@ -275,6 +328,9 @@ export default function App() {
       if (unit) {
         setDragState({ type, id, offsetX: x - unit.x, offsetY: y - unit.y });
       }
+    } else if (type === 'branch' || type === 'firefighter') {
+      // For branch points and firefighters, we need to track their position in customPositions
+      setDragState({ type, id, unitId, offsetX: x, offsetY: y });
     }
   }, [toolMode, obstacles, getSVGCoords, deployment, manualUnits]);
 
@@ -304,8 +360,34 @@ export default function App() {
           ),
         });
       }
+    } else if (dragState.type === 'branch' && dragState.unitId) {
+      // Update branch point position
+      setCustomPositions(prev => ({
+        ...prev,
+        [dragState.unitId!]: {
+          ...prev[dragState.unitId!],
+          branchPoint: { x, y }
+        }
+      }));
+    } else if (dragState.type === 'firefighter' && dragState.unitId) {
+      // Update nozzle position (firefighter/nozzle)
+      const positions = customPositions[dragState.unitId];
+      if (positions?.nozzles) {
+        const nozzleIndex = parseInt(dragState.id.split('-')[1]);
+        const newNozzles = [...positions.nozzles];
+        if (newNozzles[nozzleIndex]) {
+          newNozzles[nozzleIndex] = { x, y };
+          setCustomPositions(prev => ({
+            ...prev,
+            [dragState.unitId!]: {
+              ...prev[dragState.unitId!],
+              nozzles: newNozzles
+            }
+          }));
+        }
+      }
     }
-  }, [dragState, getSVGCoords, deployment]);
+  }, [dragState, getSVGCoords, deployment, customPositions]);
 
   const handleMouseUp = useCallback(() => {
     setDragState(null);
@@ -687,8 +769,39 @@ export default function App() {
               {fireSource && deployment?.units.filter(u => u.hoses > 0).map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 const fs = fireSource!;
-                const routing = routeHoseAlongCorridor(unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles);
+                const customPos = customPositions[unit.id];
+                const routing = routeHoseAlongCorridor(
+                  unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
+                  customPos?.branchPoint,
+                  customPos?.nozzles
+                );
                 
+                // Calculate connection points every 20m (40 units) along the path
+                const connectionPoints: Array<{ x: number; y: number }> = [];
+                let totalDist = 0;
+                for (let i = 0; i < routing.path.length - 1; i++) {
+                  const p1 = routing.path[i];
+                  const p2 = routing.path[i + 1];
+                  const segLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+                  const segDx = (p2.x - p1.x) / segLen;
+                  const segDy = (p2.y - p1.y) / segLen;
+                  
+                  let segDist = 0;
+                  while (segDist < segLen) {
+                    const nextConnDist = Math.ceil((totalDist + segDist) / 40) * 40;
+                    const distInSeg = nextConnDist - totalDist;
+                    if (distInSeg > segLen) break;
+                    if (distInSeg > 0) {
+                      connectionPoints.push({
+                        x: p1.x + segDx * distInSeg,
+                        y: p1.y + segDy * distInSeg
+                      });
+                    }
+                    segDist = distInSeg + 1;
+                  }
+                  totalDist += segLen;
+                }
+
                 return (
                   <g key={`hose-${unit.id}`}>
                     {/* Main hose path */}
@@ -697,30 +810,48 @@ export default function App() {
                         stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
                     ))}
                     
+                    {/* Connection points every 20m */}
+                    {connectionPoints.map((point, idx) => (
+                      <g key={`conn-${idx}`}>
+                        <circle cx={point.x} cy={point.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                        <circle cx={point.x} cy={point.y} r="1.5" fill="#888" />
+                      </g>
+                    ))}
+                    
                     {/* Branch hoses to nozzles */}
                     {routing.nozzles.map((nozzle, idx) => (
                       <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
                         stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
                     ))}
 
-                    {/* Branch point RT-80 */}
-                    <rect x={routing.branchPoint.x - 8} y={routing.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
-                    <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    {/* Branch point RT-80 - draggable */}
+                    <g 
+                      onMouseDown={e => handleMouseDown(e, 'branch', unit.id, unit.id)}
+                      style={{ cursor: 'move' }}
+                    >
+                      <rect x={routing.branchPoint.x - 8} y={routing.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                      <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    </g>
                     
                     {/* Person at branch */}
                     <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                     <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
 
-                    {/* Nozzles with water streams */}
+                    {/* Nozzles with water streams - draggable */}
                     {routing.nozzles.map((nozzle, idx) => (
                       <g key={idx}>
                         <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
                           stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                           <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
                         </line>
-                        <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
-                        <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
-                        <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+                        <g
+                          onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
+                          style={{ cursor: 'move' }}
+                        >
+                          <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
+                          <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
+                          <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+                        </g>
                       </g>
                     ))}
                   </g>
@@ -731,31 +862,85 @@ export default function App() {
               {fireSource && manualUnits.filter(u => u.ptvDeployed).map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 const fs = fireSource!;
-                const routing = routeHoseAlongCorridor(unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles);
+                const customPos = customPositions[unit.id];
+                const routing = routeHoseAlongCorridor(
+                  unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
+                  customPos?.branchPoint,
+                  customPos?.nozzles
+                );
                 
+                // Calculate connection points every 20m (40 units) along the path
+                const connectionPoints: Array<{ x: number; y: number }> = [];
+                let totalDist = 0;
+                for (let i = 0; i < routing.path.length - 1; i++) {
+                  const p1 = routing.path[i];
+                  const p2 = routing.path[i + 1];
+                  const segLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+                  const segDx = (p2.x - p1.x) / segLen;
+                  const segDy = (p2.y - p1.y) / segLen;
+                  
+                  let segDist = 0;
+                  while (segDist < segLen) {
+                    const nextConnDist = Math.ceil((totalDist + segDist) / 40) * 40;
+                    const distInSeg = nextConnDist - totalDist;
+                    if (distInSeg > segLen) break;
+                    if (distInSeg > 0) {
+                      connectionPoints.push({
+                        x: p1.x + segDx * distInSeg,
+                        y: p1.y + segDy * distInSeg
+                      });
+                    }
+                    segDist = distInSeg + 1;
+                  }
+                  totalDist += segLen;
+                }
+
                 return (
                   <g key={`hose-${unit.id}`}>
                     {routing.path.slice(0, -1).map((point, idx) => (
                       <line key={idx} x1={point.x} y1={point.y} x2={routing.path[idx + 1].x} y2={routing.path[idx + 1].y}
                         stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
                     ))}
+                    
+                    {/* Connection points every 20m */}
+                    {connectionPoints.map((point, idx) => (
+                      <g key={`conn-${idx}`}>
+                        <circle cx={point.x} cy={point.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                        <circle cx={point.x} cy={point.y} r="1.5" fill="#888" />
+                      </g>
+                    ))}
+                    
                     {routing.nozzles.map((nozzle, idx) => (
                       <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
                         stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
                     ))}
-                    <rect x={routing.branchPoint.x - 8} y={routing.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
-                    <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    
+                    {/* Branch point RT-80 - draggable */}
+                    <g 
+                      onMouseDown={e => handleMouseDown(e, 'branch', unit.id, unit.id)}
+                      style={{ cursor: 'move' }}
+                    >
+                      <rect x={routing.branchPoint.x - 8} y={routing.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                      <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    </g>
+                    
                     <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                     <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                    
                     {routing.nozzles.map((nozzle, idx) => (
                       <g key={idx}>
                         <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
                           stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                           <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
                         </line>
-                        <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
-                        <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
-                        <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+                        <g
+                          onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
+                          style={{ cursor: 'move' }}
+                        >
+                          <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
+                          <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
+                          <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+                        </g>
                       </g>
                     ))}
                   </g>
@@ -886,7 +1071,7 @@ export default function App() {
               <p><strong className="text-purple-400">Типы вагонов:</strong> Клик на вагон для смены типа. Кнопки "Тип поезда" для изменения всех вагонов сразу.</p>
               <p><strong className="text-red-400">+АЦ/+АЛ/+АСР:</strong> Ручное добавление пожарной техники. Выберите тип и кликните на карту.</p>
               <p><strong className="text-green-400">Расставить ПТВ:</strong> Выберите добавленную машину и нажмите кнопку для автоматической прокладки рукавной линии к очагу пожара.</p>
-              <p><strong className="text-cyan-400">Перемещение:</strong> Режим "Перемещение" позволяет двигать технику, ствольщиков и препятствия. Рукава пересчитываются автоматически.</p>
+              <p><strong className="text-cyan-400">Перемещение:</strong> Режим "Перемещение" позволяет двигать технику, разветвления РТ-80, ствольщиков и препятствия. Рукава пересчитываются автоматически.</p>
               <p><strong className="text-yellow-400">Подразделение:</strong> Выберите машину и укажите принадлежность к подразделению (например, "ПЧ-12").</p>
               <p><strong className="text-blue-400">Смена типа техники:</strong> Кликните на размещённую машину для изменения её типа (АЦ/АЛ/АСР).</p>
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
@@ -894,7 +1079,7 @@ export default function App() {
                 <p>🧑‍🚒 <strong>Личный состав:</strong> отображается у каждой машины (1 чел.) и у каждого разветвления РТ-80.</p>
                 <p>🎯 <strong>Ствольщики:</strong> размещаются на расстоянии 5-6м от вагона с очагом пожара с противоположных сторон.</p>
                 <p>🛡 <strong>Безопасность:</strong> техника располагается не ближе 100м от очага пожара.</p>
-                <p>⚙️ <strong>Рукава:</strong> каждый рукав длиной 20м, соединения отмечены на схеме.</p>
+                <p>⚙️ <strong>Рукава:</strong> каждый рукав длиной 20м, соединения отмечены кружками на схеме. Рукава прокладываются по кратчайшему пути от машины к очагу.</p>
               </div>
             </div>
             <button onClick={() => setShowHelp(false)} className="mt-4 w-full py-2 bg-gray-700 rounded-lg text-sm">Понятно</button>
