@@ -78,8 +78,8 @@ function findPositionOnSafeCircle(
     }
   }
   
-  // Add all other angles
-  for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 18) {
+  // Add all other angles (увеличено количество углов для поиска)
+  for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 36) {
     angles.push(angle + angleOffset);
   }
   
@@ -97,10 +97,10 @@ function findPositionOnSafeCircle(
     // Check if position is blocked
     if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles, wagons)) continue;
     
-    // Check collision with other units
+    // Check collision with other units (уменьшенная зона проверки)
     let collidesWithUnit = false;
     for (const pos of occupiedPositions) {
-      if (rectIntersects(px - 5, py - 5, unitWidth + 10, unitHeight + 10, pos.x, pos.y, pos.w, pos.h)) {
+      if (rectIntersects(px, py, unitWidth, unitHeight, pos.x, pos.y, pos.w, pos.h)) {
         collidesWithUnit = true;
         break;
       }
@@ -173,7 +173,7 @@ export function calculateDeployment(
   while (availAC > 0 && iterations < maxIterations) {
     iterations++;
     const pos = findPositionOnSafeCircle(
-      fireX, fireY, 50, 22, obstacles, wagons, safeDist, waterSource || null, occupiedPositions, acCount * 0.3
+      fireX, fireY, 50, 22, obstacles, wagons, safeDist, waterSource || null, occupiedPositions, acCount * 0.5
     );
     if (pos) {
       const success = addUnit({ 

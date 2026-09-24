@@ -624,10 +624,8 @@ export default function App() {
               newNozzles.push({ x: nozzleX, y: nozzleY });
             }
           } else {
-            // Fallback: just add empty positions
-            while (newNozzles.length <= nozzleIndex) {
-              newNozzles.push({ x: 0, y: 0 });
-            }
+            // Не добавляем позиции, если не можем их корректно рассчитать
+            return prev;
           }
         }
         
