@@ -167,12 +167,16 @@ export function calculateDeployment(
   
   // Place all available AC units around the fire
   let acCount = 0;
-  while (availAC > 0) {
+  const maxIterations = 100; // Защита от бесконечного цикла
+  let iterations = 0;
+  
+  while (availAC > 0 && iterations < maxIterations) {
+    iterations++;
     const pos = findPositionOnSafeCircle(
       fireX, fireY, 50, 22, obstacles, wagons, safeDist, waterSource || null, occupiedPositions, acCount * 0.3
     );
     if (pos) {
-      addUnit({ 
+      const success = addUnit({ 
         type: acCount === 0 ? 'aca' : 'ac', 
         name: `АЦ-40 (${acCount + 1})`, 
         x: pos.x, 
@@ -182,10 +186,18 @@ export function calculateDeployment(
         hoses: Math.ceil(2 * intensityMult), 
         role: `Позиция ${acCount + 1}` 
       });
-      acCount++;
+      if (success) {
+        acCount++;
+      } else {
+        break; // Не удалось добавить единицу (нехватка ресурсов)
+      }
     } else {
       break; // No more positions available
     }
+  }
+  
+  if (iterations >= maxIterations) {
+    warnings.push('⚠ Достигнут лимит итераций расстановки');
   }
 
   // Place AL if needed
