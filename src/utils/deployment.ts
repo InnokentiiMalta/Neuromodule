@@ -167,7 +167,7 @@ export function calculateDeployment(
   
   // Place all available AC units around the fire
   let acCount = 0;
-  while (availAC > 0 && acCount < totalACNeeded) {
+  while (availAC > 0) {
     const pos = findPositionOnSafeCircle(
       fireX, fireY, 50, 22, obstacles, wagons, safeDist, waterSource || null, occupiedPositions, acCount * 0.3
     );

@@ -301,7 +301,6 @@ export default function App() {
       };
       setManualUnits(prev => [...prev, newUnit]);
       setPlacingUnit(null);
-      setDeployment(null);
       return;
     }
 
