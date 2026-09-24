@@ -991,39 +991,6 @@ export default function App() {
                           >
                             <animate attributeName="opacity" values="0.3;0.5;0.3" dur="0.8s" repeatCount="indefinite" />
                           </path>
-                          
-                          {/* Draggable firefighter group */}
-                          <g
-                            onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
-                            style={{ cursor: 'move' }}
-                          >
-                            {/* Larger hit area for easier dragging */}
-                            <circle cx={nozzle.x} cy={nozzle.y} r="10" fill="transparent" />
-                            
-                            {/* Firefighter circle */}
-                            <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
-                            
-                            {/* Direction indicator (small arrow pointing to fire) */}
-                            <line
-                              x1={nozzle.x}
-                              y1={nozzle.y}
-                              x2={nozzle.x + Math.cos(angle) * 8}
-                              y2={nozzle.y + Math.sin(angle) * 8}
-                              stroke="#1565c0"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                            />
-                            
-                            {/* Firefighter icon */}
-                            <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
-                            
-                            {/* Highlight ring when in select mode */}
-                            {toolMode === 'select' && (
-                              <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
-                                <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
-                              </circle>
-                            )}
-                          </g>
                         </g>
                       );
                     })}
@@ -1129,39 +1096,6 @@ export default function App() {
                           >
                             <animate attributeName="opacity" values="0.3;0.5;0.3" dur="0.8s" repeatCount="indefinite" />
                           </path>
-                          
-                          {/* Draggable firefighter group */}
-                          <g
-                            onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
-                            style={{ cursor: 'move' }}
-                          >
-                            {/* Larger hit area for easier dragging */}
-                            <circle cx={nozzle.x} cy={nozzle.y} r="10" fill="transparent" />
-                            
-                            {/* Firefighter circle */}
-                            <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
-                            
-                            {/* Direction indicator (small arrow pointing to fire) */}
-                            <line
-                              x1={nozzle.x}
-                              y1={nozzle.y}
-                              x2={nozzle.x + Math.cos(angle) * 8}
-                              y2={nozzle.y + Math.sin(angle) * 8}
-                              stroke="#1565c0"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                            />
-                            
-                            {/* Firefighter icon */}
-                            <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
-                            
-                            {/* Highlight ring when in select mode */}
-                            {toolMode === 'select' && (
-                              <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
-                                <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
-                              </circle>
-                            )}
-                          </g>
                         </g>
                       );
                     })}
@@ -1229,6 +1163,59 @@ export default function App() {
                 <line x1="100" y1="-4" x2="100" y2="4" stroke="#888" strokeWidth="2" />
                 <text x="50" y="13" textAnchor="middle" fill="#888" fontSize="7" fontFamily="sans-serif">≈ 50 м</text>
               </g>
+
+              {/* Firefighters layer - always on top */}
+              {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
+                const unitWidth = unit.type === 'al' ? 55 : 44;
+                const fs = fireSource!;
+                const customPos = customPositions[unit.id];
+                const routing = routeHoseAlongCorridor(
+                  unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
+                  customPos?.branchPoint,
+                  customPos?.nozzles
+                );
+
+                return routing.nozzles.map((nozzle, idx) => {
+                  const dx = fs.x - nozzle.x;
+                  const dy = fs.y - nozzle.y;
+                  const angle = Math.atan2(dy, dx);
+
+                  return (
+                    <g
+                      key={`firefighter-top-${unit.id}-${idx}`}
+                      onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
+                      style={{ cursor: 'move' }}
+                    >
+                      {/* Larger hit area for easier dragging */}
+                      <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
+                      
+                      {/* Firefighter circle */}
+                      <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
+                      
+                      {/* Direction indicator */}
+                      <line
+                        x1={nozzle.x}
+                        y1={nozzle.y}
+                        x2={nozzle.x + Math.cos(angle) * 8}
+                        y2={nozzle.y + Math.sin(angle) * 8}
+                        stroke="#1565c0"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                      
+                      {/* Firefighter icon */}
+                      <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
+                      
+                      {/* Highlight ring when in select mode */}
+                      {(toolMode === 'select' || toolMode === 'none') && (
+                        <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
+                          <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
+                        </circle>
+                      )}
+                    </g>
+                  );
+                });
+              })}
             </svg>
 
             {placingUnit && (
