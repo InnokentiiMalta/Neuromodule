@@ -47,6 +47,21 @@ interface CustomPositions {
   };
 }
 
+interface SelectedElement {
+  type: 'unit' | 'obstacle' | 'firefighter' | 'branch';
+  id: string;
+  unitId?: string;
+  startX: number;
+  startY: number;
+}
+
+interface SelectionBox {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
 // Find shortest path avoiding obstacles and wagons
 function findShortestPath(
   fromX: number, fromY: number, toX: number, toY: number,
@@ -248,6 +263,9 @@ export default function App() {
   const [customPositions, setCustomPositions] = useState<CustomPositions>({});
   const [waterSource, setWaterSource] = useState<WaterSource | null>(null);
   const [waterSourceType, setWaterSourceType] = useState<'hydrant' | 'pond' | 'river'>('hydrant');
+  const [selectedElements, setSelectedElements] = useState<SelectedElement[]>([]);
+  const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
@@ -348,27 +366,159 @@ export default function App() {
     }
     e.stopPropagation();
     const { x, y } = getSVGCoords(e);
+    
+    // Если элемент уже выделен, начинаем групповое перемещение
+    const isAlreadySelected = selectedElements.some(el => 
+      el.type === type && el.id === id && el.unitId === unitId
+    );
+    
+    if (isAlreadySelected && selectedElements.length > 0) {
+      setDragState({ type, id, unitId, offsetX: x, offsetY: y });
+      return;
+    }
 
     if (type === 'obstacle') {
       const obs = obstacles.find(o => o.id === id);
       if (obs) {
         setDragState({ type, id, offsetX: x - obs.x, offsetY: y - obs.y });
+        setSelectedElements([{
+          type: 'obstacle',
+          id: obs.id,
+          startX: obs.x,
+          startY: obs.y
+        }]);
       }
     } else if (type === 'unit') {
       const allUnits = [...(deployment?.units || []), ...manualUnits];
       const unit = allUnits.find(u => u.id === id);
       if (unit) {
         setDragState({ type, id, offsetX: x - unit.x, offsetY: y - unit.y });
+        setSelectedElements([{
+          type: 'unit',
+          id: unit.id,
+          startX: unit.x,
+          startY: unit.y
+        }]);
       }
     } else if (type === 'branch' || type === 'firefighter') {
       // For branch points and firefighters, we need to track their position in customPositions
       setDragState({ type, id, unitId, offsetX: x, offsetY: y });
+      
+      // Добавить в выделение
+      if (type === 'firefighter') {
+        const nozzleIndex = parseInt(id.split('-')[1]);
+        const allUnits = [...(deployment?.units || []), ...manualUnits];
+        const unit = allUnits.find(u => u.id === unitId);
+        if (unit && fireSource) {
+          const unitWidth = unit.type === 'al' ? 55 : 44;
+          const customPos = customPositions[unit.id];
+          const routing = routeHoseAlongCorridor(
+            unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
+            customPos?.branchPoint,
+            customPos?.nozzles
+          );
+          if (routing.nozzles[nozzleIndex]) {
+            setSelectedElements([{
+              type: 'firefighter',
+              id: id,
+              unitId: unitId,
+              startX: routing.nozzles[nozzleIndex].x,
+              startY: routing.nozzles[nozzleIndex].y
+            }]);
+          }
+        }
+      } else if (type === 'branch') {
+        const allUnits = [...(deployment?.units || []), ...manualUnits];
+        const unit = allUnits.find(u => u.id === unitId);
+        if (unit && fireSource) {
+          const unitWidth = unit.type === 'al' ? 55 : 44;
+          const customPos = customPositions[unit.id];
+          const routing = routeHoseAlongCorridor(
+            unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
+            customPos?.branchPoint,
+            customPos?.nozzles
+          );
+          setSelectedElements([{
+            type: 'branch',
+            id: id,
+            unitId: unitId,
+            startX: routing.branchPoint.x,
+            startY: routing.branchPoint.y
+          }]);
+        }
+      }
     }
-  }, [toolMode, obstacles, getSVGCoords, deployment, manualUnits]);
+  }, [toolMode, obstacles, getSVGCoords, deployment, manualUnits, selectedElements, fireSource, customPositions, wagons]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!dragState) return;
     const { x, y } = getSVGCoords(e);
+    
+    // Рисование прямоугольника выделения
+    if (isSelecting && selectionBox) {
+      setSelectionBox({
+        ...selectionBox,
+        endX: x,
+        endY: y
+      });
+      return;
+    }
+    
+    // Групповое перемещение выделенных элементов
+    if (dragState && selectedElements.length > 1) {
+      const dx = x - dragState.offsetX;
+      const dy = y - dragState.offsetY;
+      
+      selectedElements.forEach(elem => {
+        const moveX = dx + (elem.startX - dragState.offsetX);
+        const moveY = dy + (elem.startY - dragState.offsetY);
+        
+        if (elem.type === 'unit') {
+          setManualUnits(prev => prev.map(u =>
+            u.id === elem.id ? { ...u, x: moveX, y: moveY } : u
+          ));
+          if (deployment) {
+            setDeployment({
+              ...deployment,
+              units: deployment.units.map(u =>
+                u.id === elem.id ? { ...u, x: moveX, y: moveY } : u
+              ),
+            });
+          }
+        } else if (elem.type === 'obstacle') {
+          setObstacles(prev => prev.map(o =>
+            o.id === elem.id ? { ...o, x: moveX, y: moveY } : o
+          ));
+        } else if (elem.type === 'firefighter' && elem.unitId) {
+          const nozzleIndex = parseInt(elem.id.split('-')[1]);
+          setCustomPositions(prev => {
+            const positions = prev[elem.unitId!] || {};
+            const nozzles = positions.nozzles || [];
+            const newNozzles = [...nozzles];
+            if (nozzleIndex < newNozzles.length) {
+              newNozzles[nozzleIndex] = { x: moveX, y: moveY };
+            }
+            return {
+              ...prev,
+              [elem.unitId!]: {
+                ...positions,
+                nozzles: newNozzles
+              }
+            };
+          });
+        } else if (elem.type === 'branch' && elem.unitId) {
+          setCustomPositions(prev => ({
+            ...prev,
+            [elem.unitId!]: {
+              ...prev[elem.unitId!],
+              branchPoint: { x: moveX, y: moveY }
+            }
+          }));
+        }
+      });
+      return;
+    }
+    
+    if (!dragState) return;
 
     if (dragState.type === 'obstacle') {
       setObstacles(prev => prev.map(o =>
@@ -451,11 +601,91 @@ export default function App() {
         };
       });
     }
-  }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource]);
+  }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements]);
 
   const handleMouseUp = useCallback(() => {
     setDragState(null);
-  }, []);
+    
+    // Завершить выделение прямоугольником
+    if (isSelecting && selectionBox) {
+      const minX = Math.min(selectionBox.startX, selectionBox.endX);
+      const maxX = Math.max(selectionBox.startX, selectionBox.endX);
+      const minY = Math.min(selectionBox.startY, selectionBox.endY);
+      const maxY = Math.max(selectionBox.startY, selectionBox.endY);
+      
+      const newSelected: SelectedElement[] = [];
+      
+      // Проверить технику
+      const allUnits = [...(deployment?.units || []), ...manualUnits];
+      allUnits.forEach(unit => {
+        const unitWidth = unit.type === 'al' ? 55 : 44;
+        if (unit.x >= minX && unit.x + unitWidth <= maxX &&
+            unit.y >= minY && unit.y + 20 <= maxY) {
+          newSelected.push({
+            type: 'unit',
+            id: unit.id,
+            startX: unit.x,
+            startY: unit.y
+          });
+        }
+      });
+      
+      // Проверить препятствия
+      obstacles.forEach(obs => {
+        if (obs.x >= minX && obs.x + obs.width <= maxX &&
+            obs.y >= minY && obs.y + obs.height <= maxY) {
+          newSelected.push({
+            type: 'obstacle',
+            id: obs.id,
+            startX: obs.x,
+            startY: obs.y
+          });
+        }
+      });
+      
+      // Проверить ствольщиков
+      if (fireSource) {
+        allUnits.filter(u => u.hoses > 0 || (manualUnits.find(mu => mu.id === u.id)?.ptvDeployed)).forEach(unit => {
+          const unitWidth = unit.type === 'al' ? 55 : 44;
+          const customPos = customPositions[unit.id];
+          const routing = routeHoseAlongCorridor(
+            unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
+            customPos?.branchPoint,
+            customPos?.nozzles
+          );
+          
+          routing.nozzles.forEach((nozzle, idx) => {
+            if (nozzle.x >= minX && nozzle.x <= maxX &&
+                nozzle.y >= minY && nozzle.y <= maxY) {
+              newSelected.push({
+                type: 'firefighter',
+                id: `${unit.id}-${idx}`,
+                unitId: unit.id,
+                startX: nozzle.x,
+                startY: nozzle.y
+              });
+            }
+          });
+          
+          // Проверить разветвления
+          if (routing.branchPoint.x >= minX && routing.branchPoint.x <= maxX &&
+              routing.branchPoint.y >= minY && routing.branchPoint.y <= maxY) {
+            newSelected.push({
+              type: 'branch',
+              id: unit.id,
+              unitId: unit.id,
+              startX: routing.branchPoint.x,
+              startY: routing.branchPoint.y
+            });
+          }
+        });
+      }
+      
+      setSelectedElements(newSelected);
+      setIsSelecting(false);
+      setSelectionBox(null);
+    }
+  }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons]);
 
   const handleDeploy = useCallback(() => {
     const result = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSource);
@@ -790,6 +1020,20 @@ export default function App() {
               viewBox="0 0 1000 600"
               className="w-full h-full"
               onClick={handleSVGClick}
+              onMouseDown={(e) => {
+                // Начать выделение прямоугольником только в режиме select/none и если клик не на элементе
+                if ((toolMode === 'select' || toolMode === 'none') && e.target === svgRef.current) {
+                  const { x, y } = getSVGCoords(e);
+                  setIsSelecting(true);
+                  setSelectionBox({
+                    startX: x,
+                    startY: y,
+                    endX: x,
+                    endY: y
+                  });
+                  setSelectedElements([]);
+                }
+              }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
@@ -1164,6 +1408,114 @@ export default function App() {
                 <text x="50" y="13" textAnchor="middle" fill="#888" fontSize="7" fontFamily="sans-serif">≈ 50 м</text>
               </g>
 
+              {/* Selection box */}
+              {selectionBox && isSelecting && (
+                <rect
+                  x={Math.min(selectionBox.startX, selectionBox.endX)}
+                  y={Math.min(selectionBox.startY, selectionBox.endY)}
+                  width={Math.abs(selectionBox.endX - selectionBox.startX)}
+                  height={Math.abs(selectionBox.endY - selectionBox.startY)}
+                  fill="rgba(59, 130, 246, 0.2)"
+                  stroke="#3b82f6"
+                  strokeWidth="1"
+                  strokeDasharray="4,4"
+                />
+              )}
+
+              {/* Selected elements highlights */}
+              {selectedElements.map((elem, idx) => {
+                if (elem.type === 'unit') {
+                  const allUnits = [...(deployment?.units || []), ...manualUnits];
+                  const unit = allUnits.find(u => u.id === elem.id);
+                  if (unit) {
+                    const unitWidth = unit.type === 'al' ? 55 : 44;
+                    return (
+                      <rect
+                        key={`sel-${idx}`}
+                        x={unit.x - 3}
+                        y={unit.y - 3}
+                        width={unitWidth + 6}
+                        height={26}
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="2"
+                        strokeDasharray="4,2"
+                      />
+                    );
+                  }
+                } else if (elem.type === 'obstacle') {
+                  const obs = obstacles.find(o => o.id === elem.id);
+                  if (obs) {
+                    return (
+                      <rect
+                        key={`sel-${idx}`}
+                        x={obs.x - 3}
+                        y={obs.y - 3}
+                        width={obs.width + 6}
+                        height={obs.height + 6}
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="2"
+                        strokeDasharray="4,2"
+                      />
+                    );
+                  }
+                } else if (elem.type === 'firefighter' && elem.unitId) {
+                  const nozzleIndex = parseInt(elem.id.split('-')[1]);
+                  const allUnits = [...(deployment?.units || []), ...manualUnits];
+                  const unit = allUnits.find(u => u.id === elem.unitId);
+                  if (unit && fireSource) {
+                    const unitWidth = unit.type === 'al' ? 55 : 44;
+                    const customPos = customPositions[unit.id];
+                    const routing = routeHoseAlongCorridor(
+                      unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
+                      customPos?.branchPoint,
+                      customPos?.nozzles
+                    );
+                    if (routing.nozzles[nozzleIndex]) {
+                      return (
+                        <circle
+                          key={`sel-${idx}`}
+                          cx={routing.nozzles[nozzleIndex].x}
+                          cy={routing.nozzles[nozzleIndex].y}
+                          r="14"
+                          fill="none"
+                          stroke="#3b82f6"
+                          strokeWidth="2"
+                          strokeDasharray="4,2"
+                        />
+                      );
+                    }
+                  }
+                } else if (elem.type === 'branch' && elem.unitId) {
+                  const allUnits = [...(deployment?.units || []), ...manualUnits];
+                  const unit = allUnits.find(u => u.id === elem.unitId);
+                  if (unit && fireSource) {
+                    const unitWidth = unit.type === 'al' ? 55 : 44;
+                    const customPos = customPositions[unit.id];
+                    const routing = routeHoseAlongCorridor(
+                      unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
+                      customPos?.branchPoint,
+                      customPos?.nozzles
+                    );
+                    return (
+                      <rect
+                        key={`sel-${idx}`}
+                        x={routing.branchPoint.x - 11}
+                        y={routing.branchPoint.y - 9}
+                        width={22}
+                        height={18}
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="2"
+                        strokeDasharray="4,2"
+                      />
+                    );
+                  }
+                }
+                return null;
+              })}
+
               {/* Firefighters layer - always on top */}
               {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
@@ -1236,6 +1588,35 @@ export default function App() {
                 </span>
               </div>
             )}
+
+            {/* Selection info */}
+            {selectedElements.length > 0 && (
+              <div className="absolute top-2 right-2 bg-blue-600/90 backdrop-blur-sm rounded px-3 py-2 border border-blue-400">
+                <div className="text-xs text-white font-semibold mb-1">
+                  Выделено: {selectedElements.length}
+                </div>
+                <div className="text-[10px] text-blue-100 space-y-0.5">
+                  {selectedElements.filter(e => e.type === 'unit').length > 0 && (
+                    <div>🚒 Техника: {selectedElements.filter(e => e.type === 'unit').length}</div>
+                  )}
+                  {selectedElements.filter(e => e.type === 'obstacle').length > 0 && (
+                    <div>🧱 Препятствия: {selectedElements.filter(e => e.type === 'obstacle').length}</div>
+                  )}
+                  {selectedElements.filter(e => e.type === 'firefighter').length > 0 && (
+                    <div>🧑‍🚒 Ствольщики: {selectedElements.filter(e => e.type === 'firefighter').length}</div>
+                  )}
+                  {selectedElements.filter(e => e.type === 'branch').length > 0 && (
+                    <div>⚙️ Разветвления: {selectedElements.filter(e => e.type === 'branch').length}</div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedElements([])}
+                  className="mt-1 text-[10px] text-blue-200 hover:text-white underline"
+                >
+                  Снять выделение
+                </button>
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -1282,6 +1663,7 @@ export default function App() {
               <p><strong className="text-red-400">+АЦ/+АЛ/+АСР:</strong> Ручное добавление пожарной техники. Выберите тип и кликните на карту.</p>
               <p><strong className="text-green-400">Расставить ПТВ:</strong> Выберите добавленную машину и нажмите кнопку для автоматической прокладки рукавной линии к очагу пожара.</p>
               <p><strong className="text-cyan-400">Перемещение:</strong> Режим "Перемещение" позволяет двигать технику, разветвления РТ-80, ствольщиков и препятствия. Ствольщиков и разветвления можно перемещать в любом режиме. Рукава и струи пересчитываются автоматически.</p>
+              <p><strong className="text-blue-400">Выделение:</strong> В режиме "Перемещение" или "Просмотр" можно выделить несколько элементов прямоугольной областью (кликните на пустое место и тяните). Все выделенные элементы можно перемещать одновременно.</p>
               <p><strong className="text-yellow-400">Подразделение:</strong> Выберите машину и укажите принадлежность к подразделению (например, "ПЧ-12").</p>
               <p><strong className="text-blue-400">Смена типа техники:</strong> Кликните на размещённую машину для изменения её типа (АЦ/АЛ/АСР).</p>
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
