@@ -406,7 +406,7 @@ export default function App() {
       
       // Добавить в выделение
       if (type === 'firefighter') {
-        const nozzleIndex = parseInt(id.split('-')[1]);
+        const nozzleIndex = parseInt(id.split('-').pop() || '0');
         const allUnits = [...(deployment?.units || []), ...manualUnits];
         const unit = allUnits.find(u => u.id === unitId);
         if (unit && fireSource) {
@@ -503,7 +503,7 @@ export default function App() {
             o.id === elem.id ? { ...o, x: moveX, y: moveY } : o
           ));
         } else if (elem.type === 'firefighter' && elem.unitId) {
-          const nozzleIndex = parseInt(elem.id.split('-')[1]);
+          const nozzleIndex = parseInt(elem.id.split('-').pop() || '0');
           setCustomPositions(prev => {
             const positions = prev[elem.unitId!] || {};
             const nozzles = positions.nozzles || [];
@@ -605,7 +605,7 @@ export default function App() {
       }));
     } else if (dragState.type === 'firefighter' && dragState.unitId) {
       // Update nozzle position (firefighter/nozzle)
-      const nozzleIndex = parseInt(dragState.id.split('-')[1]);
+      const nozzleIndex = parseInt(dragState.id.split('-').pop() || '0');
       
       setCustomPositions(prev => {
         const positions = prev[dragState.unitId!] || {};
@@ -1532,7 +1532,7 @@ export default function App() {
                     );
                   }
                 } else if (elem.type === 'firefighter' && elem.unitId) {
-                  const nozzleIndex = parseInt(elem.id.split('-')[1]);
+                  const nozzleIndex = parseInt(elem.id.split('-').pop() || '0');
                   const allUnits = [...(deployment?.units || []), ...manualUnits];
                   const unit = allUnits.find(u => u.id === elem.unitId);
                   if (unit && fireSource) {
