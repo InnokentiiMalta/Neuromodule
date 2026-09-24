@@ -486,10 +486,16 @@ export default function App() {
         moveY = Math.max(10, Math.min(590, moveY));
         
         if (elem.type === 'unit') {
-          setManualUnits(prev => prev.map(u =>
-            u.id === elem.id ? { ...u, x: moveX, y: moveY } : u
-          ));
-          if (deployment) {
+          // Проверяем, в каком массиве находится техника
+          const isManualUnit = manualUnits.some(u => u.id === elem.id);
+          const isDeploymentUnit = deployment?.units.some(u => u.id === elem.id);
+          
+          // Update только того массива, в котором находится техника
+          if (isManualUnit) {
+            setManualUnits(prev => prev.map(u =>
+              u.id === elem.id ? { ...u, x: moveX, y: moveY } : u
+            ));
+          } else if (isDeploymentUnit && deployment) {
             setDeployment({
               ...deployment,
               units: deployment.units.map(u =>
@@ -562,13 +568,16 @@ export default function App() {
       newX = Math.max(10, Math.min(990, newX));
       newY = Math.max(10, Math.min(590, newY));
       
-      // Update manual units
-      setManualUnits(prev => prev.map(u =>
-        u.id === dragState.id ? { ...u, x: newX, y: newY } : u
-      ));
+      // Проверяем, в каком массиве находится техника
+      const isManualUnit = manualUnits.some(u => u.id === dragState.id);
+      const isDeploymentUnit = deployment?.units.some(u => u.id === dragState.id);
       
-      // Update deployment units
-      if (deployment) {
+      // Update только того массива, в котором находится техника
+      if (isManualUnit) {
+        setManualUnits(prev => prev.map(u =>
+          u.id === dragState.id ? { ...u, x: newX, y: newY } : u
+        ));
+      } else if (isDeploymentUnit && deployment) {
         setDeployment({
           ...deployment,
           units: deployment.units.map(u =>
