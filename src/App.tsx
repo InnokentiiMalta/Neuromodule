@@ -432,24 +432,40 @@ export default function App() {
   }, []);
 
   const changeWagonType = useCallback((wagonId: number, newType: WagonType) => {
-    setWagons(prev => prev.map(w => {
+    const newWagons = wagons.map(w => {
       if (w.id === wagonId) {
         const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
         return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
       }
       return w;
-    }));
+    });
+    setWagons(newWagons);
     setSelectedWagonId(null);
-    setDeployment(null);
-  }, []);
+    
+    // Автоматический пересчёт расстановки после изменения типа вагона
+    if (fireSource) {
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSource);
+      setDeployment(newDeployment);
+    } else {
+      setDeployment(null);
+    }
+  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSource]);
 
   const changeAllWagonsType = useCallback((newType: WagonType) => {
-    setWagons(prev => prev.map(w => {
+    const newWagons = wagons.map(w => {
       const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
       return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
-    }));
-    setDeployment(null);
-  }, []);
+    });
+    setWagons(newWagons);
+    
+    // Автоматический пересчёт расстановки после изменения типа всех вагонов
+    if (fireSource) {
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSource);
+      setDeployment(newDeployment);
+    } else {
+      setDeployment(null);
+    }
+  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSource]);
 
   const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
     const newName = newType === 'al' ? 'АЛ-30(40)' : newType === 'asr' ? 'АСР' : 'АЦ-40';
@@ -459,13 +475,10 @@ export default function App() {
       u.id === unitId ? { ...u, type: newType, name: newName, personnel: newPersonnel } : u
     ));
     
-    if (deployment) {
-      setDeployment(prev => prev ? {
-        ...prev,
-        units: prev.units.map(u =>
-          u.id === unitId ? { ...u, type: newType, name: newName, personnel: newPersonnel } : u
-        ),
-      } : null);
+    // Автоматический пересчёт расстановки после изменения типа техники
+    if (fireSource) {
+      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSource);
+      setDeployment(newDeployment);
     }
     setSelectedUnitId(null);
   }, [deployment]);
@@ -1226,7 +1239,7 @@ export default function App() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => { setUseCustomResources(true); if (fireSource) setDeployment(calculateDeployment(wagons, fireSource, obstacles, resources)); setShowResources(false); }} className="flex-1 py-2 bg-indigo-600 rounded-lg text-sm font-semibold">✅ Применить</button>
+              <button onClick={() => { setUseCustomResources(true); if (fireSource) setDeployment(calculateDeployment(wagons, fireSource, obstacles, resources, waterSource)); setShowResources(false); }} className="flex-1 py-2 bg-indigo-600 rounded-lg text-sm font-semibold">✅ Применить</button>
               <button onClick={() => setShowResources(false)} className="px-4 py-2 bg-gray-700 rounded-lg text-sm">Отмена</button>
             </div>
           </div>
