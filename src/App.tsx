@@ -645,7 +645,7 @@ export default function App() {
       
       // Проверить ствольщиков
       if (fireSource) {
-        allUnits.filter(u => u.hoses > 0 || u.type !== 'asr' || (manualUnits.find(mu => mu.id === u.id)?.ptvDeployed)).forEach(unit => {
+        allUnits.filter(u => u.type !== 'asr').forEach(unit => {
           const unitWidth = unit.type === 'al' ? 55 : 44;
           const customPos = customPositions[unit.id];
           const routing = routeHoseAlongCorridor(
@@ -1022,8 +1022,9 @@ export default function App() {
               className="w-full h-full"
               onClick={handleSVGClick}
               onMouseDown={(e) => {
-                // Начать выделение прямоугольником в режиме select/none/selection и если клик не на элементе
-                if ((toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && e.target === svgRef.current) {
+                // Начать выделение прямоугольником в режиме selection
+                if (toolMode === 'selection') {
+                  e.preventDefault();
                   const { x, y } = getSVGCoords(e);
                   setIsSelecting(true);
                   setSelectionBox({
@@ -1518,7 +1519,7 @@ export default function App() {
               })}
 
               {/* Firefighters layer - always on top */}
-              {fireSource && [...(deployment?.units.filter(u => u.hoses > 0 || u.type !== 'asr') || []), ...manualUnits.filter(u => u.ptvDeployed || u.hoses > 0)].map(unit => {
+              {fireSource && [...(deployment?.units.filter(u => u.type !== 'asr') || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
