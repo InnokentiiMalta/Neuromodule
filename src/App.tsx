@@ -313,7 +313,11 @@ export default function App() {
   }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
-    if (toolMode !== 'select' && type !== 'unit') return;
+    // Allow dragging in select mode for all types
+    // Allow dragging firefighters and branches in any mode (including 'none')
+    if (toolMode !== 'select') {
+      if (type !== 'firefighter' && type !== 'branch') return;
+    }
     e.stopPropagation();
     const { x, y } = getSVGCoords(e);
 
@@ -838,22 +842,71 @@ export default function App() {
                     <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
 
                     {/* Nozzles with water streams - draggable */}
-                    {routing.nozzles.map((nozzle, idx) => (
-                      <g key={idx}>
-                        <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
-                          stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
-                          <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
-                        </line>
-                        <g
-                          onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
-                          style={{ cursor: 'move' }}
-                        >
-                          <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
-                          <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
-                          <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+                    {routing.nozzles.map((nozzle, idx) => {
+                      // Calculate direction from nozzle to fire
+                      const dx = fs.x - nozzle.x;
+                      const dy = fs.y - nozzle.y;
+                      const angle = Math.atan2(dy, dx);
+                      const dist = Math.sqrt(dx * dx + dy * dy);
+                      
+                      // Water spray cone (visual indication of stream direction)
+                      const sprayLength = Math.min(dist * 0.3, 30);
+                      const sprayWidth = 8;
+                      const sprayX = nozzle.x + Math.cos(angle) * sprayLength;
+                      const sprayY = nozzle.y + Math.sin(angle) * sprayLength;
+                      
+                      return (
+                        <g key={idx}>
+                          {/* Water stream line */}
+                          <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
+                            stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
+                            <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
+                          </line>
+                          
+                          {/* Water spray cone (direction indicator) */}
+                          <path
+                            d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * sprayWidth} ${sprayY + Math.cos(angle) * sprayWidth} L ${sprayX + Math.sin(angle) * sprayWidth} ${sprayY - Math.cos(angle) * sprayWidth} Z`}
+                            fill="#4fc3f7"
+                            opacity="0.4"
+                          >
+                            <animate attributeName="opacity" values="0.3;0.5;0.3" dur="0.8s" repeatCount="indefinite" />
+                          </path>
+                          
+                          {/* Draggable firefighter group */}
+                          <g
+                            onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
+                            style={{ cursor: 'move' }}
+                          >
+                            {/* Larger hit area for easier dragging */}
+                            <circle cx={nozzle.x} cy={nozzle.y} r="10" fill="transparent" />
+                            
+                            {/* Firefighter circle */}
+                            <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
+                            
+                            {/* Direction indicator (small arrow pointing to fire) */}
+                            <line
+                              x1={nozzle.x}
+                              y1={nozzle.y}
+                              x2={nozzle.x + Math.cos(angle) * 8}
+                              y2={nozzle.y + Math.sin(angle) * 8}
+                              stroke="#1565c0"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                            
+                            {/* Firefighter icon */}
+                            <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
+                            
+                            {/* Highlight ring when in select mode */}
+                            {toolMode === 'select' && (
+                              <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
+                                <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
+                              </circle>
+                            )}
+                          </g>
                         </g>
-                      </g>
-                    ))}
+                      );
+                    })}
                   </g>
                 );
               })}
@@ -927,22 +980,71 @@ export default function App() {
                     <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                     <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
                     
-                    {routing.nozzles.map((nozzle, idx) => (
-                      <g key={idx}>
-                        <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
-                          stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
-                          <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
-                        </line>
-                        <g
-                          onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
-                          style={{ cursor: 'move' }}
-                        >
-                          <circle cx={nozzle.x} cy={nozzle.y} r="3.5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.2" />
-                          <circle cx={nozzle.x} cy={nozzle.y} r="7" fill="none" stroke="#ffeb3b" strokeWidth="0.8" opacity="0.6" />
-                          <text x={nozzle.x} y={nozzle.y + 2.5} textAnchor="middle" fill="#fff" fontSize="6">🧑‍🚒</text>
+                    {routing.nozzles.map((nozzle, idx) => {
+                      // Calculate direction from nozzle to fire
+                      const dx = fs.x - nozzle.x;
+                      const dy = fs.y - nozzle.y;
+                      const angle = Math.atan2(dy, dx);
+                      const dist = Math.sqrt(dx * dx + dy * dy);
+                      
+                      // Water spray cone (visual indication of stream direction)
+                      const sprayLength = Math.min(dist * 0.3, 30);
+                      const sprayWidth = 8;
+                      const sprayX = nozzle.x + Math.cos(angle) * sprayLength;
+                      const sprayY = nozzle.y + Math.sin(angle) * sprayLength;
+                      
+                      return (
+                        <g key={idx}>
+                          {/* Water stream line */}
+                          <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
+                            stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
+                            <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
+                          </line>
+                          
+                          {/* Water spray cone (direction indicator) */}
+                          <path
+                            d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * sprayWidth} ${sprayY + Math.cos(angle) * sprayWidth} L ${sprayX + Math.sin(angle) * sprayWidth} ${sprayY - Math.cos(angle) * sprayWidth} Z`}
+                            fill="#4fc3f7"
+                            opacity="0.4"
+                          >
+                            <animate attributeName="opacity" values="0.3;0.5;0.3" dur="0.8s" repeatCount="indefinite" />
+                          </path>
+                          
+                          {/* Draggable firefighter group */}
+                          <g
+                            onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
+                            style={{ cursor: 'move' }}
+                          >
+                            {/* Larger hit area for easier dragging */}
+                            <circle cx={nozzle.x} cy={nozzle.y} r="10" fill="transparent" />
+                            
+                            {/* Firefighter circle */}
+                            <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
+                            
+                            {/* Direction indicator (small arrow pointing to fire) */}
+                            <line
+                              x1={nozzle.x}
+                              y1={nozzle.y}
+                              x2={nozzle.x + Math.cos(angle) * 8}
+                              y2={nozzle.y + Math.sin(angle) * 8}
+                              stroke="#1565c0"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                            
+                            {/* Firefighter icon */}
+                            <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
+                            
+                            {/* Highlight ring when in select mode */}
+                            {toolMode === 'select' && (
+                              <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
+                                <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
+                              </circle>
+                            )}
+                          </g>
                         </g>
-                      </g>
-                    ))}
+                      );
+                    })}
                   </g>
                 );
               })}
@@ -1071,7 +1173,7 @@ export default function App() {
               <p><strong className="text-purple-400">Типы вагонов:</strong> Клик на вагон для смены типа. Кнопки "Тип поезда" для изменения всех вагонов сразу.</p>
               <p><strong className="text-red-400">+АЦ/+АЛ/+АСР:</strong> Ручное добавление пожарной техники. Выберите тип и кликните на карту.</p>
               <p><strong className="text-green-400">Расставить ПТВ:</strong> Выберите добавленную машину и нажмите кнопку для автоматической прокладки рукавной линии к очагу пожара.</p>
-              <p><strong className="text-cyan-400">Перемещение:</strong> Режим "Перемещение" позволяет двигать технику, разветвления РТ-80, ствольщиков и препятствия. Рукава пересчитываются автоматически.</p>
+              <p><strong className="text-cyan-400">Перемещение:</strong> Режим "Перемещение" позволяет двигать технику, разветвления РТ-80, ствольщиков и препятствия. Ствольщиков и разветвления можно перемещать в любом режиме. Рукава и струи пересчитываются автоматически.</p>
               <p><strong className="text-yellow-400">Подразделение:</strong> Выберите машину и укажите принадлежность к подразделению (например, "ПЧ-12").</p>
               <p><strong className="text-blue-400">Смена типа техники:</strong> Кликните на размещённую машину для изменения её типа (АЦ/АЛ/АСР).</p>
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
