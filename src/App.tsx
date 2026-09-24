@@ -645,7 +645,7 @@ export default function App() {
       
       // Проверить ствольщиков
       if (fireSource) {
-        allUnits.filter(u => u.hoses > 0 || (manualUnits.find(mu => mu.id === u.id)?.ptvDeployed)).forEach(unit => {
+        allUnits.filter(u => u.hoses > 0 || u.type !== 'asr' || (manualUnits.find(mu => mu.id === u.id)?.ptvDeployed)).forEach(unit => {
           const unitWidth = unit.type === 'al' ? 55 : 44;
           const customPos = customPositions[unit.id];
           const routing = routeHoseAlongCorridor(
@@ -803,11 +803,12 @@ export default function App() {
           <div className="p-3 overflow-y-auto flex-1 space-y-3">
             <div>
               <h3 className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Инструменты</h3>
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-2 gap-1">
                 <button onClick={() => setToolMode(toolMode === 'fire' ? 'none' : 'fire')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'fire' ? 'bg-orange-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>🔥 Очаг</button>
                 <button onClick={() => setToolMode(toolMode === 'obstacle' ? 'none' : 'obstacle')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'obstacle' ? 'bg-yellow-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>🧱 Препятствия</button>
                 <button onClick={() => setToolMode(toolMode === 'water' ? 'none' : 'water')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'water' ? 'bg-cyan-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>💧 Водоисточник</button>
                 <button onClick={() => setToolMode(toolMode === 'select' ? 'none' : 'select')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'select' ? 'bg-blue-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>✋ Перемещение</button>
+                <button onClick={() => setToolMode(toolMode === 'selection' ? 'none' : 'selection')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'selection' ? 'bg-purple-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>⬚ Выделение области</button>
                 <button onClick={() => setToolMode('none')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'none' ? 'bg-green-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>👁 Просмотр</button>
               </div>
             </div>
@@ -1021,8 +1022,8 @@ export default function App() {
               className="w-full h-full"
               onClick={handleSVGClick}
               onMouseDown={(e) => {
-                // Начать выделение прямоугольником только в режиме select/none и если клик не на элементе
-                if ((toolMode === 'select' || toolMode === 'none') && e.target === svgRef.current) {
+                // Начать выделение прямоугольником в режиме select/none/selection и если клик не на элементе
+                if ((toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && e.target === svgRef.current) {
                   const { x, y } = getSVGCoords(e);
                   setIsSelecting(true);
                   setSelectionBox({
@@ -1037,7 +1038,7 @@ export default function App() {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              style={{ cursor: placingUnit ? 'cell' : toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : toolMode === 'water' ? 'cell' : toolMode === 'select' ? 'move' : 'pointer' }}
+              style={{ cursor: placingUnit ? 'cell' : toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : toolMode === 'water' ? 'cell' : toolMode === 'select' ? 'move' : toolMode === 'selection' ? 'crosshair' : 'pointer' }}
             >
               <defs>
                 <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -1517,7 +1518,7 @@ export default function App() {
               })}
 
               {/* Firefighters layer - always on top */}
-              {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
+              {fireSource && [...(deployment?.units.filter(u => u.hoses > 0 || u.type !== 'asr') || []), ...manualUnits.filter(u => u.ptvDeployed || u.hoses > 0)].map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
@@ -1559,7 +1560,7 @@ export default function App() {
                       <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
                       
                       {/* Highlight ring when in select mode */}
-                      {(toolMode === 'select' || toolMode === 'none') && (
+                      {(toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && (
                         <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
                           <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
                         </circle>
@@ -1584,6 +1585,7 @@ export default function App() {
                    toolMode === 'fire' ? 'Установка очага пожара' : 
                    toolMode === 'obstacle' ? 'Размещение препятствий' : 
                    toolMode === 'water' ? 'Размещение водоисточника' :
+                   toolMode === 'selection' ? '⬚ Выделение области' :
                    'Перемещение объектов'}
                 </span>
               </div>
