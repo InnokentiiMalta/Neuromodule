@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit } from './types';
+import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit, WaterSource } from './types';
 import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
 
 const WAGON_GAP = 6;
@@ -231,6 +231,8 @@ export default function App() {
   const [resources, setResources] = useState<AvailableResources>(DEFAULT_RESOURCES);
   const [useCustomResources, setUseCustomResources] = useState(false);
   const [customPositions, setCustomPositions] = useState<CustomPositions>({});
+  const [waterSource, setWaterSource] = useState<WaterSource | null>(null);
+  const [waterSourceType, setWaterSourceType] = useState<'hydrant' | 'pond' | 'river'>('hydrant');
   const svgRef = useRef<SVGSVGElement>(null);
 
   const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
@@ -288,6 +290,17 @@ export default function App() {
         label: defaults.label,
       }]);
       setDeployment(null);
+    } else if (toolMode === 'water') {
+      const labels = { hydrant: 'Гидрант', pond: 'Водоём', river: 'Река' };
+      setWaterSource({
+        id: `water-${Date.now()}`,
+        x,
+        y,
+        type: waterSourceType,
+        label: labels[waterSourceType],
+      });
+      setDeployment(null);
+      setToolMode('none');
     } else {
       // Check wagon click for type change
       const clickedWagon = wagons.find(w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height);
@@ -310,7 +323,7 @@ export default function App() {
         }
       }
     }
-  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits]);
+  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
     // Allow dragging in select mode for all types
@@ -375,21 +388,28 @@ export default function App() {
       }));
     } else if (dragState.type === 'firefighter' && dragState.unitId) {
       // Update nozzle position (firefighter/nozzle)
-      const positions = customPositions[dragState.unitId];
-      if (positions?.nozzles) {
-        const nozzleIndex = parseInt(dragState.id.split('-')[1]);
-        const newNozzles = [...positions.nozzles];
-        if (newNozzles[nozzleIndex]) {
-          newNozzles[nozzleIndex] = { x, y };
-          setCustomPositions(prev => ({
-            ...prev,
-            [dragState.unitId!]: {
-              ...prev[dragState.unitId!],
-              nozzles: newNozzles
-            }
-          }));
+      const nozzleIndex = parseInt(dragState.id.split('-')[1]);
+      
+      setCustomPositions(prev => {
+        const positions = prev[dragState.unitId!] || {};
+        const nozzles = positions.nozzles || [];
+        const newNozzles = [...nozzles];
+        
+        // Ensure array is large enough
+        while (newNozzles.length <= nozzleIndex) {
+          newNozzles.push({ x: 0, y: 0 });
         }
-      }
+        
+        newNozzles[nozzleIndex] = { x, y };
+        
+        return {
+          ...prev,
+          [dragState.unitId!]: {
+            ...positions,
+            nozzles: newNozzles
+          }
+        };
+      });
     }
   }, [dragState, getSVGCoords, deployment, customPositions]);
 
@@ -398,15 +418,16 @@ export default function App() {
   }, []);
 
   const handleDeploy = useCallback(() => {
-    const result = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null);
+    const result = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSource);
     setDeployment(result);
-  }, [wagons, fireSource, obstacles, resources, useCustomResources]);
+  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSource]);
 
   const handleReset = useCallback(() => {
     setFireSource(null);
     setObstacles([]);
     setDeployment(null);
     setManualUnits([]);
+    setWaterSource(null);
     setToolMode('none');
   }, []);
 
@@ -499,9 +520,10 @@ export default function App() {
           <div className="p-3 overflow-y-auto flex-1 space-y-3">
             <div>
               <h3 className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Инструменты</h3>
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid grid-cols-3 gap-1">
                 <button onClick={() => setToolMode(toolMode === 'fire' ? 'none' : 'fire')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'fire' ? 'bg-orange-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>🔥 Очаг</button>
                 <button onClick={() => setToolMode(toolMode === 'obstacle' ? 'none' : 'obstacle')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'obstacle' ? 'bg-yellow-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>🧱 Препятствия</button>
+                <button onClick={() => setToolMode(toolMode === 'water' ? 'none' : 'water')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'water' ? 'bg-cyan-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>💧 Водоисточник</button>
                 <button onClick={() => setToolMode(toolMode === 'select' ? 'none' : 'select')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'select' ? 'bg-blue-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>✋ Перемещение</button>
                 <button onClick={() => setToolMode('none')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'none' ? 'bg-green-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>👁 Просмотр</button>
               </div>
@@ -544,6 +566,37 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {toolMode === 'water' && (
+              <div className="p-2.5 bg-cyan-900/20 rounded-lg border border-cyan-500/30">
+                <h3 className="text-[11px] font-semibold text-cyan-400 mb-1.5">💧 Тип водоисточника</h3>
+                <div className="space-y-1">
+                  <button onClick={() => setWaterSourceType('hydrant')} className={`w-full px-2 py-1.5 rounded text-[10px] font-medium flex items-center gap-2 ${waterSourceType === 'hydrant' ? 'bg-cyan-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                    <span className="text-sm">🚰</span>
+                    <span>Гидрант</span>
+                  </button>
+                  <button onClick={() => setWaterSourceType('pond')} className={`w-full px-2 py-1.5 rounded text-[10px] font-medium flex items-center gap-2 ${waterSourceType === 'pond' ? 'bg-cyan-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                    <span className="text-sm">🏊</span>
+                    <span>Водоём</span>
+                  </button>
+                  <button onClick={() => setWaterSourceType('river')} className={`w-full px-2 py-1.5 rounded text-[10px] font-medium flex items-center gap-2 ${waterSourceType === 'river' ? 'bg-cyan-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                    <span className="text-sm">🌊</span>
+                    <span>Река</span>
+                  </button>
+                </div>
+                <p className="text-[9px] text-cyan-300/70 italic mt-2">👆 Кликните на карту для размещения</p>
+              </div>
+            )}
+
+            {waterSource && toolMode !== 'water' && (
+              <div className="p-2 bg-cyan-900/20 rounded-lg border border-cyan-500/30">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-[10px] font-semibold text-cyan-400">💧 {waterSource.label}</h3>
+                  <button onClick={() => setWaterSource(null)} className="text-[9px] text-cyan-400 hover:text-cyan-300">✕</button>
+                </div>
+                <p className="text-[9px] text-gray-300">Техника будет размещена с приоритетом от водоисточника</p>
               </div>
             )}
 
@@ -687,7 +740,7 @@ export default function App() {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              style={{ cursor: placingUnit ? 'cell' : toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : toolMode === 'select' ? 'move' : 'pointer' }}
+              style={{ cursor: placingUnit ? 'cell' : toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : toolMode === 'water' ? 'cell' : toolMode === 'select' ? 'move' : 'pointer' }}
             >
               <defs>
                 <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -768,6 +821,20 @@ export default function App() {
                   <text x={obs.x + obs.width / 2} y={obs.y + obs.height / 2 + 4} textAnchor="middle" fontSize="14">{OBSTACLE_DEFAULTS[obs.type]?.icon}</text>
                 </g>
               ))}
+
+              {/* Water Source */}
+              {waterSource && (
+                <g>
+                  <circle cx={waterSource.x} cy={waterSource.y} r="15" fill="#0288d1" opacity="0.3">
+                    <animate attributeName="r" values="15;18;15" dur="2s" repeatCount="indefinite" />
+                  </circle>
+                  <circle cx={waterSource.x} cy={waterSource.y} r="10" fill="#03a9f4" opacity="0.6" />
+                  <text x={waterSource.x} y={waterSource.y + 4} textAnchor="middle" fontSize="12">
+                    {waterSource.type === 'hydrant' ? '🚰' : waterSource.type === 'pond' ? '🏊' : '🌊'}
+                  </text>
+                  <text x={waterSource.x} y={waterSource.y - 18} textAnchor="middle" fill="#4fc3f7" fontSize="7" fontWeight="bold">{waterSource.label}</text>
+                </g>
+              )}
 
               {/* Hose lines for deployment units */}
               {fireSource && deployment?.units.filter(u => u.hoses > 0).map(unit => {
@@ -1124,6 +1191,7 @@ export default function App() {
                   {toolMode === 'none' ? 'Просмотр (клик на объект для выбора)' : 
                    toolMode === 'fire' ? 'Установка очага пожара' : 
                    toolMode === 'obstacle' ? 'Размещение препятствий' : 
+                   toolMode === 'water' ? 'Размещение водоисточника' :
                    'Перемещение объектов'}
                 </span>
               </div>

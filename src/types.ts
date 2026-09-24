@@ -26,6 +26,14 @@ export interface Obstacle {
   label: string;
 }
 
+export interface WaterSource {
+  id: string;
+  x: number;
+  y: number;
+  type: WaterSourceType;
+  label: string;
+}
+
 export interface FireUnit {
   id: string;
   type: 'aca' | 'ac' | 'al' | 'asr';
@@ -55,5 +63,6 @@ export interface AvailableResources {
   personnel: number; // Личный состав (чел.)
 }
 
-export type ToolMode = 'none' | 'fire' | 'obstacle' | 'select';
+export type ToolMode = 'none' | 'fire' | 'obstacle' | 'select' | 'water';
+export type WaterSourceType = 'hydrant' | 'pond' | 'river';
 export type ObstacleType = 'building' | 'fence' | 'equipment' | 'depot' | 'tree_group' | 'road';
