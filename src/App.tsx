@@ -465,12 +465,26 @@ export default function App() {
     
     // Групповое перемещение выделенных элементов
     if (dragState && selectedElements.length > 1) {
-      const dx = x - dragState.offsetX;
-      const dy = y - dragState.offsetY;
+      const deltaX = x - dragState.offsetX;
+      const deltaY = y - dragState.offsetY;
       
       selectedElements.forEach(elem => {
-        const moveX = dx + (elem.startX - dragState.offsetX);
-        const moveY = dy + (elem.startY - dragState.offsetY);
+        let moveX = elem.startX + deltaX;
+        let moveY = elem.startY + deltaY;
+        
+        // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
+        if (fireSource) {
+          const distFromFire = Math.sqrt((moveX - fireSource.x) ** 2 + (moveY - fireSource.y) ** 2);
+          if (distFromFire > 400) {
+            const angle = Math.atan2(moveY - fireSource.y, moveX - fireSource.x);
+            moveX = fireSource.x + Math.cos(angle) * 400;
+            moveY = fireSource.y + Math.sin(angle) * 400;
+          }
+        }
+        
+        // Ограничение границами карты
+        moveX = Math.max(10, Math.min(990, moveX));
+        moveY = Math.max(10, Math.min(590, moveY));
         
         if (elem.type === 'unit') {
           setManualUnits(prev => prev.map(u =>
@@ -521,12 +535,33 @@ export default function App() {
     if (!dragState) return;
 
     if (dragState.type === 'obstacle') {
+      let newX = x - dragState.offsetX;
+      let newY = y - dragState.offsetY;
+      
+      // Ограничение границами карты
+      newX = Math.max(10, Math.min(990, newX));
+      newY = Math.max(10, Math.min(590, newY));
+      
       setObstacles(prev => prev.map(o =>
-        o.id === dragState.id ? { ...o, x: x - dragState.offsetX, y: y - dragState.offsetY } : o
+        o.id === dragState.id ? { ...o, x: newX, y: newY } : o
       ));
     } else if (dragState.type === 'unit') {
-      const newX = x - dragState.offsetX;
-      const newY = y - dragState.offsetY;
+      let newX = x - dragState.offsetX;
+      let newY = y - dragState.offsetY;
+      
+      // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
+      if (fireSource) {
+        const distFromFire = Math.sqrt((newX - fireSource.x) ** 2 + (newY - fireSource.y) ** 2);
+        if (distFromFire > 400) {
+          const angle = Math.atan2(newY - fireSource.y, newX - fireSource.x);
+          newX = fireSource.x + Math.cos(angle) * 400;
+          newY = fireSource.y + Math.sin(angle) * 400;
+        }
+      }
+      
+      // Ограничение границами карты
+      newX = Math.max(10, Math.min(990, newX));
+      newY = Math.max(10, Math.min(590, newY));
       
       // Update manual units
       setManualUnits(prev => prev.map(u =>
@@ -544,11 +579,28 @@ export default function App() {
       }
     } else if (dragState.type === 'branch' && dragState.unitId) {
       // Update branch point position
+      let branchX = x;
+      let branchY = y;
+      
+      // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
+      if (fireSource) {
+        const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
+        if (distFromFire > 400) {
+          const angle = Math.atan2(branchY - fireSource.y, branchX - fireSource.x);
+          branchX = fireSource.x + Math.cos(angle) * 400;
+          branchY = fireSource.y + Math.sin(angle) * 400;
+        }
+      }
+      
+      // Ограничение границами карты
+      branchX = Math.max(10, Math.min(990, branchX));
+      branchY = Math.max(10, Math.min(590, branchY));
+      
       setCustomPositions(prev => ({
         ...prev,
         [dragState.unitId!]: {
           ...prev[dragState.unitId!],
-          branchPoint: { x, y }
+          branchPoint: { x: branchX, y: branchY }
         }
       }));
     } else if (dragState.type === 'firefighter' && dragState.unitId) {
@@ -589,7 +641,24 @@ export default function App() {
         
         // Update only the dragged nozzle
         if (nozzleIndex < newNozzles.length) {
-          newNozzles[nozzleIndex] = { x, y };
+          let nozzleX = x;
+          let nozzleY = y;
+          
+          // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
+          if (fireSource) {
+            const distFromFire = Math.sqrt((nozzleX - fireSource.x) ** 2 + (nozzleY - fireSource.y) ** 2);
+            if (distFromFire > 400) {
+              const angle = Math.atan2(nozzleY - fireSource.y, nozzleX - fireSource.x);
+              nozzleX = fireSource.x + Math.cos(angle) * 400;
+              nozzleY = fireSource.y + Math.sin(angle) * 400;
+            }
+          }
+          
+          // Ограничение границами карты
+          nozzleX = Math.max(10, Math.min(990, nozzleX));
+          nozzleY = Math.max(10, Math.min(590, nozzleY));
+          
+          newNozzles[nozzleIndex] = { x: nozzleX, y: nozzleY };
         }
         
         return {
@@ -645,7 +714,7 @@ export default function App() {
       
       // Проверить ствольщиков
       if (fireSource) {
-        allUnits.filter(u => u.type !== 'asr').forEach(unit => {
+        allUnits.filter(u => u.type !== 'asr' && (u.hoses > 0 || (u as any).ptvDeployed)).forEach(unit => {
           const unitWidth = unit.type === 'al' ? 55 : 44;
           const customPos = customPositions[unit.id];
           const routing = routeHoseAlongCorridor(
@@ -1519,7 +1588,7 @@ export default function App() {
               })}
 
               {/* Firefighters layer - always on top */}
-              {fireSource && [...(deployment?.units.filter(u => u.type !== 'asr') || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
+              {fireSource && [...(deployment?.units.filter(u => u.type !== 'asr') || []), ...manualUnits.filter(u => u.ptvDeployed || u.hoses > 0)].map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
