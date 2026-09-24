@@ -1588,7 +1588,7 @@ export default function App() {
               })}
 
               {/* Firefighters layer - always on top */}
-              {fireSource && [...(deployment?.units.filter(u => u.type !== 'asr') || []), ...manualUnits.filter(u => u.ptvDeployed || u.hoses > 0)].map(unit => {
+              {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
