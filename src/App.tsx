@@ -488,20 +488,12 @@ export default function App() {
         if (elem.type === 'unit') {
           // Проверяем, в каком массиве находится техника
           const isManualUnit = manualUnits.some(u => u.id === elem.id);
-          const isDeploymentUnit = deployment?.units.some(u => u.id === elem.id);
           
-          // Update только того массива, в котором находится техника
+          // Update только manualUnits, deployment units не перемещаем
           if (isManualUnit) {
             setManualUnits(prev => prev.map(u =>
               u.id === elem.id ? { ...u, x: moveX, y: moveY } : u
             ));
-          } else if (isDeploymentUnit && deployment) {
-            setDeployment({
-              ...deployment,
-              units: deployment.units.map(u =>
-                u.id === elem.id ? { ...u, x: moveX, y: moveY } : u
-              ),
-            });
           }
         } else if (elem.type === 'obstacle') {
           setObstacles(prev => prev.map(o =>
@@ -570,20 +562,12 @@ export default function App() {
       
       // Проверяем, в каком массиве находится техника
       const isManualUnit = manualUnits.some(u => u.id === dragState.id);
-      const isDeploymentUnit = deployment?.units.some(u => u.id === dragState.id);
       
-      // Update только того массива, в котором находится техника
+      // Update только manualUnits, deployment units не перемещаем
       if (isManualUnit) {
         setManualUnits(prev => prev.map(u =>
           u.id === dragState.id ? { ...u, x: newX, y: newY } : u
         ));
-      } else if (isDeploymentUnit && deployment) {
-        setDeployment({
-          ...deployment,
-          units: deployment.units.map(u =>
-            u.id === dragState.id ? { ...u, x: newX, y: newY } : u
-          ),
-        });
       }
     } else if (dragState.type === 'branch' && dragState.unitId) {
       // Update branch point position
