@@ -365,87 +365,21 @@ export default function App() {
     }
     e.stopPropagation();
     const { x, y } = getSVGCoords(e);
-    
-    // Если элемент уже выделен, начинаем групповое перемещение
-    const isAlreadySelected = selectedElements.some(el => 
-      el.type === type && el.id === id && el.unitId === unitId
-    );
-    
-    if (isAlreadySelected && selectedElements.length > 0) {
-      setDragState({ type, id, unitId, offsetX: x, offsetY: y });
-      return;
-    }
 
     if (type === 'obstacle') {
       const obs = obstacles.find(o => o.id === id);
       if (obs) {
         setDragState({ type, id, offsetX: x - obs.x, offsetY: y - obs.y });
-        setSelectedElements([{
-          type: 'obstacle',
-          id: obs.id,
-          startX: obs.x,
-          startY: obs.y
-        }]);
       }
     } else if (type === 'unit') {
       const allUnits = [...(deployment?.units || []), ...manualUnits];
       const unit = allUnits.find(u => u.id === id);
       if (unit) {
         setDragState({ type, id, offsetX: x - unit.x, offsetY: y - unit.y });
-        setSelectedElements([{
-          type: 'unit',
-          id: unit.id,
-          startX: unit.x,
-          startY: unit.y
-        }]);
       }
     } else if (type === 'branch' || type === 'firefighter') {
       // For branch points and firefighters, we need to track their position in customPositions
       setDragState({ type, id, unitId, offsetX: x, offsetY: y });
-      
-      // Добавить в выделение
-      if (type === 'firefighter') {
-        const nozzleIndex = parseInt(id.split('-').pop() || '0');
-        const allUnits = [...(deployment?.units || []), ...manualUnits];
-        const unit = allUnits.find(u => u.id === unitId);
-        if (unit && fireSource) {
-          const unitWidth = unit.type === 'al' ? 55 : 44;
-          const customPos = customPositions[unit.id];
-          const routing = routeHoseAlongCorridor(
-            unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
-            customPos?.branchPoint,
-            customPos?.nozzles
-          );
-          if (routing.nozzles[nozzleIndex]) {
-            setSelectedElements([{
-              type: 'firefighter',
-              id: id,
-              unitId: unitId,
-              startX: routing.nozzles[nozzleIndex].x,
-              startY: routing.nozzles[nozzleIndex].y
-            }]);
-          }
-        }
-      } else if (type === 'branch') {
-        const allUnits = [...(deployment?.units || []), ...manualUnits];
-        const unit = allUnits.find(u => u.id === unitId);
-        if (unit && fireSource) {
-          const unitWidth = unit.type === 'al' ? 55 : 44;
-          const customPos = customPositions[unit.id];
-          const routing = routeHoseAlongCorridor(
-            unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
-            customPos?.branchPoint,
-            customPos?.nozzles
-          );
-          setSelectedElements([{
-            type: 'branch',
-            id: id,
-            unitId: unitId,
-            startX: routing.branchPoint.x,
-            startY: routing.branchPoint.y
-          }]);
-        }
-      }
     }
   }, [toolMode, obstacles, getSVGCoords, deployment, manualUnits, selectedElements, fireSource, customPositions, wagons]);
 
@@ -1435,7 +1369,19 @@ export default function App() {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 const isSelected = selectedUnitId === unit.id;
                 return (
-                  <g key={unit.id} onMouseDown={e => handleMouseDown(e, 'unit', unit.id)} style={{ cursor: toolMode === 'select' ? 'move' : 'pointer' }}>
+                  <g 
+                    key={unit.id} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedUnitId(isSelected ? null : unit.id);
+                    }}
+                    onMouseDown={e => {
+                      if (isSelected) {
+                        handleMouseDown(e, 'unit', unit.id);
+                      }
+                    }}
+                    style={{ cursor: isSelected ? 'move' : 'pointer' }}
+                  >
                     <rect x={unit.x + 1} y={unit.y + 1} width={unitWidth} height="20" fill="rgba(0,0,0,0.4)" rx="3" />
                     <rect x={unit.x} y={unit.y} width={unitWidth} height="20"
                       fill={unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c'}
@@ -1455,7 +1401,19 @@ export default function App() {
                 const unitWidth = unit.type === 'al' ? 55 : 44;
                 const isSelected = selectedUnitId === unit.id;
                 return (
-                  <g key={unit.id} onMouseDown={e => handleMouseDown(e, 'unit', unit.id)} style={{ cursor: 'move' }}>
+                  <g 
+                    key={unit.id} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedUnitId(isSelected ? null : unit.id);
+                    }}
+                    onMouseDown={e => {
+                      if (isSelected) {
+                        handleMouseDown(e, 'unit', unit.id);
+                      }
+                    }}
+                    style={{ cursor: isSelected ? 'move' : 'pointer' }}
+                  >
                     <rect x={unit.x + 1} y={unit.y + 1} width={unitWidth} height="20" fill="rgba(0,0,0,0.4)" rx="3" />
                     <rect x={unit.x} y={unit.y} width={unitWidth} height="20"
                       fill={unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c'}
