@@ -187,26 +187,49 @@ function routeHoseAlongCorridor(
   // Find shortest path from unit to branch point
   const path = findShortestPath(unitCenterX, unitCenterY, branchX, branchY, wagons, obstacles);
 
-  // Nozzles: 5-6m from fire wagon, on same side as unit (relative to tracks)
+  // Nozzles: 5-6m from fire wagon, at least 3m (6 units) from tracks on unit's side
   const nozzles: Array<{ x: number; y: number }> = [];
   
   // Determine which side of tracks the unit is on
-  const TRACK_Y = 300; // Approximate track center Y coordinate
-  const unitAboveTracks = unitCenterY < TRACK_Y;
+  const TRACK_TOP = 290; // Top rail Y coordinate
+  const TRACK_BOTTOM = 330; // Bottom rail Y coordinate
+  const MIN_DISTANCE_FROM_TRACKS = 6; // 3m = 6 SVG units
+  const unitAboveTracks = unitCenterY < TRACK_TOP;
   
-  // Calculate default nozzle positions - both on same side as unit
-  const nozzleAngles = unitAboveTracks 
-    ? [angleToFire - 0.4, angleToFire - 0.2]  // Both above
-    : [angleToFire + 0.4, angleToFire + 0.2]; // Both below
+  // Calculate default nozzle positions - both on same side as unit, at least 3m from tracks
   const defaultNozzles: Array<{ x: number; y: number }> = [];
+  
+  // Base positions near fire
+  const baseNozzle1X = fireX - 15;
+  const baseNozzle2X = fireX + 15;
+  let baseNozzle1Y = fireY;
+  let baseNozzle2Y = fireY;
+  
+  // Ensure minimum distance from tracks
+  if (unitAboveTracks) {
+    // Both nozzles above tracks
+    const minY = TRACK_TOP - MIN_DISTANCE_FROM_TRACKS;
+    baseNozzle1Y = Math.min(baseNozzle1Y, minY);
+    baseNozzle2Y = Math.min(baseNozzle2Y, minY);
+  } else {
+    // Both nozzles below tracks
+    const maxY = TRACK_BOTTOM + MIN_DISTANCE_FROM_TRACKS;
+    baseNozzle1Y = Math.max(baseNozzle1Y, maxY);
+    baseNozzle2Y = Math.max(baseNozzle2Y, maxY);
+  }
+  
+  defaultNozzles.push({ x: baseNozzle1X, y: baseNozzle1Y });
+  defaultNozzles.push({ x: baseNozzle2X, y: baseNozzle2Y });
 
-  for (const angle of nozzleAngles) {
-    let nozzleX = fireX + Math.cos(angle) * 12;
-    let nozzleY = fireY + Math.sin(angle) * 12;
+  // Adjust nozzle positions to ensure minimum distance from wagon contour
+  for (let i = 0; i < defaultNozzles.length; i++) {
+    let nozzleX = defaultNozzles[i].x;
+    let nozzleY = defaultNozzles[i].y;
 
     // Ensure minimum distance from fire
     const distToFireCheck = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
     if (distToFireCheck < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
+      const angle = Math.atan2(nozzleY - fireY, nozzleX - fireX);
       nozzleX = fireX + Math.cos(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
       nozzleY = fireY + Math.sin(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
     }
@@ -222,12 +245,13 @@ function routeHoseAlongCorridor(
         }
       }
       if (!tooClose) break;
+      const angle = Math.atan2(nozzleY - fireY, nozzleX - fireX);
       const currentDist = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
       nozzleX = fireX + Math.cos(angle) * (currentDist + 3);
       nozzleY = fireY + Math.sin(angle) * (currentDist + 3);
     }
 
-    defaultNozzles.push({ x: nozzleX, y: nozzleY });
+    defaultNozzles[i] = { x: nozzleX, y: nozzleY };
   }
 
   // Use custom positions if valid, otherwise use defaults

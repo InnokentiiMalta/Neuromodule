@@ -3,7 +3,7 @@ import { Wagon, FireSource, Obstacle, FireUnit, Deployment, AvailableResources, 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
 const TRACK_START_X = 80;
-const MIN_DISTANCE_FROM_FIRE = 200; // 100m
+const MIN_DISTANCE_FROM_FIRE = 80; // 40m (min distance from fire)
 const HOSE_CORRIDOR_DIST = 10; // 5m from wagon contour
 
 function rectIntersects(
@@ -55,7 +55,7 @@ function getTrainCorridor(wagons: Wagon[]): { topY: number; bottomY: number; lef
   };
 }
 
-// Find position on safe distance circle around fire, with priority towards water source
+// Find position for unit: max 80m from fire, min 20m from tracks
 function findPositionOnSafeCircle(
   fireX: number, fireY: number,
   unitWidth: number, unitHeight: number,
@@ -65,17 +65,29 @@ function findPositionOnSafeCircle(
   occupiedPositions: Array<{ x: number; y: number; w: number; h: number }>,
   angleOffset: number = 0
 ): { x: number; y: number; angle: number } | null {
+  const TRACK_TOP = 290;
+  const TRACK_BOTTOM = 330;
+  const MIN_DISTANCE_FROM_TRACKS = 40; // 20m = 40 SVG units
+  const MAX_DISTANCE_FROM_FIRE = 160; // 80m = 160 SVG units
+  
   // Try 36 angles around the fire (every 10 degrees)
   for (let i = 0; i < 36; i++) {
     const angle = (i * Math.PI * 2) / 36 + angleOffset;
     
-    // Try different distances from safeDistance to safeDistance + 200
-    for (let distance = safeDistance; distance <= safeDistance + 200; distance += 25) {
+    // Try different distances from safeDistance to MAX_DISTANCE_FROM_FIRE
+    for (let distance = safeDistance; distance <= MAX_DISTANCE_FROM_FIRE; distance += 20) {
       const px = fireX + Math.cos(angle) * distance - unitWidth / 2;
       const py = fireY + Math.sin(angle) * distance - unitHeight / 2;
       
       // Check bounds
       if (px < 10 || px + unitWidth > 990 || py < 10 || py + unitHeight > 590) continue;
+      
+      // Check minimum distance from tracks (must be at least 20m above or below)
+      const unitCenterY = py + unitHeight / 2;
+      const distToTopTrack = Math.abs(unitCenterY - TRACK_TOP);
+      const distToBottomTrack = Math.abs(unitCenterY - TRACK_BOTTOM);
+      const minDistToTracks = Math.min(distToTopTrack, distToBottomTrack);
+      if (minDistToTracks < MIN_DISTANCE_FROM_TRACKS) continue;
       
       // Check if position is blocked
       if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles, wagons)) continue;
