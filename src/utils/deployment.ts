@@ -65,35 +65,14 @@ function findPositionOnSafeCircle(
   occupiedPositions: Array<{ x: number; y: number; w: number; h: number }>,
   angleOffset: number = 0
 ): { x: number; y: number; angle: number } | null {
-  // Generate angles to try, with priority towards water source
-  const angles: number[] = [];
-  
-  if (waterSource) {
-    // Priority: towards water source
-    const angleToWater = Math.atan2(waterSource.y - fireY, waterSource.x - fireX);
-    // Add angles around water source direction first
-    for (let offset = 0; offset <= Math.PI; offset += Math.PI / 12) {
-      angles.push(angleToWater + offset);
-      angles.push(angleToWater - offset);
-    }
-  }
-  
-  // Add all other angles
-  for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 36) {
-    angles.push(angle + angleOffset);
-  }
-  
-  // Remove duplicates
-  const uniqueAngles = Array.from(new Set(angles.map(a => a % (Math.PI * 2))));
-  
-  // Try different distances (from safeDistance to safeDistance + 150)
-  for (let distanceOffset = 0; distanceOffset <= 150; distanceOffset += 20) {
-    const currentDistance = safeDistance + distanceOffset;
+  // Try 36 angles around the fire (every 10 degrees)
+  for (let i = 0; i < 36; i++) {
+    const angle = (i * Math.PI * 2) / 36 + angleOffset;
     
-    // Try each angle at this distance
-    for (const angle of uniqueAngles) {
-      const px = fireX + Math.cos(angle) * currentDistance - unitWidth / 2;
-      const py = fireY + Math.sin(angle) * currentDistance - unitHeight / 2;
+    // Try different distances from safeDistance to safeDistance + 200
+    for (let distance = safeDistance; distance <= safeDistance + 200; distance += 25) {
+      const px = fireX + Math.cos(angle) * distance - unitWidth / 2;
+      const py = fireY + Math.sin(angle) * distance - unitHeight / 2;
       
       // Check bounds
       if (px < 10 || px + unitWidth > 990 || py < 10 || py + unitHeight > 590) continue;
