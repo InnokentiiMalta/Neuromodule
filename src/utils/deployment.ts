@@ -78,39 +78,44 @@ function findPositionOnSafeCircle(
     }
   }
   
-  // Add all other angles (увеличено количество углов для поиска)
+  // Add all other angles
   for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 36) {
     angles.push(angle + angleOffset);
   }
   
-  // Remove duplicates and sort by priority
+  // Remove duplicates
   const uniqueAngles = Array.from(new Set(angles.map(a => a % (Math.PI * 2))));
   
-  // Try each angle
-  for (const angle of uniqueAngles) {
-    const px = fireX + Math.cos(angle) * safeDistance - unitWidth / 2;
-    const py = fireY + Math.sin(angle) * safeDistance - unitHeight / 2;
+  // Try different distances (from safeDistance to safeDistance + 150)
+  for (let distanceOffset = 0; distanceOffset <= 150; distanceOffset += 20) {
+    const currentDistance = safeDistance + distanceOffset;
     
-    // Check bounds
-    if (px < 10 || px + unitWidth > 990 || py < 10 || py + unitHeight > 590) continue;
-    
-    // Check if position is blocked
-    if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles, wagons)) continue;
-    
-    // Check collision with other units (уменьшенная зона проверки)
-    let collidesWithUnit = false;
-    for (const pos of occupiedPositions) {
-      if (rectIntersects(px, py, unitWidth, unitHeight, pos.x, pos.y, pos.w, pos.h)) {
-        collidesWithUnit = true;
-        break;
+    // Try each angle at this distance
+    for (const angle of uniqueAngles) {
+      const px = fireX + Math.cos(angle) * currentDistance - unitWidth / 2;
+      const py = fireY + Math.sin(angle) * currentDistance - unitHeight / 2;
+      
+      // Check bounds
+      if (px < 10 || px + unitWidth > 990 || py < 10 || py + unitHeight > 590) continue;
+      
+      // Check if position is blocked
+      if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles, wagons)) continue;
+      
+      // Check collision with other units
+      let collidesWithUnit = false;
+      for (const pos of occupiedPositions) {
+        if (rectIntersects(px, py, unitWidth, unitHeight, pos.x, pos.y, pos.w, pos.h)) {
+          collidesWithUnit = true;
+          break;
+        }
       }
+      if (collidesWithUnit) continue;
+      
+      // Calculate angle for unit orientation (facing fire)
+      const unitAngle = Math.atan2(fireY - (py + unitHeight / 2), fireX - (px + unitWidth / 2)) * 180 / Math.PI;
+      
+      return { x: px, y: py, angle: unitAngle };
     }
-    if (collidesWithUnit) continue;
-    
-    // Calculate angle for unit orientation (facing fire)
-    const unitAngle = Math.atan2(fireY - (py + unitHeight / 2), fireX - (px + unitWidth / 2)) * 180 / Math.PI;
-    
-    return { x: px, y: py, angle: unitAngle };
   }
   
   return null;
