@@ -173,15 +173,47 @@ function routeHoseAlongCorridor(
   const angleToFire = Math.atan2(fireY - unitCenterY, fireX - unitCenterX);
   const distToFire = Math.sqrt((unitCenterX - fireX) ** 2 + (unitCenterY - fireY) ** 2);
 
-  // Branch point: 70% of distance to fire (shorter than distance to fire)
+  // Branch point: must be at least 30m (60 units) from tracks, max 40m (80 units) from unit
+  const TRACK_TOP = 290;
+  const TRACK_BOTTOM = 330;
+  const MIN_BRANCH_DISTANCE_FROM_TRACKS = 60; // 30m = 60 SVG units
+  const MAX_BRANCH_DISTANCE_FROM_UNIT = 80; // 40m = 80 SVG units
+  
   let branchX: number, branchY: number;
   if (customBranchPoint) {
     branchX = customBranchPoint.x;
     branchY = customBranchPoint.y;
   } else {
-    const branchDist = distToFire * 0.7;
+    // Calculate initial branch position
+    const branchDist = Math.min(distToFire * 0.7, MAX_BRANCH_DISTANCE_FROM_UNIT);
     branchX = unitCenterX + Math.cos(angleToFire) * branchDist;
     branchY = unitCenterY + Math.sin(angleToFire) * branchDist;
+    
+    // Determine which side of tracks the unit is on
+    const unitAboveTracks = unitCenterY < TRACK_TOP;
+    
+    // Ensure branch is on same side as unit and at least 30m from tracks
+    if (unitAboveTracks) {
+      // Branch must be above tracks
+      const minY = TRACK_TOP - MIN_BRANCH_DISTANCE_FROM_TRACKS;
+      if (branchY > minY) {
+        branchY = minY;
+      }
+    } else {
+      // Branch must be below tracks
+      const maxY = TRACK_BOTTOM + MIN_BRANCH_DISTANCE_FROM_TRACKS;
+      if (branchY < maxY) {
+        branchY = maxY;
+      }
+    }
+    
+    // Ensure branch is not too far from unit (max 40m)
+    const distToUnit = Math.sqrt((branchX - unitCenterX) ** 2 + (branchY - unitCenterY) ** 2);
+    if (distToUnit > MAX_BRANCH_DISTANCE_FROM_UNIT) {
+      const scale = MAX_BRANCH_DISTANCE_FROM_UNIT / distToUnit;
+      branchX = unitCenterX + (branchX - unitCenterX) * scale;
+      branchY = unitCenterY + (branchY - unitCenterY) * scale;
+    }
   }
 
   // Find shortest path from unit to branch point
@@ -191,8 +223,6 @@ function routeHoseAlongCorridor(
   const nozzles: Array<{ x: number; y: number }> = [];
   
   // Determine which side of tracks the unit is on
-  const TRACK_TOP = 290; // Top rail Y coordinate
-  const TRACK_BOTTOM = 330; // Bottom rail Y coordinate
   const MIN_DISTANCE_FROM_TRACKS = 6; // 3m = 6 SVG units
   const unitAboveTracks = unitCenterY < TRACK_TOP;
   
