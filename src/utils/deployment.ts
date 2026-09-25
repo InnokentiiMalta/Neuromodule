@@ -111,8 +111,7 @@ function findPositionOnSafeCircle(
   safeDistance: number,
   waterSource: WaterSource | null,
   occupiedPositions: Array<{ x: number; y: number; w: number; h: number }>,
-  angleOffset: number = 0,
-  isFirstUnit: boolean = false
+  angleOffset: number = 0
 ): { x: number; y: number; angle: number } | null {
   const TRACK_TOP = 290;
   const TRACK_BOTTOM = 330;
@@ -137,13 +136,6 @@ function findPositionOnSafeCircle(
       const distToBottomTrack = Math.abs(unitCenterY - TRACK_BOTTOM);
       const minDistToTracks = Math.min(distToTopTrack, distToBottomTrack);
       if (minDistToTracks < MIN_DISTANCE_FROM_TRACKS) continue;
-      
-      // If water source exists, unit must be on same side of tracks as water source
-      if (waterSource) {
-        const waterAboveTracks = waterSource.y < TRACK_TOP;
-        const unitAboveTracks = unitCenterY < TRACK_TOP;
-        if (waterAboveTracks !== unitAboveTracks) continue;
-      }
       
       // Check if position is blocked
       if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles, wagons)) continue;
