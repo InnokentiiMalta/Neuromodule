@@ -3,7 +3,7 @@ import { Wagon, FireSource, Obstacle, FireUnit, Deployment, AvailableResources, 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
 const TRACK_START_X = 80;
-const MIN_DISTANCE_FROM_FIRE = 80; // 40m (min distance from fire)
+const MIN_DISTANCE_FROM_FIRE = 100; // 50m (min distance from fire)
 const HOSE_CORRIDOR_DIST = 10; // 5m from wagon contour
 
 function rectIntersects(
@@ -70,12 +70,12 @@ function findPositionOnSafeCircle(
   const MIN_DISTANCE_FROM_TRACKS = 40; // 20m = 40 SVG units
   const MAX_DISTANCE_FROM_FIRE = 160; // 80m = 160 SVG units
   
-  // Try 36 angles around the fire (every 10 degrees)
-  for (let i = 0; i < 36; i++) {
-    const angle = (i * Math.PI * 2) / 36 + angleOffset;
+  // Try 72 angles around the fire (every 5 degrees) for better coverage
+  for (let i = 0; i < 72; i++) {
+    const angle = (i * Math.PI * 2) / 72 + angleOffset;
     
-    // Try different distances from safeDistance to MAX_DISTANCE_FROM_FIRE
-    for (let distance = safeDistance; distance <= MAX_DISTANCE_FROM_FIRE; distance += 20) {
+    // Try different distances with smaller step (every 10 units instead of 20)
+    for (let distance = safeDistance; distance <= MAX_DISTANCE_FROM_FIRE; distance += 10) {
       const px = fireX + Math.cos(angle) * distance - unitWidth / 2;
       const py = fireY + Math.sin(angle) * distance - unitHeight / 2;
       
