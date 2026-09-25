@@ -321,8 +321,8 @@ export default function App() {
   const [resources, setResources] = useState<AvailableResources>(DEFAULT_RESOURCES);
   const [useCustomResources, setUseCustomResources] = useState(false);
   const [customPositions, setCustomPositions] = useState<CustomPositions>({});
-  const [waterSource, setWaterSource] = useState<WaterSource | null>(null);
-  const [waterSourceType, setWaterSourceType] = useState<'hydrant' | 'pond' | 'river'>('hydrant');
+  const [waterSources, setWaterSources] = useState<WaterSource[]>([]);
+  const [waterSourceType, setWaterSourceType] = useState<'pond' | 'river'>('pond');
   const [selectedElements, setSelectedElements] = useState<SelectedElement[]>([]);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -383,14 +383,19 @@ export default function App() {
       }]);
       setDeployment(null);
     } else if (toolMode === 'water') {
-      const labels = { hydrant: 'Гидрант', pond: 'Водоём', river: 'Река' };
-      setWaterSource({
+      if (waterSources.length >= 4) {
+        alert('Максимум 4 водоисточника');
+        return;
+      }
+      const labels = { pond: 'Водоём', river: 'Река' };
+      const newWaterSource: WaterSource = {
         id: `water-${Date.now()}`,
         x,
         y,
         type: waterSourceType,
         label: labels[waterSourceType],
-      });
+      };
+      setWaterSources(prev => [...prev, newWaterSource]);
       setDeployment(null);
       setToolMode('none');
     } else {
@@ -763,16 +768,16 @@ export default function App() {
   }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons]);
 
   const handleDeploy = useCallback(() => {
-    const result = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSource);
+    const result = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
     setDeployment(result);
-  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSource]);
+  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
 
   const handleReset = useCallback(() => {
     setFireSource(null);
     setObstacles([]);
     setDeployment(null);
     setManualUnits([]);
-    setWaterSource(null);
+    setWaterSources([]);
     setToolMode('none');
   }, []);
 
@@ -789,12 +794,12 @@ export default function App() {
     
     // Автоматический пересчёт расстановки после изменения типа вагона
     if (fireSource) {
-      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSource);
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
       setDeployment(newDeployment);
     } else {
       setDeployment(null);
     }
-  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSource]);
+  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
 
   const changeAllWagonsType = useCallback((newType: WagonType) => {
     const newWagons = wagons.map(w => {
@@ -805,12 +810,12 @@ export default function App() {
     
     // Автоматический пересчёт расстановки после изменения типа всех вагонов
     if (fireSource) {
-      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSource);
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
       setDeployment(newDeployment);
     } else {
       setDeployment(null);
     }
-  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSource]);
+  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
 
   const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
     const newName = newType === 'al' ? 'АЛ-30(40)' : newType === 'asr' ? 'АСР' : 'АЦ-40';
@@ -822,7 +827,7 @@ export default function App() {
     
     // Автоматический пересчёт расстановки после изменения типа техники
     if (fireSource) {
-      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSource);
+      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
       setDeployment(newDeployment);
     }
     setSelectedUnitId(null);
@@ -932,10 +937,6 @@ export default function App() {
               <div className="p-2.5 bg-cyan-900/20 rounded-lg border border-cyan-500/30">
                 <h3 className="text-[11px] font-semibold text-cyan-400 mb-1.5">💧 Тип водоисточника</h3>
                 <div className="space-y-1">
-                  <button onClick={() => setWaterSourceType('hydrant')} className={`w-full px-2 py-1.5 rounded text-[10px] font-medium flex items-center gap-2 ${waterSourceType === 'hydrant' ? 'bg-cyan-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
-                    <span className="text-sm">🚰</span>
-                    <span>Гидрант</span>
-                  </button>
                   <button onClick={() => setWaterSourceType('pond')} className={`w-full px-2 py-1.5 rounded text-[10px] font-medium flex items-center gap-2 ${waterSourceType === 'pond' ? 'bg-cyan-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
                     <span className="text-sm">🏊</span>
                     <span>Водоём</span>
@@ -945,17 +946,25 @@ export default function App() {
                     <span>Река</span>
                   </button>
                 </div>
-                <p className="text-[9px] text-cyan-300/70 italic mt-2">👆 Кликните на карту для размещения</p>
+                <p className="text-[9px] text-cyan-300/70 italic mt-2">👆 Кликните на карту для размещения (макс. 4)</p>
               </div>
             )}
 
-            {waterSource && toolMode !== 'water' && (
+            {waterSources.length > 0 && toolMode !== 'water' && (
               <div className="p-2 bg-cyan-900/20 rounded-lg border border-cyan-500/30">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-[10px] font-semibold text-cyan-400">💧 {waterSource.label}</h3>
-                  <button onClick={() => setWaterSource(null)} className="text-[9px] text-cyan-400 hover:text-cyan-300">✕</button>
+                  <h3 className="text-[10px] font-semibold text-cyan-400">💧 Водоисточники ({waterSources.length}/4)</h3>
+                  <button onClick={() => setWaterSources([])} className="text-[9px] text-cyan-400 hover:text-cyan-300">Очистить все</button>
                 </div>
-                <p className="text-[9px] text-gray-300">Техника будет размещена с приоритетом от водоисточника</p>
+                <div className="space-y-1">
+                  {waterSources.map(ws => (
+                    <div key={ws.id} className="flex items-center justify-between text-[9px] text-gray-300">
+                      <span>{ws.type === 'pond' ? '🏊' : '🌊'} {ws.label}</span>
+                      <button onClick={() => setWaterSources(prev => prev.filter(w => w.id !== ws.id))} className="text-red-400 hover:text-red-300">✕</button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[9px] text-gray-400 mt-1">Техника размещается со стороны ближайшего водоисточника</p>
               </div>
             )}
 
@@ -1196,19 +1205,19 @@ export default function App() {
                 </g>
               ))}
 
-              {/* Water Source */}
-              {waterSource && (
-                <g>
-                  <circle cx={waterSource.x} cy={waterSource.y} r="15" fill="#0288d1" opacity="0.3">
+              {/* Water Sources */}
+              {waterSources.map(ws => (
+                <g key={ws.id}>
+                  <circle cx={ws.x} cy={ws.y} r="15" fill="#0288d1" opacity="0.3">
                     <animate attributeName="r" values="15;18;15" dur="2s" repeatCount="indefinite" />
                   </circle>
-                  <circle cx={waterSource.x} cy={waterSource.y} r="10" fill="#03a9f4" opacity="0.6" />
-                  <text x={waterSource.x} y={waterSource.y + 4} textAnchor="middle" fontSize="12">
-                    {waterSource.type === 'hydrant' ? '🚰' : waterSource.type === 'pond' ? '🏊' : '🌊'}
+                  <circle cx={ws.x} cy={ws.y} r="10" fill="#03a9f4" opacity="0.6" />
+                  <text x={ws.x} y={ws.y + 4} textAnchor="middle" fontSize="12">
+                    {ws.type === 'pond' ? '🏊' : '🌊'}
                   </text>
-                  <text x={waterSource.x} y={waterSource.y - 18} textAnchor="middle" fill="#4fc3f7" fontSize="7" fontWeight="bold">{waterSource.label}</text>
+                  <text x={ws.x} y={ws.y - 18} textAnchor="middle" fill="#4fc3f7" fontSize="7" fontWeight="bold">{ws.label}</text>
                 </g>
-              )}
+              ))}
 
               {/* Hose lines for deployment units */}
               {fireSource && deployment?.units.filter(u => u.hoses > 0).map(unit => {
@@ -1749,7 +1758,7 @@ export default function App() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => { setUseCustomResources(true); if (fireSource) setDeployment(calculateDeployment(wagons, fireSource, obstacles, resources, waterSource)); setShowResources(false); }} className="flex-1 py-2 bg-indigo-600 rounded-lg text-sm font-semibold">✅ Применить</button>
+              <button onClick={() => { setUseCustomResources(true); if (fireSource) setDeployment(calculateDeployment(wagons, fireSource, obstacles, resources, waterSources)); setShowResources(false); }} className="flex-1 py-2 bg-indigo-600 rounded-lg text-sm font-semibold">✅ Применить</button>
               <button onClick={() => setShowResources(false)} className="px-4 py-2 bg-gray-700 rounded-lg text-sm">Отмена</button>
             </div>
           </div>

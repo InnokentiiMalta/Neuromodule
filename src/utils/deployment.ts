@@ -55,6 +55,54 @@ function getTrainCorridor(wagons: Wagon[]): { topY: number; bottomY: number; lef
   };
 }
 
+// Find position near water source (about 5m = 10 units away)
+function findPositionNearWaterSource(
+  waterSource: WaterSource,
+  fireX: number, fireY: number,
+  unitWidth: number, unitHeight: number,
+  obstacles: Obstacle[], wagons: Wagon[],
+  occupiedPositions: Array<{ x: number; y: number; w: number; h: number }>
+): { x: number; y: number; angle: number } | null {
+  const DISTANCE_FROM_WATER = 10; // 5m = 10 SVG units
+  const TRACK_TOP = 290;
+  const TRACK_BOTTOM = 330;
+  
+  // Try positions around water source
+  for (let i = 0; i < 36; i++) {
+    const angle = (i * Math.PI * 2) / 36;
+    const px = waterSource.x + Math.cos(angle) * DISTANCE_FROM_WATER - unitWidth / 2;
+    const py = waterSource.y + Math.sin(angle) * DISTANCE_FROM_WATER - unitHeight / 2;
+    
+    // Check bounds
+    if (px < 10 || px + unitWidth > 990 || py < 10 || py + unitHeight > 590) continue;
+    
+    // Must be on same side of tracks as water source
+    const waterAboveTracks = waterSource.y < TRACK_TOP;
+    const unitAboveTracks = py + unitHeight / 2 < TRACK_TOP;
+    if (waterAboveTracks !== unitAboveTracks) continue;
+    
+    // Check if position is blocked
+    if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles, wagons)) continue;
+    
+    // Check collision with other units
+    let collidesWithUnit = false;
+    for (const pos of occupiedPositions) {
+      if (rectIntersects(px, py, unitWidth, unitHeight, pos.x, pos.y, pos.w, pos.h)) {
+        collidesWithUnit = true;
+        break;
+      }
+    }
+    if (collidesWithUnit) continue;
+    
+    // Calculate angle for unit orientation (facing fire)
+    const unitAngle = Math.atan2(fireY - (py + unitHeight / 2), fireX - (px + unitWidth / 2)) * 180 / Math.PI;
+    
+    return { x: px, y: py, angle: unitAngle };
+  }
+  
+  return null;
+}
+
 // Find position for unit: max 80m from fire, min 20m from tracks
 function findPositionOnSafeCircle(
   fireX: number, fireY: number,
@@ -63,7 +111,8 @@ function findPositionOnSafeCircle(
   safeDistance: number,
   waterSource: WaterSource | null,
   occupiedPositions: Array<{ x: number; y: number; w: number; h: number }>,
-  angleOffset: number = 0
+  angleOffset: number = 0,
+  isFirstUnit: boolean = false
 ): { x: number; y: number; angle: number } | null {
   const TRACK_TOP = 290;
   const TRACK_BOTTOM = 330;
@@ -88,6 +137,13 @@ function findPositionOnSafeCircle(
       const distToBottomTrack = Math.abs(unitCenterY - TRACK_BOTTOM);
       const minDistToTracks = Math.min(distToTopTrack, distToBottomTrack);
       if (minDistToTracks < MIN_DISTANCE_FROM_TRACKS) continue;
+      
+      // If water source exists, unit must be on same side of tracks as water source
+      if (waterSource) {
+        const waterAboveTracks = waterSource.y < TRACK_TOP;
+        const unitAboveTracks = unitCenterY < TRACK_TOP;
+        if (waterAboveTracks !== unitAboveTracks) continue;
+      }
       
       // Check if position is blocked
       if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles, wagons)) continue;
@@ -117,7 +173,7 @@ export function calculateDeployment(
   fireSource: FireSource | null,
   obstacles: Obstacle[],
   resources?: AvailableResources | null,
-  waterSource?: WaterSource | null
+  waterSources?: WaterSource[]
 ): Deployment | null {
   if (!fireSource) return null;
 
@@ -161,6 +217,15 @@ export function calculateDeployment(
   const totalACNeeded = Math.ceil(2 * intensityMult) + (fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1 : 0);
   const idealAL = (fireSource.type === 'wagon_body' || fireSource.type === 'tank') ? 1 : 0;
   
+  // Find nearest water source to fire
+  const nearestWaterSource = waterSources && waterSources.length > 0 
+    ? waterSources.reduce((nearest, ws) => {
+        const dist = Math.sqrt((ws.x - fireX) ** 2 + (ws.y - fireY) ** 2);
+        const nearestDist = Math.sqrt((nearest.x - fireX) ** 2 + (nearest.y - fireY) ** 2);
+        return dist < nearestDist ? ws : nearest;
+      })
+    : null;
+  
   // Place all available AC units around the fire
   let acCount = 0;
   const maxIterations = 100; // Защита от бесконечного цикла
@@ -168,9 +233,13 @@ export function calculateDeployment(
   
   while (availAC > 0 && iterations < maxIterations) {
     iterations++;
-    const pos = findPositionOnSafeCircle(
-      fireX, fireY, 50, 22, obstacles, wagons, safeDist, waterSource || null, occupiedPositions, 0
-    );
+    // First unit goes near water source, others use normal logic
+    const isFirstUnit = acCount === 0 && nearestWaterSource !== null;
+    const pos = isFirstUnit 
+      ? findPositionNearWaterSource(nearestWaterSource!, fireX, fireY, 50, 22, obstacles, wagons, occupiedPositions)
+      : findPositionOnSafeCircle(
+          fireX, fireY, 50, 22, obstacles, wagons, safeDist, nearestWaterSource, occupiedPositions, acCount * Math.PI / 6
+        );
     if (pos) {
       const success = addUnit({ 
         type: acCount === 0 ? 'aca' : 'ac', 
@@ -199,7 +268,7 @@ export function calculateDeployment(
   // Place AL if needed
   if (idealAL > 0 && availAL > 0) {
     const pos = findPositionOnSafeCircle(
-      fireX, fireY, 55, 22, obstacles, wagons, safeDist, waterSource || null, occupiedPositions, 0.5
+      fireX, fireY, 55, 22, obstacles, wagons, safeDist, nearestWaterSource, occupiedPositions, 0.5
     );
     if (pos) {
       addUnit({ type: 'al', name: 'АЛ-30(40)', x: pos.x, y: pos.y, angle: pos.angle, personnel: 5, hoses: 1, role: 'Подача сверху' });
@@ -209,7 +278,7 @@ export function calculateDeployment(
   // Place ASR
   if (availASR > 0) {
     const pos = findPositionOnSafeCircle(
-      fireX, fireY, 50, 22, obstacles, wagons, safeDist, waterSource || null, occupiedPositions, 1.0
+      fireX, fireY, 50, 22, obstacles, wagons, safeDist, nearestWaterSource, occupiedPositions, 1.0
     );
     if (pos) {
       addUnit({ type: 'asr', name: 'АСР', x: pos.x, y: pos.y, angle: pos.angle, personnel: 3, hoses: 0, role: 'Штаб / связь' });
@@ -230,7 +299,7 @@ export function calculateDeployment(
   else if (deployedAC >= 2) strategy = `Атака с ${deployedAC} направлений. `;
   else if (deployedAC === 1) strategy = 'Единственное направление. ';
   else strategy = 'Недостаточно сил! ';
-  if (waterSource) strategy += 'С приоритетом от водоисточника. ';
+  if (nearestWaterSource) strategy += 'С приоритетом от водоисточника. ';
   if (fireSource.type === 'tank') strategy += 'Подача пены на цистерну. ';
   strategy += `Безопасное расстояние: ${(safeDist * 0.5).toFixed(0)} м.`;
 
