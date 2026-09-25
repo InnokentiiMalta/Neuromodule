@@ -178,7 +178,7 @@ export function calculateDeployment(
   while (availAC > 0 && iterations < maxIterations) {
     iterations++;
     const pos = findPositionOnSafeCircle(
-      fireX, fireY, 50, 22, obstacles, wagons, safeDist, waterSource || null, occupiedPositions, acCount * Math.PI / 3
+      fireX, fireY, 50, 22, obstacles, wagons, safeDist, waterSource || null, occupiedPositions, 0
     );
     if (pos) {
       const success = addUnit({ 
