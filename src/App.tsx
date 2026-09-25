@@ -187,11 +187,17 @@ function routeHoseAlongCorridor(
   // Find shortest path from unit to branch point
   const path = findShortestPath(unitCenterX, unitCenterY, branchX, branchY, wagons, obstacles);
 
-  // Nozzles: 5-6m from fire wagon, on opposite sides
+  // Nozzles: 5-6m from fire wagon, on same side as unit (relative to tracks)
   const nozzles: Array<{ x: number; y: number }> = [];
   
-  // Calculate default nozzle positions
-  const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
+  // Determine which side of tracks the unit is on
+  const TRACK_Y = 300; // Approximate track center Y coordinate
+  const unitAboveTracks = unitCenterY < TRACK_Y;
+  
+  // Calculate default nozzle positions - both on same side as unit
+  const nozzleAngles = unitAboveTracks 
+    ? [angleToFire - 0.4, angleToFire - 0.2]  // Both above
+    : [angleToFire + 0.4, angleToFire + 0.2]; // Both below
   const defaultNozzles: Array<{ x: number; y: number }> = [];
 
   for (const angle of nozzleAngles) {
