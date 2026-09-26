@@ -160,6 +160,50 @@ function isPointInBlockingObstacle(x: number, y: number, obstacles: Obstacle[], 
 }
 
 // Hose routing - shortest path from unit to fire
+// Функция для генерации точек пятиугольника автомобиля (кабина + кузов + насос)
+// Согласно боевому уставу: темный квадратик - насос, острый угол - кабина
+function getFireTruckPoints(x: number, y: number, angle: number): string {
+  // Автомобиль в масштабе: длина ~16 единиц (8м), ширина ~5 единиц (2.5м)
+  const truckLength = 16;
+  const truckWidth = 5;
+  
+  // Определяем направление кабины в зависимости от угла
+  // Угол 0° - автомобиль смотрит вправо, кабина справа
+  // Угол 90° - смотрит вниз
+  // Угол 180° - смотрит влево, кабина слева
+  // Угол 270° - смотрит вверх
+  
+  // Нормализуем угол
+  const normalizedAngle = ((angle % 360) + 360) % 360;
+  
+  // Определяем, с какой стороны кабина (острый угол)
+  const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
+  
+  let points: Array<{x: number, y: number}>;
+  
+  if (isCabinRight) {
+    // Кабина справа (острый угол справа)
+    points = [
+      { x: x - truckLength/2, y: y - truckWidth/2 }, // верхний левый (насос)
+      { x: x - truckLength/2, y: y + truckWidth/2 }, // нижний левый (насос)
+      { x: x + truckLength/2 - 2, y: y + truckWidth/2 }, // нижний правый
+      { x: x + truckLength/2 + 2, y: y }, // острый угол кабины (справа)
+      { x: x + truckLength/2 - 2, y: y - truckWidth/2 }, // верхний правый
+    ];
+  } else {
+    // Кабина слева (острый угол слева)
+    points = [
+      { x: x - truckLength/2 - 2, y: y }, // острый угол кабины (слева)
+      { x: x - truckLength/2 + 2, y: y + truckWidth/2 }, // нижний левый
+      { x: x + truckLength/2, y: y + truckWidth/2 }, // нижний правый (насос)
+      { x: x + truckLength/2, y: y - truckWidth/2 }, // верхний правый (насос)
+      { x: x - truckLength/2 + 2, y: y - truckWidth/2 }, // верхний левый
+    ];
+  }
+  
+  return points.map(p => `${p.x},${p.y}`).join(' ');
+}
+
 function routeHoseAlongCorridor(
   unitX: number, unitY: number, unitWidth: number, unitHeight: number,
   fireX: number, fireY: number,
@@ -1499,8 +1543,11 @@ export default function App() {
 
               {/* Deployment units */}
               {deployment?.units.map(unit => {
-                const unitWidth = unit.type === 'al' ? 55 : 44;
                 const isSelected = selectedUnitId === unit.id;
+                const centerX = unit.x + 8;
+                const centerY = unit.y + 2.5;
+                const truckColor = unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c';
+                
                 return (
                   <g 
                     key={unit.id} 
@@ -1515,24 +1562,47 @@ export default function App() {
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
-                    <rect x={unit.x + 1} y={unit.y + 1} width={unitWidth} height="20" fill="rgba(0,0,0,0.4)" rx="3" />
-                    <rect x={unit.x} y={unit.y} width={unitWidth} height="20"
-                      fill={unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c'}
-                      stroke={isSelected ? '#4fc3f7' : '#fff'} strokeWidth={isSelected ? 2 : 1.2} rx="3" />
-                    <rect x={unit.x + 2} y={unit.y + 3} width="10" height="14" fill="rgba(0,0,0,0.3)" rx="2" />
-                    <text x={unit.x + unitWidth / 2} y={unit.y - 5} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
-                    <text x={unit.x + unitWidth / 2} y={unit.y + 32} textAnchor="middle" fill="#aaa" fontSize="6" fontFamily="sans-serif">{unit.role}</text>
+                    {/* Тень */}
+                    <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
+                    
+                    {/* Основной пятиугольник автомобиля */}
+                    <polygon 
+                      points={getFireTruckPoints(centerX, centerY, unit.angle)} 
+                      fill={truckColor}
+                      stroke={isSelected ? '#4fc3f7' : '#fff'} 
+                      strokeWidth={isSelected ? 1.5 : 0.8}
+                    />
+                    
+                    {/* Насос (темный квадратик) - с противоположной стороны от кабины */}
+                    {(() => {
+                      const normalizedAngle = ((unit.angle % 360) + 360) % 360;
+                      const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
+                      return isCabinRight ? (
+                        <rect x={centerX - 7} y={centerY - 1.5} width="3" height="3" fill="#333" />
+                      ) : (
+                        <rect x={centerX + 4} y={centerY - 1.5} width="3" height="3" fill="#333" />
+                      );
+                    })()}
+                    
+                    {/* Кабина (острый угол обозначен формой пятиугольника) */}
+                    
+                    <text x={centerX} y={unit.y - 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
+                    <text x={centerX} y={unit.y + 12} textAnchor="middle" fill="#aaa" fontSize="5" fontFamily="sans-serif">{unit.role}</text>
+                    
                     {/* Person near unit */}
-                    <circle cx={unit.x + unitWidth + 5} cy={unit.y + 10} r="4" fill="#ffeb3b" opacity="0.6" />
-                    <text x={unit.x + unitWidth + 5} y={unit.y + 12} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                    <circle cx={centerX + 12} cy={centerY} r="2" fill="#ffeb3b" opacity="0.6" />
+                    <text x={centerX + 12} y={centerY + 1} textAnchor="middle" fontSize="3">🧑‍🚒</text>
                   </g>
                 );
               })}
 
               {/* Manual units */}
               {manualUnits.map(unit => {
-                const unitWidth = unit.type === 'al' ? 55 : 44;
                 const isSelected = selectedUnitId === unit.id;
+                const centerX = unit.x + 8;
+                const centerY = unit.y + 2.5;
+                const truckColor = unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c';
+                
                 return (
                   <g 
                     key={unit.id} 
@@ -1547,21 +1617,39 @@ export default function App() {
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
-                    <rect x={unit.x + 1} y={unit.y + 1} width={unitWidth} height="20" fill="rgba(0,0,0,0.4)" rx="3" />
-                    <rect x={unit.x} y={unit.y} width={unitWidth} height="20"
-                      fill={unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c'}
-                      stroke={isSelected ? '#4fc3f7' : '#fff'} strokeWidth={isSelected ? 2 : 1.2} rx="3" />
-                    <rect x={unit.x + 2} y={unit.y + 3} width="10" height="14" fill="rgba(0,0,0,0.3)" rx="2" />
-                    <text x={unit.x + unitWidth / 2} y={unit.y - 5} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
+                    {/* Тень */}
+                    <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
+                    
+                    {/* Основной пятиугольник автомобиля */}
+                    <polygon 
+                      points={getFireTruckPoints(centerX, centerY, unit.angle)} 
+                      fill={truckColor}
+                      stroke={isSelected ? '#4fc3f7' : '#fff'} 
+                      strokeWidth={isSelected ? 1.5 : 0.8}
+                    />
+                    
+                    {/* Насос (темный квадратик) - с противоположной стороны от кабины */}
+                    {(() => {
+                      const normalizedAngle = ((unit.angle % 360) + 360) % 360;
+                      const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
+                      return isCabinRight ? (
+                        <rect x={centerX - 7} y={centerY - 1.5} width="3" height="3" fill="#333" />
+                      ) : (
+                        <rect x={centerX + 4} y={centerY - 1.5} width="3" height="3" fill="#333" />
+                      );
+                    })()}
+                    
+                    <text x={centerX} y={unit.y - 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
                     {unit.division && (
-                      <text x={unit.x + unitWidth / 2} y={unit.y + 32} textAnchor="middle" fill="#81d4fa" fontSize="6" fontFamily="sans-serif">{unit.division}</text>
+                      <text x={centerX} y={unit.y + 12} textAnchor="middle" fill="#81d4fa" fontSize="5" fontFamily="sans-serif">{unit.division}</text>
                     )}
                     {!unit.ptvDeployed && (
-                      <text x={unit.x + unitWidth / 2} y={unit.y + 42} textAnchor="middle" fill="#ffeb3b" fontSize="6" fontFamily="sans-serif">Нажмите ПТВ</text>
+                      <text x={centerX} y={unit.y + 20} textAnchor="middle" fill="#ffeb3b" fontSize="5" fontFamily="sans-serif">Нажмите ПТВ</text>
                     )}
+                    
                     {/* Person near unit */}
-                    <circle cx={unit.x + unitWidth + 5} cy={unit.y + 10} r="4" fill="#ffeb3b" opacity="0.6" />
-                    <text x={unit.x + unitWidth + 5} y={unit.y + 12} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                    <circle cx={centerX + 12} cy={centerY} r="2" fill="#ffeb3b" opacity="0.6" />
+                    <text x={centerX + 12} y={centerY + 1} textAnchor="middle" fontSize="3">🧑‍🚒</text>
                   </g>
                 );
               })}
