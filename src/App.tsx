@@ -17,7 +17,7 @@ const OBSTACLE_DEFAULTS: Record<ObstacleType, { width: number; height: number; l
   road: { width: 120, height: 25, label: 'Дорога', icon: '🛤' },
 };
 
-const DEFAULT_RESOURCES: AvailableResources = { ac: 6, al: 1, asr: 1, personnel: 60 };
+const DEFAULT_RESOURCES: AvailableResources = { ac: 2, al: 0, asr: 0, personnel: 12 };
 
 type WagonType = 'passenger' | 'freight' | 'tank' | 'platform';
 const WAGON_TYPE_INFO: Record<WagonType, { label: string; icon: string; color: string }> = {
@@ -2006,7 +2006,7 @@ export default function App() {
           <div className="bg-gray-800 rounded-xl p-5 w-[400px] border border-gray-600" onClick={e => e.stopPropagation()}>
             <h2 className="text-base font-bold mb-3">📋 Задать количество сил</h2>
             {idealResources && (
-              <p className="text-[10px] text-yellow-300 mb-3">💡 Рекомендуется: АЦ×{idealResources.ac}, АЛ×{idealResources.al}, л/с {idealResources.personnel}ч.</p>
+              <p className="text-[10px] text-yellow-300 mb-3">💡 Рекомендуется: АЦ×{idealResources.ac}, АСА×{idealResources.al}, АСО×{idealResources.asr}, л/с {idealResources.personnel}ч.</p>
             )}
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
@@ -2014,15 +2014,15 @@ export default function App() {
                 <input type="number" min="0" max="20" value={resources.ac} onChange={e => setResources(prev => ({ ...prev, ac: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
               </div>
               <div>
-                <label className="text-[11px] text-gray-300 block mb-1">🪜 АЛ</label>
+                <label className="text-[11px] text-gray-300 block mb-1">🚑 АСА</label>
                 <input type="number" min="0" max="10" value={resources.al} onChange={e => setResources(prev => ({ ...prev, al: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
               </div>
               <div>
-                <label className="text-[11px] text-gray-300 block mb-1">📡 АСР</label>
+                <label className="text-[11px] text-gray-300 block mb-1">📡 АСО</label>
                 <input type="number" min="0" max="5" value={resources.asr} onChange={e => setResources(prev => ({ ...prev, asr: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
               </div>
               <div>
-                <label className="text-[11px] text-gray-300 block mb-1">👨‍🚒 Л/с</label>
+                <label className="text-[11px] text-gray-300 block mb-1">👨‍🚒 Л/с (чел.)</label>
                 <input type="number" min="0" max="200" value={resources.personnel} onChange={e => setResources(prev => ({ ...prev, personnel: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
               </div>
             </div>
