@@ -1139,6 +1139,9 @@ export default function App() {
                   </h3>
                   <button onClick={() => setSelectedUnitId(null)} className="text-[9px] text-cyan-400">✕</button>
                 </div>
+                <div className="text-[9px] text-gray-400 mb-2">
+                  ID: {selectedUnitId} | Type: {manualUnits.find(u => u.id === selectedUnitId)?.type || 'N/A'} | PTW: {manualUnits.find(u => u.id === selectedUnitId)?.ptvDeployed ? 'Yes' : 'No'}
+                </div>
                 <div className="space-y-2">
                   <div>
                     <label className="text-[9px] text-gray-400 block mb-0.5">Тип техники:</label>
