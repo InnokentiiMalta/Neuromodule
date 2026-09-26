@@ -363,7 +363,7 @@ function generatePersonnelPositions(
 ): Array<{ x: number; y: number }> {
   const TRACK_TOP = 290;
   const TRACK_BOTTOM = 330;
-  const MIN_DISTANCE_FROM_FIRE = 20; // 10m = 20 SVG units
+  const MIN_DISTANCE_FROM_FIRE = 40; // 20m = 40 SVG units
   const MAX_DISTANCE_FROM_FIRE = 300; // 150m = 300 SVG units
   
   const positions: Array<{ x: number; y: number }> = [];

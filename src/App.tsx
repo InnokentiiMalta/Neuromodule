@@ -229,9 +229,9 @@ function routeHoseAlongCorridor(
   // Calculate default nozzle positions - both on same side as unit, at least 3m from tracks
   const defaultNozzles: Array<{ x: number; y: number }> = [];
   
-  // Base positions near fire
-  const baseNozzle1X = fireX - 15;
-  const baseNozzle2X = fireX + 15;
+  // Base positions near fire (10m = 20 units apart)
+  const baseNozzle1X = fireX - 10;
+  const baseNozzle2X = fireX + 10;
   let baseNozzle1Y = fireY;
   let baseNozzle2Y = fireY;
   
@@ -297,6 +297,25 @@ function routeHoseAlongCorridor(
     }
   } else {
     nozzles.push(...defaultNozzles);
+  }
+
+  // Ensure minimum distance between nozzles (10m = 20 units)
+  const MIN_DISTANCE_BETWEEN_NOZZLES = 20;
+  if (nozzles.length >= 2) {
+    for (let i = 0; i < nozzles.length; i++) {
+      for (let j = i + 1; j < nozzles.length; j++) {
+        const dist = Math.sqrt((nozzles[i].x - nozzles[j].x) ** 2 + (nozzles[i].y - nozzles[j].y) ** 2);
+        if (dist < MIN_DISTANCE_BETWEEN_NOZZLES) {
+          // Move nozzles apart
+          const angle = Math.atan2(nozzles[j].y - nozzles[i].y, nozzles[j].x - nozzles[i].x);
+          const moveDist = (MIN_DISTANCE_BETWEEN_NOZZLES - dist) / 2;
+          nozzles[i].x -= Math.cos(angle) * moveDist;
+          nozzles[i].y -= Math.sin(angle) * moveDist;
+          nozzles[j].x += Math.cos(angle) * moveDist;
+          nozzles[j].y += Math.sin(angle) * moveDist;
+        }
+      }
+    }
   }
 
   return { path, branchPoint: { x: branchX, y: branchY }, nozzles };
