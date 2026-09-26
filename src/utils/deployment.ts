@@ -3,7 +3,7 @@ import { Wagon, FireSource, Obstacle, FireUnit, Deployment, AvailableResources, 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
 const TRACK_START_X = 80;
-const MIN_DISTANCE_FROM_FIRE = 100; // 50m (min distance from fire)
+const MIN_DISTANCE_FROM_FIRE = 80; // 40m (min distance from fire)
 const HOSE_CORRIDOR_DIST = 10; // 5m from wagon contour
 
 function rectIntersects(
@@ -55,7 +55,7 @@ function getTrainCorridor(wagons: Wagon[]): { topY: number; bottomY: number; lef
   };
 }
 
-// Find position near water source (about 5m = 10 units away)
+// Find position near water source (about 7.5m = 15 units away)
 function findPositionNearWaterSource(
   waterSource: WaterSource,
   fireX: number, fireY: number,
@@ -63,13 +63,13 @@ function findPositionNearWaterSource(
   obstacles: Obstacle[], wagons: Wagon[],
   occupiedPositions: Array<{ x: number; y: number; w: number; h: number }>
 ): { x: number; y: number; angle: number } | null {
-  const DISTANCE_FROM_WATER = 10; // 5m = 10 SVG units
+  const DISTANCE_FROM_WATER = 15; // 7.5m = 15 SVG units
   const TRACK_TOP = 290;
   const TRACK_BOTTOM = 330;
   
   // Try positions around water source
-  for (let i = 0; i < 36; i++) {
-    const angle = (i * Math.PI * 2) / 36;
+  for (let i = 0; i < 72; i++) {
+    const angle = (i * Math.PI * 2) / 72;
     const px = waterSource.x + Math.cos(angle) * DISTANCE_FROM_WATER - unitWidth / 2;
     const py = waterSource.y + Math.sin(angle) * DISTANCE_FROM_WATER - unitHeight / 2;
     
@@ -103,7 +103,7 @@ function findPositionNearWaterSource(
   return null;
 }
 
-// Find position for unit: max 80m from fire, min 20m from tracks
+// Find position for unit: max 100m from fire, min 15m from tracks
 function findPositionOnSafeCircle(
   fireX: number, fireY: number,
   unitWidth: number, unitHeight: number,
@@ -115,15 +115,15 @@ function findPositionOnSafeCircle(
 ): { x: number; y: number; angle: number } | null {
   const TRACK_TOP = 290;
   const TRACK_BOTTOM = 330;
-  const MIN_DISTANCE_FROM_TRACKS = 40; // 20m = 40 SVG units
-  const MAX_DISTANCE_FROM_FIRE = 160; // 80m = 160 SVG units
+  const MIN_DISTANCE_FROM_TRACKS = 30; // 15m = 30 SVG units
+  const MAX_DISTANCE_FROM_FIRE = 200; // 100m = 200 SVG units
   
   // Try 72 angles around the fire (every 5 degrees) for better coverage
   for (let i = 0; i < 72; i++) {
     const angle = (i * Math.PI * 2) / 72 + angleOffset;
     
-    // Try different distances with smaller step (every 10 units instead of 20)
-    for (let distance = safeDistance; distance <= MAX_DISTANCE_FROM_FIRE; distance += 10) {
+    // Try different distances with smaller step (every 8 units)
+    for (let distance = safeDistance; distance <= MAX_DISTANCE_FROM_FIRE; distance += 8) {
       const px = fireX + Math.cos(angle) * distance - unitWidth / 2;
       const py = fireY + Math.sin(angle) * distance - unitHeight / 2;
       
