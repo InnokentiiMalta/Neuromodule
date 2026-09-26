@@ -1849,35 +1849,42 @@ export default function App() {
               })}
 
               {/* Ruler measurement */}
-              {toolMode === 'ruler' && rulerPoints.length === 2 && (
+              {toolMode === 'ruler' && rulerPoints.length >= 1 && (
                 <g>
-                  <line
-                    x1={rulerPoints[0].x}
-                    y1={rulerPoints[0].y}
-                    x2={rulerPoints[1].x}
-                    y2={rulerPoints[1].y}
-                    stroke="#ec4899"
-                    strokeWidth="2"
-                    strokeDasharray="5,5"
-                  />
+                  {/* Первая точка всегда видна */}
                   <circle cx={rulerPoints[0].x} cy={rulerPoints[0].y} r="4" fill="#ec4899" />
-                  <circle cx={rulerPoints[1].x} cy={rulerPoints[1].y} r="4" fill="#ec4899" />
-                  <text
-                    x={(rulerPoints[0].x + rulerPoints[1].x) / 2}
-                    y={(rulerPoints[0].y + rulerPoints[1].y) / 2 - 10}
-                    textAnchor="middle"
-                    fill="#ec4899"
-                    fontSize="12"
-                    fontWeight="bold"
-                  >
-                    {(() => {
-                      const dx = rulerPoints[1].x - rulerPoints[0].x;
-                      const dy = rulerPoints[1].y - rulerPoints[0].y;
-                      const distance = Math.sqrt(dx * dx + dy * dy);
-                      const meters = (distance * 0.5).toFixed(1);
-                      return `${meters} м`;
-                    })()}
-                  </text>
+                  
+                  {/* Линия и вторая точка отображаются только когда есть две точки */}
+                  {rulerPoints.length === 2 && (
+                    <>
+                      <line
+                        x1={rulerPoints[0].x}
+                        y1={rulerPoints[0].y}
+                        x2={rulerPoints[1].x}
+                        y2={rulerPoints[1].y}
+                        stroke="#ec4899"
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                      />
+                      <circle cx={rulerPoints[1].x} cy={rulerPoints[1].y} r="4" fill="#ec4899" />
+                      <text
+                        x={(rulerPoints[0].x + rulerPoints[1].x) / 2}
+                        y={(rulerPoints[0].y + rulerPoints[1].y) / 2 - 10}
+                        textAnchor="middle"
+                        fill="#ec4899"
+                        fontSize="12"
+                        fontWeight="bold"
+                      >
+                        {(() => {
+                          const dx = rulerPoints[1].x - rulerPoints[0].x;
+                          const dy = rulerPoints[1].y - rulerPoints[0].y;
+                          const distance = Math.sqrt(dx * dx + dy * dy);
+                          const meters = (distance * 0.5).toFixed(1);
+                          return `${meters} м`;
+                        })()}
+                      </text>
+                    </>
+                  )}
                 </g>
               )}
 
