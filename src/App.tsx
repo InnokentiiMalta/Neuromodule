@@ -1237,6 +1237,7 @@ export default function App() {
                   const p1 = routing.path[i];
                   const p2 = routing.path[i + 1];
                   const segLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+                  if (segLen === 0) continue; // Skip zero-length segments
                   const segDx = (p2.x - p1.x) / segLen;
                   const segDy = (p2.y - p1.y) / segLen;
                   
@@ -1299,6 +1300,11 @@ export default function App() {
                       const angle = Math.atan2(dy, dx);
                       const dist = Math.sqrt(dx * dx + dy * dy);
                       
+                      // Check for NaN values
+                      if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle) || isNaN(dist)) {
+                        return null;
+                      }
+                      
                       // Water spray cone (visual indication of stream direction)
                       const sprayLength = Math.min(dist * 0.3, 30);
                       const sprayWidth = 8;
@@ -1346,6 +1352,7 @@ export default function App() {
                   const p1 = routing.path[i];
                   const p2 = routing.path[i + 1];
                   const segLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+                  if (segLen === 0) continue; // Skip zero-length segments
                   const segDx = (p2.x - p1.x) / segLen;
                   const segDy = (p2.y - p1.y) / segLen;
                   
@@ -1641,6 +1648,11 @@ export default function App() {
                   const dx = fs.x - nozzle.x;
                   const dy = fs.y - nozzle.y;
                   const angle = Math.atan2(dy, dx);
+
+                  // Check for NaN values
+                  if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle)) {
+                    return null;
+                  }
 
                   return (
                     <g
