@@ -345,6 +345,8 @@ export default function App() {
   const [selectedElements, setSelectedElements] = useState<SelectedElement[]>([]);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [rulerPoints, setRulerPoints] = useState<Array<{ x: number; y: number }>>([]);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
@@ -353,11 +355,16 @@ export default function App() {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
+    // Учитываем масштабирование через viewBox
+    const viewBoxWidth = 1000 / scale;
+    const viewBoxHeight = 600 / scale;
+    const viewBoxX = 500 - 500 / scale;
+    const viewBoxY = 300 - 300 / scale;
     return {
-      x: ((e.clientX - rect.left) / rect.width) * 1000,
-      y: ((e.clientY - rect.top) / rect.height) * 600,
+      x: viewBoxX + ((e.clientX - rect.left) / rect.width) * viewBoxWidth,
+      y: viewBoxY + ((e.clientY - rect.top) / rect.height) * viewBoxHeight,
     };
-  }, []);
+  }, [scale]);
 
   const handleSVGClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (dragState) return;
@@ -417,6 +424,17 @@ export default function App() {
       setWaterSources(prev => [...prev, newWaterSource]);
       setDeployment(null);
       setToolMode('none');
+    } else if (toolMode === 'ruler') {
+      // Добавляем точку для измерения
+      setRulerPoints(prev => {
+        const newPoints = [...prev, { x, y }];
+        // Оставляем только последние 2 точки
+        if (newPoints.length > 2) {
+          return newPoints.slice(-2);
+        }
+        return newPoints;
+      });
+      return;
     } else {
       // Check wagon click for type change
       const clickedWagon = wagons.find(w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height);
@@ -439,7 +457,7 @@ export default function App() {
         }
       }
     }
-  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType]);
+  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
     // Allow dragging in select mode for all types
@@ -908,7 +926,27 @@ export default function App() {
                 <button onClick={() => setToolMode(toolMode === 'water' ? 'none' : 'water')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'water' ? 'bg-cyan-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>💧 Водоисточник</button>
                 <button onClick={() => setToolMode(toolMode === 'select' ? 'none' : 'select')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'select' ? 'bg-blue-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>✋ Перемещение</button>
                 <button onClick={() => setToolMode(toolMode === 'selection' ? 'none' : 'selection')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'selection' ? 'bg-purple-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>⬚ Выделение области</button>
+                <button onClick={() => { setToolMode(toolMode === 'ruler' ? 'none' : 'ruler'); setRulerPoints([]); }} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'ruler' ? 'bg-pink-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>📏 Линейка</button>
                 <button onClick={() => setToolMode('none')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'none' ? 'bg-green-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>👁 Просмотр</button>
+              </div>
+            </div>
+
+            {/* Масштабирование */}
+            <div className="p-2 bg-gray-700/50 rounded-lg">
+              <label className="text-[10px] text-gray-400 block mb-1">Масштаб: {Math.round(scale * 100)}%</label>
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={scale}
+                onChange={(e) => setScale(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="flex justify-between text-[9px] text-gray-500 mt-1">
+                <span>50%</span>
+                <span>100%</span>
+                <span>200%</span>
               </div>
             </div>
 
@@ -1121,7 +1159,7 @@ export default function App() {
           <div className="flex-1 bg-gray-800 rounded-xl border border-gray-700 overflow-hidden relative">
             <svg
               ref={svgRef}
-              viewBox="0 0 1000 600"
+              viewBox={`${500 - 500/scale} ${300 - 300/scale} ${1000/scale} ${600/scale}`}
               className="w-full h-full"
               onClick={handleSVGClick}
               onMouseDown={(e) => {
@@ -1142,7 +1180,7 @@ export default function App() {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              style={{ cursor: placingUnit ? 'cell' : toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : toolMode === 'water' ? 'cell' : toolMode === 'select' ? 'move' : toolMode === 'selection' ? 'crosshair' : 'pointer' }}
+              style={{ cursor: placingUnit ? 'cell' : toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : toolMode === 'water' ? 'cell' : toolMode === 'select' ? 'move' : toolMode === 'selection' ? 'crosshair' : toolMode === 'ruler' ? 'crosshair' : 'pointer' }}
             >
               <defs>
                 <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
@@ -1652,6 +1690,39 @@ export default function App() {
                 return null;
               })}
 
+              {/* Ruler measurement */}
+              {toolMode === 'ruler' && rulerPoints.length === 2 && (
+                <g>
+                  <line
+                    x1={rulerPoints[0].x}
+                    y1={rulerPoints[0].y}
+                    x2={rulerPoints[1].x}
+                    y2={rulerPoints[1].y}
+                    stroke="#ec4899"
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                  />
+                  <circle cx={rulerPoints[0].x} cy={rulerPoints[0].y} r="4" fill="#ec4899" />
+                  <circle cx={rulerPoints[1].x} cy={rulerPoints[1].y} r="4" fill="#ec4899" />
+                  <text
+                    x={(rulerPoints[0].x + rulerPoints[1].x) / 2}
+                    y={(rulerPoints[0].y + rulerPoints[1].y) / 2 - 10}
+                    textAnchor="middle"
+                    fill="#ec4899"
+                    fontSize="12"
+                    fontWeight="bold"
+                  >
+                    {(() => {
+                      const dx = rulerPoints[1].x - rulerPoints[0].x;
+                      const dy = rulerPoints[1].y - rulerPoints[0].y;
+                      const distance = Math.sqrt(dx * dx + dy * dy);
+                      const meters = (distance * 0.5).toFixed(1);
+                      return `${meters} м`;
+                    })()}
+                  </text>
+                </g>
+              )}
+
               {/* Personnel positions */}
               {deployment?.personnelPositions && deployment.personnelPositions.map((pos, idx) => (
                 <g key={`personnel-${idx}`}>
@@ -1734,6 +1805,7 @@ export default function App() {
                    toolMode === 'obstacle' ? 'Размещение препятствий' : 
                    toolMode === 'water' ? 'Размещение водоисточника' :
                    toolMode === 'selection' ? '⬚ Выделение области' :
+                   toolMode === 'ruler' ? '📏 Линейка (кликните 2 точки)' :
                    'Перемещение объектов'}
                 </span>
               </div>

@@ -66,5 +66,5 @@ export interface AvailableResources {
   personnel: number; // Личный состав (чел.)
 }
 
-export type ToolMode = 'none' | 'fire' | 'obstacle' | 'select' | 'water' | 'selection';
+export type ToolMode = 'none' | 'fire' | 'obstacle' | 'select' | 'water' | 'selection' | 'ruler';
 export type ObstacleType = 'building' | 'fence' | 'equipment' | 'depot' | 'tree_group' | 'road';
