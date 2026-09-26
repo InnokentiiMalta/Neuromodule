@@ -1160,11 +1160,17 @@ export default function App() {
                       className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
                     />
                   </div>
-                  {manualUnits.find(u => u.id === selectedUnitId) && !manualUnits.find(u => u.id === selectedUnitId)?.ptvDeployed && manualUnits.find(u => u.id === selectedUnitId)?.type !== 'aso' && (
-                    <button onClick={() => deployPTV(selectedUnitId)} className="w-full py-1.5 bg-green-600 hover:bg-green-500 rounded text-[10px] font-semibold">
-                      🔧 Расставить ПТВ
-                    </button>
-                  )}
+                  {(() => {
+                    const selectedManualUnit = manualUnits.find(u => u.id === selectedUnitId);
+                    if (selectedManualUnit && !selectedManualUnit.ptvDeployed && selectedManualUnit.type !== 'aso') {
+                      return (
+                        <button onClick={() => deployPTV(selectedUnitId)} className="w-full py-1.5 bg-green-600 hover:bg-green-500 rounded text-[10px] font-semibold">
+                          🔧 Расставить ПТВ
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
             )}
