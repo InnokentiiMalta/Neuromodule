@@ -204,19 +204,42 @@ function getFireTruckPoints(x: number, y: number, angle: number): string {
   return points.map(p => `${p.x},${p.y}`).join(' ');
 }
 
+// Функция для получения координат насоса автомобиля
+function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHeight: number, angle: number): { x: number; y: number } {
+  const centerX = unitX + unitWidth / 2;
+  const centerY = unitY + unitHeight / 2;
+  const truckLength = 16;
+  
+  // Нормализуем угол
+  const normalizedAngle = ((angle % 360) + 360) % 360;
+  const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
+  
+  // Насос находится на противоположной стороне от кабины
+  if (isCabinRight) {
+    // Кабина справа, насос слева
+    return { x: centerX - truckLength / 2, y: centerY };
+  } else {
+    // Кабина слева, насос справа
+    return { x: centerX + truckLength / 2, y: centerY };
+  }
+}
+
 function routeHoseAlongCorridor(
   unitX: number, unitY: number, unitWidth: number, unitHeight: number,
   fireX: number, fireY: number,
   wagons: Wagon[], obstacles: Obstacle[],
   customBranchPoint?: { x: number; y: number },
-  customNozzles?: Array<{ x: number; y: number }>
-): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }> } {
+  customNozzles?: Array<{ x: number; y: number }>,
+  unitAngle?: number
+): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
-
-  const angleToFire = Math.atan2(fireY - unitCenterY, fireX - unitCenterX);
-  const distToFire = Math.sqrt((unitCenterX - fireX) ** 2 + (unitCenterY - fireY) ** 2);
-
+  
+  // Получаем координаты насоса
+  const pumpPos = unitAngle !== undefined ? getPumpPosition(unitX, unitY, unitWidth, unitHeight, unitAngle) : { x: unitCenterX, y: unitCenterY };
+  
+  const angleToFire = Math.atan2(fireY - pumpPos.y, fireX - pumpPos.x);
+  const distToFire = Math.sqrt((pumpPos.x - fireX) ** 2 + (pumpPos.y - fireY) ** 2);
   // Branch point: must be at least 30m (60 units) from tracks, max 40m (80 units) from unit
   const TRACK_TOP = 298; // 1.6m = 3.2 units gap between rails
   const TRACK_BOTTOM = 302;
@@ -260,12 +283,11 @@ function routeHoseAlongCorridor(
     }
   }
 
-  // Find shortest path from unit to branch point
-  const path = findShortestPath(unitCenterX, unitCenterY, branchX, branchY, wagons, obstacles);
-
-  // Nozzles: 5-6m from fire wagon, at least 3m (6 units) from tracks on unit's side
-  const nozzles: Array<{ x: number; y: number }> = [];
+  // Find shortest path from pump to branch point
+  const path = findShortestPath(pumpPos.x, pumpPos.y, branchX, branchY, wagons, obstacles);
   
+  // Nozzles: 5-6m from fire wagon, at least 3m (6 units) from tracks on unit's side
+  const nozzles: Array<{ x: number; y: number }> = [];  
   // Determine which side of tracks the unit is on
   const MIN_DISTANCE_FROM_TRACKS = 6; // 3m = 6 SVG units
   const unitAboveTracks = unitCenterY < TRACK_TOP;
@@ -362,7 +384,31 @@ function routeHoseAlongCorridor(
     }
   }
 
-  return { path, branchPoint: { x: branchX, y: branchY }, nozzles };
+  // Calculate branch connections (отсечки) for hoses after branch point
+  // Each hose segment is 20m (40 SVG units)
+  const branchConnections: Array<{ x: number; y: number }> = [];
+  const HOSE_SEGMENT_LENGTH = 40; // 20m = 40 SVG units
+  
+  for (const nozzle of nozzles) {
+    const dx = nozzle.x - branchX;
+    const dy = nozzle.y - branchY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    // If distance is more than 20m, add connection points
+    if (dist > HOSE_SEGMENT_LENGTH) {
+      const numSegments = Math.floor(dist / HOSE_SEGMENT_LENGTH);
+      const segDx = dx / dist;
+      const segDy = dy / dist;
+      
+      for (let i = 1; i <= numSegments; i++) {
+        const connX = branchX + segDx * (i * HOSE_SEGMENT_LENGTH);
+        const connY = branchY + segDy * (i * HOSE_SEGMENT_LENGTH);
+        branchConnections.push({ x: connX, y: connY });
+      }
+    }
+  }
+
+  return { path, branchPoint: { x: branchX, y: branchY }, nozzles, branchConnections };
 }
 
 export default function App() {
@@ -810,7 +856,8 @@ export default function App() {
           const routing = routeHoseAlongCorridor(
             unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
             customPos?.branchPoint,
-            customPos?.nozzles
+            customPos?.nozzles,
+            unit.angle
           );
           
           routing.nozzles.forEach((nozzle, idx) => {
@@ -1386,7 +1433,8 @@ export default function App() {
                 const routing = routeHoseAlongCorridor(
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
-                  customPos?.nozzles
+                  customPos?.nozzles,
+                  unit.angle
                 );
                 
                 // Calculate connection points every 20m (40 units) along the path
@@ -1436,6 +1484,14 @@ export default function App() {
                     {routing.nozzles.map((nozzle, idx) => (
                       <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
                         stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
+                    ))}
+                    
+                    {/* Branch connections (отсечки) every 20m after branch point */}
+                    {routing.branchConnections.map((conn, idx) => (
+                      <g key={`branch-conn-${idx}`}>
+                        <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                        <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
+                      </g>
                     ))}
 
                     {/* Branch point RT-80 - draggable */}
@@ -1501,7 +1557,8 @@ export default function App() {
                 const routing = routeHoseAlongCorridor(
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
-                  customPos?.nozzles
+                  customPos?.nozzles,
+                  unit.angle
                 );
                 
                 // Calculate connection points every 20m (40 units) along the path
@@ -1549,6 +1606,14 @@ export default function App() {
                     {routing.nozzles.map((nozzle, idx) => (
                       <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
                         stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
+                    ))}
+                    
+                    {/* Branch connections (отсечки) every 20m after branch point */}
+                    {routing.branchConnections.map((conn, idx) => (
+                      <g key={`branch-conn-${idx}`}>
+                        <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                        <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
+                      </g>
                     ))}
                     
                     {/* Branch point RT-80 - draggable */}
@@ -1808,7 +1873,8 @@ export default function App() {
                     const routing = routeHoseAlongCorridor(
                       unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
                       customPos?.branchPoint,
-                      customPos?.nozzles
+                      customPos?.nozzles,
+                      unit.angle
                     );
                     if (routing.nozzles[nozzleIndex]) {
                       return (
@@ -1834,7 +1900,8 @@ export default function App() {
                     const routing = routeHoseAlongCorridor(
                       unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
                       customPos?.branchPoint,
-                      customPos?.nozzles
+                      customPos?.nozzles,
+                      unit.angle
                     );
                     return (
                       <rect
@@ -1910,7 +1977,8 @@ export default function App() {
                 const routing = routeHoseAlongCorridor(
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
-                  customPos?.nozzles
+                  customPos?.nozzles,
+                  unit.angle
                 );
 
                 return routing.nozzles.map((nozzle, idx) => {
