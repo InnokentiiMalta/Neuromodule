@@ -103,7 +103,7 @@ function findPositionNearWaterSource(
   return null;
 }
 
-// Find position for unit: max 100m from fire, min 15m from tracks
+// Find position for unit: max 100m from fire, min 15m from tracks, min 100m from other units
 function findPositionOnSafeCircle(
   fireX: number, fireY: number,
   unitWidth: number, unitHeight: number,
@@ -117,7 +117,8 @@ function findPositionOnSafeCircle(
   const TRACK_BOTTOM = 330;
   const MIN_DISTANCE_FROM_TRACKS = 30; // 15m = 30 SVG units
   const MAX_DISTANCE_FROM_FIRE = 200; // 100m = 200 SVG units
-  
+  const MIN_DISTANCE_BETWEEN_UNITS = 200; // 100m = 200 SVG units
+
   // Try 72 angles around the fire (every 5 degrees) for better coverage
   for (let i = 0; i < 72; i++) {
     const angle = (i * Math.PI * 2) / 72 + angleOffset;
@@ -125,8 +126,7 @@ function findPositionOnSafeCircle(
     // Try different distances with smaller step (every 8 units)
     for (let distance = safeDistance; distance <= MAX_DISTANCE_FROM_FIRE; distance += 8) {
       const px = fireX + Math.cos(angle) * distance - unitWidth / 2;
-      const py = fireY + Math.sin(angle) * distance - unitHeight / 2;
-      
+      const py = fireY + Math.sin(angle) * distance - unitHeight / 2;      
       // Check bounds
       if (px < 10 || px + unitWidth > 990 || py < 10 || py + unitHeight > 590) continue;
       
@@ -140,10 +140,21 @@ function findPositionOnSafeCircle(
       // Check if position is blocked
       if (isPositionBlocked(px, py, unitWidth, unitHeight, obstacles, wagons)) continue;
       
-      // Check collision with other units
+      // Check collision with other units (including 100m minimum distance)
       let collidesWithUnit = false;
       for (const pos of occupiedPositions) {
+        // Check direct overlap
         if (rectIntersects(px, py, unitWidth, unitHeight, pos.x, pos.y, pos.w, pos.h)) {
+          collidesWithUnit = true;
+          break;
+        }
+        // Check minimum distance between units (100m = 200 units)
+        const unitCenterX = px + unitWidth / 2;
+        const unitCenterY = py + unitHeight / 2;
+        const otherCenterX = pos.x + pos.w / 2;
+        const otherCenterY = pos.y + pos.h / 2;
+        const distBetweenUnits = Math.sqrt((unitCenterX - otherCenterX) ** 2 + (unitCenterY - otherCenterY) ** 2);
+        if (distBetweenUnits < MIN_DISTANCE_BETWEEN_UNITS) {
           collidesWithUnit = true;
           break;
         }
@@ -295,13 +306,24 @@ export function calculateDeployment(
   if (fireSource.type === 'tank') strategy += 'Подача пены на цистерну. ';
   strategy += `Безопасное расстояние: ${(safeDist * 0.5).toFixed(0)} м.`;
 
+  // Generate personnel positions
+  const totalPersonnel = units.reduce((s, u) => s + u.personnel, 0);
+  const personnelPositions = generatePersonnelPositions(
+    fireX, fireY,
+    totalPersonnel,
+    units,
+    obstacles,
+    wagons
+  );
+
   return {
     units,
-    totalPersonnel: units.reduce((s, u) => s + u.personnel, 0),
+    totalPersonnel,
     totalHoses: units.reduce((s, u) => s + u.hoses, 0),
     strategy,
     warnings,
     safeRadius: safeDist,
+    personnelPositions,
   };
 }
 
@@ -329,6 +351,89 @@ export function getIdealResources(fireSource: FireSource): { ac: number; al: num
   const ac = Math.ceil(2 * m) + (fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1 : 0);
   const al = (fireSource.type === 'wagon_body' || fireSource.type === 'tank') ? 1 : 0;
   return { ac, al, asr: 1, personnel: Math.ceil((7 * 2 + 6 * (fireSource.intensity === 'high' ? 4 : fireSource.intensity === 'medium' ? 2 : 0) + 5 * al + 3) * m) };
+}
+
+// Generate random positions for personnel
+function generatePersonnelPositions(
+  fireX: number, fireY: number,
+  totalPersonnel: number,
+  units: FireUnit[],
+  obstacles: Obstacle[],
+  wagons: Wagon[]
+): Array<{ x: number; y: number }> {
+  const TRACK_TOP = 290;
+  const TRACK_BOTTOM = 330;
+  const MIN_DISTANCE_FROM_FIRE = 20; // 10m = 20 SVG units
+  const MAX_DISTANCE_FROM_FIRE = 300; // 150m = 300 SVG units
+  
+  const positions: Array<{ x: number; y: number }> = [];
+  
+  // Determine which side of tracks most units are on
+  const unitsAboveTracks = units.filter(u => (u.y + 10) < TRACK_TOP).length;
+  const unitsBelowTracks = units.filter(u => (u.y + 10) > TRACK_BOTTOM).length;
+  const preferAbove = unitsAboveTracks >= unitsBelowTracks;
+  
+  // Calculate how many people should be on each side (90% on same side as units)
+  const peopleOnPreferredSide = Math.ceil(totalPersonnel * 0.9);
+  const peopleOnOtherSide = totalPersonnel - peopleOnPreferredSide;
+  
+  // Generate positions for people on preferred side
+  let attempts = 0;
+  let generated = 0;
+  while (generated < peopleOnPreferredSide && attempts < 1000) {
+    attempts++;
+    const angle = Math.random() * Math.PI * 2;
+    const distance = MIN_DISTANCE_FROM_FIRE + Math.random() * (MAX_DISTANCE_FROM_FIRE - MIN_DISTANCE_FROM_FIRE);
+    const px = fireX + Math.cos(angle) * distance;
+    const py = fireY + Math.sin(angle) * distance;
+    
+    // Check if on preferred side
+    const isOnPreferredSide = preferAbove ? py < TRACK_TOP : py > TRACK_BOTTOM;
+    if (!isOnPreferredSide) continue;
+    
+    // Check bounds
+    if (px < 10 || px > 990 || py < 10 || py > 590) continue;
+    
+    // Check distance from fire
+    const distFromFire = Math.sqrt((px - fireX) ** 2 + (py - fireY) ** 2);
+    if (distFromFire < MIN_DISTANCE_FROM_FIRE || distFromFire > MAX_DISTANCE_FROM_FIRE) continue;
+    
+    // Check if blocked by obstacles or wagons
+    if (isPositionBlocked(px - 3, py - 3, 6, 6, obstacles, wagons)) continue;
+    
+    positions.push({ x: px, y: py });
+    generated++;
+  }
+  
+  // Generate positions for people on other side
+  attempts = 0;
+  generated = 0;
+  while (generated < peopleOnOtherSide && attempts < 500) {
+    attempts++;
+    const angle = Math.random() * Math.PI * 2;
+    const distance = MIN_DISTANCE_FROM_FIRE + Math.random() * (MAX_DISTANCE_FROM_FIRE - MIN_DISTANCE_FROM_FIRE);
+    const px = fireX + Math.cos(angle) * distance;
+    const py = fireY + Math.sin(angle) * distance;
+    
+    // Check if on other side
+    const isOnOtherSide = preferAbove ? py > TRACK_BOTTOM : py < TRACK_TOP;
+    if (!isOnOtherSide) continue;
+    
+    // Check bounds
+    if (px < 10 || px > 990 || py < 10 || py > 590) continue;
+    
+    // Check distance from fire
+    const distFromFire = Math.sqrt((px - fireX) ** 2 + (py - fireY) ** 2);
+    if (distFromFire < MIN_DISTANCE_FROM_FIRE || distFromFire > MAX_DISTANCE_FROM_FIRE) continue;
+    
+    // Check if blocked by obstacles or wagons
+    if (isPositionBlocked(px - 3, py - 3, 6, 6, obstacles, wagons)) continue;
+    
+    positions.push({ x: px, y: py });
+    generated++;
+  }
+  
+  return positions;
 }
 
 export { getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST };

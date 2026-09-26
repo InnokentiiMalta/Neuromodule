@@ -1633,6 +1633,14 @@ export default function App() {
                 return null;
               })}
 
+              {/* Personnel positions */}
+              {deployment?.personnelPositions && deployment.personnelPositions.map((pos, idx) => (
+                <g key={`personnel-${idx}`}>
+                  <circle cx={pos.x} cy={pos.y} r="3" fill="#ff9800" opacity="0.8" />
+                  <text x={pos.x} y={pos.y + 1.5} textAnchor="middle" fontSize="4">🧑</text>
+                </g>
+              ))}
+
               {/* Firefighters layer - always on top */}
               {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
                 const unitWidth = unit.type === 'al' ? 55 : 44;

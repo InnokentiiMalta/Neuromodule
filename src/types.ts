@@ -56,6 +56,7 @@ export interface Deployment {
   strategy: string;
   warnings: string[];
   safeRadius: number;
+  personnelPositions?: Array<{ x: number; y: number }>;
 }
 
 export interface AvailableResources {
