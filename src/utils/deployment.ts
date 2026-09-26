@@ -338,7 +338,7 @@ export function generateDefaultWagons(): Wagon[] {
   const wagons: Wagon[] = [];
   let currentX = TRACK_START_X;
   for (let i = 0; i < types.length; i++) {
-    const width = types[i] === 'platform' ? 80 : 90;
+    const width = 50; // 25m = 50 SVG units
     const height = types[i] === 'tank' ? 32 : types[i] === 'passenger' ? 28 : 26;
     wagons.push({ id: i + 1, x: currentX, y: TRACK_Y - height / 2, width, height, type: types[i], label: labels[i] });
     currentX += width + WAGON_GAP;

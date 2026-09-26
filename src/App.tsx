@@ -229,9 +229,9 @@ function routeHoseAlongCorridor(
   // Calculate default nozzle positions - both on same side as unit, at least 3m from tracks
   const defaultNozzles: Array<{ x: number; y: number }> = [];
   
-  // Base positions near fire (10m = 20 units apart)
-  const baseNozzle1X = fireX - 10;
-  const baseNozzle2X = fireX + 10;
+  // Base positions near fire (12m = 24 units apart)
+  const baseNozzle1X = fireX - 12;
+  const baseNozzle2X = fireX + 12;
   let baseNozzle1Y = fireY;
   let baseNozzle2Y = fireY;
   
@@ -299,8 +299,8 @@ function routeHoseAlongCorridor(
     nozzles.push(...defaultNozzles);
   }
 
-  // Ensure minimum distance between nozzles (10m = 20 units)
-  const MIN_DISTANCE_BETWEEN_NOZZLES = 20;
+  // Ensure minimum distance between nozzles (8m = 16 units)
+  const MIN_DISTANCE_BETWEEN_NOZZLES = 16;
   if (nozzles.length >= 2) {
     for (let i = 0; i < nozzles.length; i++) {
       for (let j = i + 1; j < nozzles.length; j++) {
