@@ -2,7 +2,7 @@ import { Wagon, FireSource, Obstacle, FireUnit, Deployment, AvailableResources, 
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
-const TRACK_START_X = 80;
+const TRACK_START_X = 279; // Center wagons on canvas (8 wagons × 50 + 7 gaps × 6 = 442, center at 500)
 const MIN_DISTANCE_FROM_FIRE = 80; // 40m (min distance from fire)
 const HOSE_CORRIDOR_DIST = 10; // 5m from wagon contour
 
@@ -64,8 +64,8 @@ function findPositionNearWaterSource(
   occupiedPositions: Array<{ x: number; y: number; w: number; h: number }>
 ): { x: number; y: number; angle: number } | null {
   const DISTANCE_FROM_WATER = 15; // 7.5m = 15 SVG units
-  const TRACK_TOP = 290;
-  const TRACK_BOTTOM = 330;
+  const TRACK_TOP = 298;
+  const TRACK_BOTTOM = 302;
   
   // Try positions around water source
   for (let i = 0; i < 72; i++) {
@@ -113,8 +113,8 @@ function findPositionOnSafeCircle(
   occupiedPositions: Array<{ x: number; y: number; w: number; h: number }>,
   angleOffset: number = 0
 ): { x: number; y: number; angle: number } | null {
-  const TRACK_TOP = 290;
-  const TRACK_BOTTOM = 330;
+  const TRACK_TOP = 298;
+  const TRACK_BOTTOM = 302;
   const MIN_DISTANCE_FROM_TRACKS = 30; // 15m = 30 SVG units
   const MAX_DISTANCE_FROM_FIRE = 200; // 100m = 200 SVG units
   const MIN_DISTANCE_BETWEEN_UNITS = 200; // 100m = 200 SVG units
@@ -339,7 +339,7 @@ export function generateDefaultWagons(): Wagon[] {
   let currentX = TRACK_START_X;
   for (let i = 0; i < types.length; i++) {
     const width = 50; // 25m = 50 SVG units
-    const height = types[i] === 'tank' ? 32 : types[i] === 'passenger' ? 28 : 26;
+    const height = 7; // 3.5m = 7 SVG units (wagon width)
     wagons.push({ id: i + 1, x: currentX, y: TRACK_Y - height / 2, width, height, type: types[i], label: labels[i] });
     currentX += width + WAGON_GAP;
   }
@@ -361,8 +361,8 @@ function generatePersonnelPositions(
   obstacles: Obstacle[],
   wagons: Wagon[]
 ): Array<{ x: number; y: number }> {
-  const TRACK_TOP = 290;
-  const TRACK_BOTTOM = 330;
+  const TRACK_TOP = 298;
+  const TRACK_BOTTOM = 302;
   const MIN_DISTANCE_FROM_FIRE = 40; // 20m = 40 SVG units
   const MAX_DISTANCE_FROM_FIRE = 300; // 150m = 300 SVG units
   

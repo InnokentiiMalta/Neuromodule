@@ -174,8 +174,8 @@ function routeHoseAlongCorridor(
   const distToFire = Math.sqrt((unitCenterX - fireX) ** 2 + (unitCenterY - fireY) ** 2);
 
   // Branch point: must be at least 30m (60 units) from tracks, max 40m (80 units) from unit
-  const TRACK_TOP = 290;
-  const TRACK_BOTTOM = 330;
+  const TRACK_TOP = 298; // 1.6m = 3.2 units gap between rails
+  const TRACK_BOTTOM = 302;
   const MIN_BRANCH_DISTANCE_FROM_TRACKS = 60; // 30m = 60 SVG units
   const MAX_BRANCH_DISTANCE_FROM_UNIT = 80; // 40m = 80 SVG units
   
@@ -803,7 +803,7 @@ export default function App() {
   const changeWagonType = useCallback((wagonId: number, newType: WagonType) => {
     const newWagons = wagons.map(w => {
       if (w.id === wagonId) {
-        const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
+        const height = 7; // 3.5m = 7 SVG units (wagon width)
         return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
       }
       return w;
@@ -822,7 +822,7 @@ export default function App() {
 
   const changeAllWagonsType = useCallback((newType: WagonType) => {
     const newWagons = wagons.map(w => {
-      const height = newType === 'tank' ? 32 : newType === 'passenger' ? 28 : newType === 'platform' ? 24 : 26;
+      const height = 7; // 3.5m = 7 SVG units (wagon width)
       return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
     });
     setWagons(newWagons);
@@ -1165,13 +1165,13 @@ export default function App() {
 
               {/* Railway tracks */}
               <g>
-                <rect x="55" y="280" width="890" height="60" fill="#3a3a3a" rx="3" />
-                <rect x="55" y="283" width="890" height="54" fill="#444" rx="2" />
+                <rect x="55" y="294" width="890" height="12" fill="#3a3a3a" rx="2" />
+                <rect x="55" y="295" width="890" height="10" fill="#444" rx="1" />
                 {Array.from({ length: 50 }, (_, i) => (
-                  <rect key={i} x={62 + i * 18} y="278" width="5" height="64" fill="#5a4a3a" rx="1" opacity="0.7" />
+                  <rect key={i} x={62 + i * 18} y="293" width="4" height="14" fill="#5a4a3a" rx="1" opacity="0.7" />
                 ))}
-                <line x1="60" y1="290" x2="940" y2="290" stroke="#aaa" strokeWidth="2.5" />
-                <line x1="60" y1="330" x2="940" y2="330" stroke="#aaa" strokeWidth="2.5" />
+                <line x1="60" y1="298" x2="940" y2="298" stroke="#aaa" strokeWidth="2" />
+                <line x1="60" y1="302" x2="940" y2="302" stroke="#aaa" strokeWidth="2" />
               </g>
 
               {/* Wagons */}
