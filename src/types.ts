@@ -38,7 +38,7 @@ export type WaterSourceType = 'pond' | 'river';
 
 export interface FireUnit {
   id: string;
-  type: 'aca' | 'ac' | 'al' | 'asr';
+  type: 'ac' | 'asa' | 'aso';
   name: string;
   x: number;
   y: number;
@@ -47,6 +47,11 @@ export interface FireUnit {
   hoses: number;
   role: string;
   safeDistance: number;
+}
+
+export interface FireTrain {
+  id: string;
+  wagons: Wagon[];
 }
 
 export interface Deployment {

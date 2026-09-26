@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit, WaterSource } from './types';
+import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit, WaterSource, FireTrain } from './types';
 import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
 
 const WAGON_GAP = 6;
@@ -376,6 +376,7 @@ export default function App() {
   const [deployment, setDeployment] = useState<Deployment | null>(null);
   const [manualUnits, setManualUnits] = useState<ManualUnit[]>([]);
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
+  const [fireTrains, setFireTrains] = useState<FireTrain[]>([]);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -399,15 +400,12 @@ export default function App() {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
-    // Учитываем масштабирование через viewBox
-    const viewBoxWidth = 1000 / scale;
-    const viewBoxHeight = 600 / scale;
-    const viewBoxX = 500 - 500 / scale;
-    const viewBoxY = 300 - 300 / scale;
-    return {
-      x: viewBoxX + ((e.clientX - rect.left) / rect.width) * viewBoxWidth,
-      y: viewBoxY + ((e.clientY - rect.top) / rect.height) * viewBoxHeight,
-    };
+    // Получаем текущий viewBox
+    const viewBox = svg.viewBox.baseVal;
+    // Преобразуем координаты мыши в координаты SVG
+    const x = viewBox.x + ((e.clientX - rect.left) / rect.width) * viewBox.width;
+    const y = viewBox.y + ((e.clientY - rect.top) / rect.height) * viewBox.height;
+    return { x, y };
   }, [scale]);
 
   const handleSVGClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -418,11 +416,11 @@ export default function App() {
       const newUnit: ManualUnit = {
         id: `manual-${Date.now()}`,
         type: placingUnit,
-        name: placingUnit === 'al' ? 'АЛ-30(40)' : placingUnit === 'asr' ? 'АСР' : 'АЦ-40',
+        name: placingUnit === 'asa' ? 'АСА' : placingUnit === 'aso' ? 'АСО' : 'АЦ-40',
         x: x - 22,
         y: y - 10,
         angle: 0,
-        personnel: placingUnit === 'al' ? 5 : placingUnit === 'asr' ? 3 : 7,
+        personnel: placingUnit === 'asa' ? 5 : placingUnit === 'aso' ? 3 : 7,
         hoses: 0,
         role: 'Добавлен вручную',
         safeDistance: 200,
@@ -489,7 +487,7 @@ export default function App() {
         // Check unit click
         const allUnits = [...(deployment?.units || []), ...manualUnits];
         const clickedUnit = allUnits.find(u => {
-          const w = u.type === 'al' ? 55 : 44;
+          const w = u.type === 'asa' ? 55 : 44;
           return x >= u.x && x <= u.x + w && y >= u.y && y <= u.y + 20;
         });
         if (clickedUnit) {
@@ -713,7 +711,7 @@ export default function App() {
           const unit = allUnits.find(u => u.id === dragState.unitId);
           
           if (unit && fireSource) {
-            const unitWidth = unit.type === 'al' ? 55 : 44;
+            const unitWidth = unit.type === 'asa' ? 55 : 44;
             const unitCenterX = unit.x + unitWidth / 2;
             const unitCenterY = unit.y + 10;
             const angleToFire = Math.atan2(fireSource.y - unitCenterY, fireSource.x - unitCenterX);
@@ -779,7 +777,7 @@ export default function App() {
       // Проверить технику
       const allUnits = [...(deployment?.units || []), ...manualUnits];
       allUnits.forEach(unit => {
-        const unitWidth = unit.type === 'al' ? 55 : 44;
+        const unitWidth = unit.type === 'asa' ? 55 : 44;
         if (unit.x >= minX && unit.x + unitWidth <= maxX &&
             unit.y >= minY && unit.y + 20 <= maxY) {
           newSelected.push({
@@ -806,8 +804,8 @@ export default function App() {
       
       // Проверить ствольщиков
       if (fireSource) {
-        allUnits.filter(u => u.type !== 'asr' && (u.hoses > 0 || (u as any).ptvDeployed)).forEach(unit => {
-          const unitWidth = unit.type === 'al' ? 55 : 44;
+        allUnits.filter(u => u.type !== 'aso' && (u.hoses > 0 || (u as any).ptvDeployed)).forEach(unit => {
+          const unitWidth = unit.type === 'asa' ? 55 : 44;
           const customPos = customPositions[unit.id];
           const routing = routeHoseAlongCorridor(
             unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
@@ -899,8 +897,8 @@ export default function App() {
   }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
 
   const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
-    const newName = newType === 'al' ? 'АЛ-30(40)' : newType === 'asr' ? 'АСР' : 'АЦ-40';
-    const newPersonnel = newType === 'al' ? 5 : newType === 'asr' ? 3 : 7;
+    const newName = newType === 'asa' ? 'АСА' : newType === 'aso' ? 'АСО' : 'АЦ-40';
+    const newPersonnel = newType === 'asa' ? 5 : newType === 'aso' ? 3 : 7;
     
     setManualUnits(prev => prev.map(u =>
       u.id === unitId ? { ...u, type: newType, name: newName, personnel: newPersonnel } : u
@@ -948,9 +946,28 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Силы</button>
             <div className="flex gap-1">
-              <button onClick={() => setPlacingUnit('aca')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'aca' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АЦ</button>
-              <button onClick={() => setPlacingUnit('al')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'al' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АЛ</button>
-              <button onClick={() => setPlacingUnit('asr')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'asr' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСР</button>
+              <button onClick={() => setPlacingUnit('ac')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'ac' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АЦ</button>
+              <button onClick={() => setPlacingUnit('asa')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'asa' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСА</button>
+              <button onClick={() => setPlacingUnit('aso')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'aso' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСО</button>
+              <button onClick={() => {
+                // Добавление пожарного поезда
+                const trainId = `train-${Date.now()}`;
+                const startX = 100;
+                const trainWagons: Wagon[] = [];
+                for (let i = 0; i < 6; i++) {
+                  const isTank = i === 1 || i === 4; // 2 цистерны
+                  trainWagons.push({
+                    id: i + 1,
+                    x: startX + i * 56,
+                    y: 400,
+                    width: 50,
+                    height: isTank ? 7 : 7,
+                    type: isTank ? 'tank' : 'freight',
+                    label: isTank ? `Цистерна ПП ${i + 1}` : `Вагон ПП ${i + 1}`,
+                  });
+                }
+                setFireTrains(prev => [...prev, { id: trainId, wagons: trainWagons }]);
+              }} className="px-2 py-1.5 rounded text-xs bg-red-700 hover:bg-red-600">+Пожарный поезд</button>
             </div>
             <button onClick={handleDeploy} disabled={!fireSource} className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-red-700 disabled:from-gray-600 disabled:to-gray-700 rounded-lg font-semibold text-xs">🚀 Расставить</button>
             <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 rounded-lg text-xs">❓</button>
@@ -971,6 +988,9 @@ export default function App() {
                 <button onClick={() => setToolMode(toolMode === 'select' ? 'none' : 'select')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'select' ? 'bg-blue-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>✋ Перемещение</button>
                 <button onClick={() => setToolMode(toolMode === 'selection' ? 'none' : 'selection')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'selection' ? 'bg-purple-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>⬚ Выделение области</button>
                 <button onClick={() => { setToolMode(toolMode === 'ruler' ? 'none' : 'ruler'); setRulerPoints([]); }} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'ruler' ? 'bg-pink-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>📏 Линейка</button>
+                {toolMode === 'ruler' && rulerPoints.length > 0 && (
+                  <button onClick={() => setRulerPoints([])} className="px-2 py-1.5 rounded text-[11px] font-medium bg-pink-700 hover:bg-pink-600">🗑 Сброс</button>
+                )}
                 <button onClick={() => setToolMode('none')} className={`px-2 py-1.5 rounded text-[11px] font-medium ${toolMode === 'none' ? 'bg-green-600' : 'bg-gray-700/80 hover:bg-gray-600'}`}>👁 Просмотр</button>
               </div>
             </div>
@@ -1110,9 +1130,9 @@ export default function App() {
                   <div>
                     <label className="text-[9px] text-gray-400 block mb-0.5">Тип техники:</label>
                     <div className="grid grid-cols-2 gap-1">
-                      {(['aca', 'ac', 'al', 'asr'] as const).map(type => (
+                      {(['ac', 'asa', 'aso'] as const).map(type => (
                         <button key={type} onClick={() => changeUnitType(selectedUnitId, type)} className={`px-1.5 py-1 rounded text-[9px] font-medium ${[...(deployment?.units || []), ...manualUnits].find(u => u.id === selectedUnitId)?.type === type ? 'bg-cyan-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
-                          {type === 'al' ? 'АЛ' : type === 'asr' ? 'АСР' : 'АЦ'}
+                          {type === 'asa' ? 'АСА' : type === 'aso' ? 'АСО' : 'АЦ'}
                         </button>
                       ))}
                     </div>
@@ -1127,7 +1147,7 @@ export default function App() {
                       className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
                     />
                   </div>
-                  {manualUnits.find(u => u.id === selectedUnitId) && !manualUnits.find(u => u.id === selectedUnitId)?.ptvDeployed && (
+                  {manualUnits.find(u => u.id === selectedUnitId) && !manualUnits.find(u => u.id === selectedUnitId)?.ptvDeployed && manualUnits.find(u => u.id === selectedUnitId)?.type !== 'aso' && (
                     <button onClick={() => deployPTV(selectedUnitId)} className="w-full py-1.5 bg-green-600 hover:bg-green-500 rounded text-[10px] font-semibold">
                       🔧 Расставить ПТВ
                     </button>
@@ -1282,6 +1302,25 @@ export default function App() {
                 );
               })}
 
+              {/* Fire Trains */}
+              {fireTrains.map(train => (
+                <g key={train.id}>
+                  {train.wagons.map(wagon => (
+                    <g key={wagon.id}>
+                      <rect x={wagon.x} y={wagon.y} width={wagon.width} height={wagon.height}
+                        fill="#c62828"
+                        stroke="#8b0000"
+                        strokeWidth="1" rx="3" />
+                      {wagon.type === 'tank' && (
+                        <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 2} fill="none" stroke="#8b0000" strokeWidth="1" />
+                      )}
+                      <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill="#ff6666" fontSize="6" fontFamily="sans-serif" fontWeight="bold">{wagon.label}</text>
+                    </g>
+                  ))}
+                  <text x={train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2} y={train.wagons[0].y - 15} textAnchor="middle" fill="#ff4444" fontSize="8" fontFamily="sans-serif" fontWeight="bold">ПОЖАРНЫЙ ПОЕЗД</text>
+                </g>
+              ))}
+
               {/* Fire */}
               {fireSource && (
                 <g>
@@ -1322,7 +1361,7 @@ export default function App() {
 
               {/* Hose lines for deployment units */}
               {fireSource && deployment?.units.filter(u => u.hoses > 0).map(unit => {
-                const unitWidth = unit.type === 'al' ? 55 : 44;
+                const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
                 const routing = routeHoseAlongCorridor(
@@ -1437,7 +1476,7 @@ export default function App() {
 
               {/* Hose lines for manual units with PTW deployed */}
               {fireSource && manualUnits.filter(u => u.ptvDeployed).map(unit => {
-                const unitWidth = unit.type === 'al' ? 55 : 44;
+                const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
                 const routing = routeHoseAlongCorridor(
@@ -1546,7 +1585,7 @@ export default function App() {
                 const isSelected = selectedUnitId === unit.id;
                 const centerX = unit.x + 8;
                 const centerY = unit.y + 2.5;
-                const truckColor = unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c';
+                const truckColor = unit.type === 'ac' ? '#b71c1c' : unit.type === 'asa' ? '#d32f2f' : '#4a148c';
                 
                 return (
                   <g 
@@ -1610,7 +1649,7 @@ export default function App() {
                 const isSelected = selectedUnitId === unit.id;
                 const centerX = unit.x + 8;
                 const centerY = unit.y + 2.5;
-                const truckColor = unit.type === 'aca' ? '#b71c1c' : unit.type === 'ac' ? '#c62828' : unit.type === 'al' ? '#d32f2f' : '#4a148c';
+                const truckColor = unit.type === 'ac' ? '#b71c1c' : unit.type === 'asa' ? '#d32f2f' : '#4a148c';
                 
                 return (
                   <g 
@@ -1708,7 +1747,7 @@ export default function App() {
                   const allUnits = [...(deployment?.units || []), ...manualUnits];
                   const unit = allUnits.find(u => u.id === elem.id);
                   if (unit) {
-                    const unitWidth = unit.type === 'al' ? 55 : 44;
+                    const unitWidth = unit.type === 'asa' ? 55 : 44;
                     return (
                       <rect
                         key={`sel-${idx}`}
@@ -1745,7 +1784,7 @@ export default function App() {
                   const allUnits = [...(deployment?.units || []), ...manualUnits];
                   const unit = allUnits.find(u => u.id === elem.unitId);
                   if (unit && fireSource) {
-                    const unitWidth = unit.type === 'al' ? 55 : 44;
+                    const unitWidth = unit.type === 'asa' ? 55 : 44;
                     const customPos = customPositions[unit.id];
                     const routing = routeHoseAlongCorridor(
                       unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
@@ -1771,7 +1810,7 @@ export default function App() {
                   const allUnits = [...(deployment?.units || []), ...manualUnits];
                   const unit = allUnits.find(u => u.id === elem.unitId);
                   if (unit && fireSource) {
-                    const unitWidth = unit.type === 'al' ? 55 : 44;
+                    const unitWidth = unit.type === 'asa' ? 55 : 44;
                     const customPos = customPositions[unit.id];
                     const routing = routeHoseAlongCorridor(
                       unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
@@ -1839,7 +1878,7 @@ export default function App() {
 
               {/* Firefighters layer - always on top */}
               {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
-                const unitWidth = unit.type === 'al' ? 55 : 44;
+                const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
                 const routing = routeHoseAlongCorridor(
@@ -1898,7 +1937,7 @@ export default function App() {
 
             {placingUnit && (
               <div className="absolute top-2 left-2 bg-red-600/90 backdrop-blur-sm rounded px-3 py-2 border border-red-400">
-                <span className="text-xs text-white font-semibold">👆 Кликните на карту для размещения {placingUnit === 'al' ? 'автолестницы (АЛ)' : placingUnit === 'asr' ? 'машины связи (АСР)' : 'автоцистерны (АЦ)'}</span>
+                <span className="text-xs text-white font-semibold">👆 Кликните на карту для размещения {placingUnit === 'asa' ? 'аварийно-спасательного (АСА)' : placingUnit === 'aso' ? 'машины связи и освещения (АСО)' : 'автоцистерны (АЦ)'}</span>
               </div>
             )}
             
@@ -1988,12 +2027,13 @@ export default function App() {
             <h2 className="text-base font-bold mb-3">📖 Справка</h2>
             <div className="space-y-2 text-[12px] text-gray-300">
               <p><strong className="text-purple-400">Типы вагонов:</strong> Клик на вагон для смены типа. Кнопки "Тип поезда" для изменения всех вагонов сразу.</p>
-              <p><strong className="text-red-400">+АЦ/+АЛ/+АСР:</strong> Ручное добавление пожарной техники. Выберите тип и кликните на карту.</p>
+              <p><strong className="text-red-400">+АЦ/+АСА/+АСО:</strong> Ручное добавление пожарной техники. Выберите тип и кликните на карту. АСО не имеет воды и ПТВ.</p>
+              <p><strong className="text-red-400">+Пожарный поезд:</strong> Добавление пожарного поезда (6 вагонов, 2 цистерны).</p>
               <p><strong className="text-green-400">Расставить ПТВ:</strong> Выберите добавленную машину и нажмите кнопку для автоматической прокладки рукавной линии к очагу пожара.</p>
               <p><strong className="text-cyan-400">Перемещение:</strong> Режим "Перемещение" позволяет двигать технику, разветвления РТ-80, ствольщиков и препятствия. Ствольщиков и разветвления можно перемещать в любом режиме. Рукава и струи пересчитываются автоматически.</p>
               <p><strong className="text-blue-400">Выделение:</strong> В режиме "Перемещение" или "Просмотр" можно выделить несколько элементов прямоугольной областью (кликните на пустое место и тяните). Все выделенные элементы можно перемещать одновременно.</p>
               <p><strong className="text-yellow-400">Подразделение:</strong> Выберите машину и укажите принадлежность к подразделению (например, "ПЧ-12").</p>
-              <p><strong className="text-blue-400">Смена типа техники:</strong> Кликните на размещённую машину для изменения её типа (АЦ/АЛ/АСР).</p>
+              <p><strong className="text-blue-400">Смена типа техники:</strong> Кликните на размещённую машину для изменения её типа (АЦ/АСА/АСО).</p>
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
                 <p>🔗 <strong>Рукавные линии:</strong> прокладываются вдоль вагонов на расстоянии 5м снаружи по кратчайшему пути.</p>
                 <p>🧑‍🚒 <strong>Личный состав:</strong> отображается у каждой машины (1 чел.) и у каждого разветвления РТ-80.</p>

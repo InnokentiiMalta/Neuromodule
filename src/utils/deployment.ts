@@ -199,13 +199,13 @@ export function calculateDeployment(
   const occupiedPositions: Array<{ x: number; y: number; w: number; h: number }> = [];
 
   const addUnit = (unit: Omit<FireUnit, 'id' | 'safeDistance'>): boolean => {
-    if (unit.type === 'aca' || unit.type === 'ac') {
+    if (unit.type === 'ac') {
       if (availAC <= 0 || availPersonnel < unit.personnel) return false;
       availAC--;
-    } else if (unit.type === 'al') {
+    } else if (unit.type === 'asa') {
       if (availAL <= 0 || availPersonnel < unit.personnel) return false;
       availAL--;
-    } else if (unit.type === 'asr') {
+    } else if (unit.type === 'aso') {
       if (availASR <= 0 || availPersonnel < unit.personnel) return false;
       availASR--;
     }
@@ -245,7 +245,7 @@ export function calculateDeployment(
         );
     if (pos) {
       const success = addUnit({ 
-        type: acCount === 0 ? 'aca' : 'ac', 
+        type: 'ac', 
         name: `АЦ-40 (${acCount + 1})`, 
         x: pos.x, 
         y: pos.y, 
@@ -268,36 +268,36 @@ export function calculateDeployment(
     warnings.push('⚠ Достигнут лимит итераций расстановки');
   }
 
-  // Place AL if needed
+  // Place ASA if needed
   if (idealAL > 0 && availAL > 0) {
     const pos = findPositionOnSafeCircle(
       fireX, fireY, 55, 22, obstacles, wagons, safeDist, nearestWaterSource, occupiedPositions, 0.5
     );
     if (pos) {
-      addUnit({ type: 'al', name: 'АЛ-30(40)', x: pos.x, y: pos.y, angle: pos.angle, personnel: 5, hoses: 1, role: 'Подача сверху' });
+      addUnit({ type: 'asa', name: 'АСА', x: pos.x, y: pos.y, angle: pos.angle, personnel: 5, hoses: 1, role: 'Аварийно-спасательный' });
     }
   }
 
-  // Place ASR
+  // Place ASO
   if (availASR > 0) {
     const pos = findPositionOnSafeCircle(
       fireX, fireY, 50, 22, obstacles, wagons, safeDist, nearestWaterSource, occupiedPositions, 1.0
     );
     if (pos) {
-      addUnit({ type: 'asr', name: 'АСР', x: pos.x, y: pos.y, angle: pos.angle, personnel: 3, hoses: 0, role: 'Штаб / связь' });
+      addUnit({ type: 'aso', name: 'АСО', x: pos.x, y: pos.y, angle: pos.angle, personnel: 3, hoses: 0, role: 'Связь и освещение' });
     }
   }
 
   // Warnings
   if (resources) {
-    const deployedAC = units.filter(u => u.type === 'aca' || u.type === 'ac').length;
-    const deployedAL = units.filter(u => u.type === 'al').length;
+    const deployedAC = units.filter(u => u.type === 'ac').length;
+    const deployedASA = units.filter(u => u.type === 'asa').length;
     if (deployedAC < totalACNeeded) warnings.push(`⚠ Размещено ${deployedAC} из ${totalACNeeded} АЦ`);
-    if (idealAL > 0 && deployedAL < idealAL) warnings.push(`⚠ Недостаточно АЛ: требуется ${idealAL}, размещено ${deployedAL}`);
+    if (idealAL > 0 && deployedASA < idealAL) warnings.push(`⚠ Недостаточно АСА: требуется ${idealAL}, размещено ${deployedASA}`);
   }
 
   let strategy = '';
-  const deployedAC = units.filter(u => u.type === 'aca' || u.type === 'ac').length;
+  const deployedAC = units.filter(u => u.type === 'ac').length;
   if (deployedAC >= 4) strategy = 'Атака с 4 направлений. ';
   else if (deployedAC >= 2) strategy = `Атака с ${deployedAC} направлений. `;
   else if (deployedAC === 1) strategy = 'Единственное направление. ';
