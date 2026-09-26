@@ -1228,8 +1228,8 @@ export default function App() {
                     )}
                     {wagon.type === 'passenger' && (
                       <>
-                        {Array.from({ length: 5 }, (_, i) => (
-                          <rect key={i} x={wagon.x + 3 + i * 9} y={wagon.y + 2} width="7" height="3" fill="#5a8aaa" rx="0.5" opacity="0.7" />
+                        {Array.from({ length: 8 }, (_, i) => (
+                          <rect key={i} x={wagon.x + 2 + i * 6} y={wagon.y + 2} width="4" height="3" fill="#5a8aaa" rx="0.5" opacity="0.7" />
                         ))}
                       </>
                     )}
