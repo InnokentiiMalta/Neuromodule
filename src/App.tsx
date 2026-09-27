@@ -209,25 +209,28 @@ function getFireTruckPoints(x: number, y: number, angle: number): string {
 function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHeight: number, angle: number): { x: number; y: number } {
   // Реальные размеры автомобиля (как в getFireTruckPoints)
   const truckLength = 16;
-  const truckWidth = 5;
   
   // Центр автомобиля (unitX, unitY - это верхний левый угол bounding box)
   const centerX = unitX + unitWidth / 2;
   const centerY = unitY + unitHeight / 2;
   
-  // Нормализуем угол
+  // Нормализуем угол (угол указывает направление от автомобиля к пожару)
   const normalizedAngle = ((angle % 360) + 360) % 360;
-  const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
   
-  // Насос находится на противоположной стороне от кабины, внутри контура автомобиля
-  // Автомобиль имеет длину 16 единиц, центр в (centerX, centerY)
-  // Левый край: centerX - 8, Правый край: centerX + 8
-  if (isCabinRight) {
-    // Кабина справа, насос слева - на левом краю автомобиля
+  // Насос находится с той стороны автомобиля, которая обращена к пожару
+  // Это обеспечивает, что рукав начинается непосредственно у автомобиля
+  if (normalizedAngle >= 315 || normalizedAngle < 45) {
+    // Пожар справа - насос справа
+    return { x: centerX + truckLength / 2 - 1, y: centerY };
+  } else if (normalizedAngle >= 45 && normalizedAngle < 135) {
+    // Пожар снизу - насос снизу
+    return { x: centerX, y: centerY + 2 };
+  } else if (normalizedAngle >= 135 && normalizedAngle < 225) {
+    // Пожар слева - насос слева
     return { x: centerX - truckLength / 2 + 1, y: centerY };
   } else {
-    // Кабина слева, насос справа - на правом краю автомобиля
-    return { x: centerX + truckLength / 2 - 1, y: centerY };
+    // Пожар сверху - насос сверху
+    return { x: centerX, y: centerY - 2 };
   }
 }
 
