@@ -205,22 +205,26 @@ function getFireTruckPoints(x: number, y: number, angle: number): string {
   return points.map(p => `${p.x},${p.y}`).join(' ');
 }
 
-// Функция для получения координат насоса автомобиля (на краю кузова)
+// Функция для получения координат насоса автомобиля (на боковой стороне кузова)
 function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHeight: number, angle: number): { x: number; y: number } {
   const truckLength = 16;
   const truckWidth = 5;
+  
+  // Центр автомобиля
+  const centerX = unitX + unitWidth / 2;
+  const centerY = unitY + unitHeight / 2;
   
   // Нормализуем угол
   const normalizedAngle = ((angle % 360) + 360) % 360;
   const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
   
-  // Насос находится на противоположной стороне от кабины, на краю кузова
+  // Насос находится на противоположной стороне от кабины, на боковой стороне кузова
   if (isCabinRight) {
-    // Кабина справа, насос слева - на левом краю
-    return { x: unitX, y: unitY + unitHeight / 2 };
+    // Кабина справа, насос слева - на левом краю кузова
+    return { x: centerX - truckLength / 2, y: centerY };
   } else {
-    // Кабина слева, насос справа - на правом краю
-    return { x: unitX + unitWidth, y: unitY + unitHeight / 2 };
+    // Кабина слева, насос справа - на правом краю кузова
+    return { x: centerX + truckLength / 2, y: centerY };
   }
 }
 
@@ -295,9 +299,9 @@ function routeHoseAlongCorridor(
   // Calculate default nozzle positions - both on same side as unit, at least 3m from tracks
   const defaultNozzles: Array<{ x: number; y: number }> = [];
   
-  // Base positions near fire (12m = 24 units apart)
-  const baseNozzle1X = fireX - 12;
-  const baseNozzle2X = fireX + 12;
+  // Base positions near fire (20m = 40 units apart to ensure minimum 8m/16 units after adjustments)
+  const baseNozzle1X = fireX - 20;
+  const baseNozzle2X = fireX + 20;
   let baseNozzle1Y = fireY;
   let baseNozzle2Y = fireY;
   
@@ -365,20 +369,23 @@ function routeHoseAlongCorridor(
     nozzles.push(...defaultNozzles);
   }
 
-  // Ensure minimum distance between nozzles (8m = 16 units)
+  // Ensure minimum distance between nozzles (8m = 16 units) - STRICT RULE
   const MIN_DISTANCE_BETWEEN_NOZZLES = 16;
   if (nozzles.length >= 2) {
-    for (let i = 0; i < nozzles.length; i++) {
-      for (let j = i + 1; j < nozzles.length; j++) {
-        const dist = Math.sqrt((nozzles[i].x - nozzles[j].x) ** 2 + (nozzles[i].y - nozzles[j].y) ** 2);
-        if (dist < MIN_DISTANCE_BETWEEN_NOZZLES) {
-          // Move nozzles apart
-          const angle = Math.atan2(nozzles[j].y - nozzles[i].y, nozzles[j].x - nozzles[i].x);
-          const moveDist = (MIN_DISTANCE_BETWEEN_NOZZLES - dist) / 2;
-          nozzles[i].x -= Math.cos(angle) * moveDist;
-          nozzles[i].y -= Math.sin(angle) * moveDist;
-          nozzles[j].x += Math.cos(angle) * moveDist;
-          nozzles[j].y += Math.sin(angle) * moveDist;
+    // Repeat check multiple times to ensure compliance after all adjustments
+    for (let iteration = 0; iteration < 5; iteration++) {
+      for (let i = 0; i < nozzles.length; i++) {
+        for (let j = i + 1; j < nozzles.length; j++) {
+          const dist = Math.sqrt((nozzles[i].x - nozzles[j].x) ** 2 + (nozzles[i].y - nozzles[j].y) ** 2);
+          if (dist < MIN_DISTANCE_BETWEEN_NOZZLES) {
+            // Move nozzles apart
+            const angle = Math.atan2(nozzles[j].y - nozzles[i].y, nozzles[j].x - nozzles[i].x);
+            const moveDist = (MIN_DISTANCE_BETWEEN_NOZZLES - dist) / 2 + 1; // Add 1 unit buffer
+            nozzles[i].x -= Math.cos(angle) * moveDist;
+            nozzles[i].y -= Math.sin(angle) * moveDist;
+            nozzles[j].x += Math.cos(angle) * moveDist;
+            nozzles[j].y += Math.sin(angle) * moveDist;
+          }
         }
       }
     }
