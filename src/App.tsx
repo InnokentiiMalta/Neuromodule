@@ -207,7 +207,12 @@ function getFireTruckPoints(x: number, y: number, angle: number): string {
 
 // Функция для получения координат насоса автомобиля (внутри контура автомобиля)
 function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHeight: number, angle: number): { x: number; y: number } {
-  // Центр автомобиля по высоте
+  // Реальные размеры автомобиля (как в getFireTruckPoints)
+  const truckLength = 16;
+  const truckWidth = 5;
+  
+  // Центр автомобиля (unitX, unitY - это верхний левый угол bounding box)
+  const centerX = unitX + unitWidth / 2;
   const centerY = unitY + unitHeight / 2;
   
   // Нормализуем угол
@@ -215,13 +220,14 @@ function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHe
   const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
   
   // Насос находится на противоположной стороне от кабины, внутри контура автомобиля
-  // Смещаем на 2 единицы внутрь от края, чтобы точка была строго внутри контура
+  // Автомобиль имеет длину 16 единиц, центр в (centerX, centerY)
+  // Левый край: centerX - 8, Правый край: centerX + 8
   if (isCabinRight) {
-    // Кабина справа, насос слева - внутри левого края автомобиля
-    return { x: unitX + 2, y: centerY };
+    // Кабина справа, насос слева - на левом краю автомобиля
+    return { x: centerX - truckLength / 2 + 1, y: centerY };
   } else {
-    // Кабина слева, насос справа - внутри правого края автомобиля
-    return { x: unitX + unitWidth - 2, y: centerY };
+    // Кабина слева, насос справа - на правом краю автомобиля
+    return { x: centerX + truckLength / 2 - 1, y: centerY };
   }
 }
 
@@ -604,10 +610,10 @@ export default function App() {
         // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
         if (fireSource) {
           const distFromFire = Math.sqrt((moveX - fireSource.x) ** 2 + (moveY - fireSource.y) ** 2);
-          if (distFromFire > 400) {
+          if (distFromFire > 800) {
             const angle = Math.atan2(moveY - fireSource.y, moveX - fireSource.x);
-            moveX = fireSource.x + Math.cos(angle) * 400;
-            moveY = fireSource.y + Math.sin(angle) * 400;
+            moveX = fireSource.x + Math.cos(angle) * 800;
+            moveY = fireSource.y + Math.sin(angle) * 800;
           }
         }
         
@@ -690,10 +696,10 @@ export default function App() {
       // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
       if (fireSource) {
         const distFromFire = Math.sqrt((newX - fireSource.x) ** 2 + (newY - fireSource.y) ** 2);
-        if (distFromFire > 400) {
+        if (distFromFire > 800) {
           const angle = Math.atan2(newY - fireSource.y, newX - fireSource.x);
-          newX = fireSource.x + Math.cos(angle) * 400;
-          newY = fireSource.y + Math.sin(angle) * 400;
+          newX = fireSource.x + Math.cos(angle) * 800;
+          newY = fireSource.y + Math.sin(angle) * 800;
         }
       }
       
@@ -729,10 +735,10 @@ export default function App() {
       // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
       if (fireSource) {
         const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
-        if (distFromFire > 400) {
+        if (distFromFire > 800) {
           const angle = Math.atan2(branchY - fireSource.y, branchX - fireSource.x);
-          branchX = fireSource.x + Math.cos(angle) * 400;
-          branchY = fireSource.y + Math.sin(angle) * 400;
+          branchX = fireSource.x + Math.cos(angle) * 800;
+          branchY = fireSource.y + Math.sin(angle) * 800;
         }
       }
       
@@ -789,10 +795,10 @@ export default function App() {
           // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
           if (fireSource) {
             const distFromFire = Math.sqrt((nozzleX - fireSource.x) ** 2 + (nozzleY - fireSource.y) ** 2);
-            if (distFromFire > 400) {
+            if (distFromFire > 800) {
               const angle = Math.atan2(nozzleY - fireSource.y, nozzleX - fireSource.x);
-              nozzleX = fireSource.x + Math.cos(angle) * 400;
-              nozzleY = fireSource.y + Math.sin(angle) * 400;
+              nozzleX = fireSource.x + Math.cos(angle) * 800;
+              nozzleY = fireSource.y + Math.sin(angle) * 800;
             }
           }
           

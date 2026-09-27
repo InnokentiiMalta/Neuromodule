@@ -116,7 +116,7 @@ function findPositionOnSafeCircle(
   const TRACK_TOP = 298;
   const TRACK_BOTTOM = 302;
   const MIN_DISTANCE_FROM_TRACKS = 30; // 15m = 30 SVG units
-  const MAX_DISTANCE_FROM_FIRE = 300; // 150m = 300 SVG units
+  const MAX_DISTANCE_FROM_FIRE = 400; // 200m = 400 SVG units
   const MIN_DISTANCE_BETWEEN_UNITS = 100; // 50m = 100 SVG units - STRICT RULE
 
   // Try 144 angles around the fire (every 2.5 degrees) for better coverage
