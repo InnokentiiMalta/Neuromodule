@@ -205,7 +205,7 @@ function getFireTruckPoints(x: number, y: number, angle: number): string {
   return points.map(p => `${p.x},${p.y}`).join(' ');
 }
 
-// Функция для получения координат насоса автомобиля (на задней части кузова)
+// Функция для получения координат насоса автомобиля (внутри контура автомобиля)
 function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHeight: number, angle: number): { x: number; y: number } {
   // Центр автомобиля по высоте
   const centerY = unitY + unitHeight / 2;
@@ -214,13 +214,14 @@ function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHe
   const normalizedAngle = ((angle % 360) + 360) % 360;
   const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
   
-  // Насос находится на противоположной стороне от кабины
+  // Насос находится на противоположной стороне от кабины, внутри контура автомобиля
+  // Смещаем на 2 единицы внутрь от края, чтобы точка была строго внутри контура
   if (isCabinRight) {
-    // Кабина справа, насос слева - на левом краю автомобиля
-    return { x: unitX, y: centerY };
+    // Кабина справа, насос слева - внутри левого края автомобиля
+    return { x: unitX + 2, y: centerY };
   } else {
-    // Кабина слева, насос справа - на правом краю автомобиля
-    return { x: unitX + unitWidth, y: centerY };
+    // Кабина слева, насос справа - внутри правого края автомобиля
+    return { x: unitX + unitWidth - 2, y: centerY };
   }
 }
 
@@ -365,8 +366,8 @@ function routeHoseAlongCorridor(
     nozzles.push(...defaultNozzles);
   }
 
-  // Ensure minimum distance between nozzles (8m = 16 units) - STRICT RULE
-  const MIN_DISTANCE_BETWEEN_NOZZLES = 16;
+  // Ensure minimum distance between nozzles (4m = 8 units) - STRICT RULE
+  const MIN_DISTANCE_BETWEEN_NOZZLES = 8;
   if (nozzles.length >= 2) {
     // Repeat check multiple times to ensure compliance after all adjustments
     for (let iteration = 0; iteration < 5; iteration++) {
