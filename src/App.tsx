@@ -952,20 +952,66 @@ export default function App() {
     setToolMode('none');
   }, []);
 
-  const handleScreenshotScene = useCallback(async () => {
+  const handleScreenshotScene = useCallback(() => {
     const svgElement = svgRef.current;
-    if (!svgElement) return;
+    if (!svgElement) {
+      alert('Не удалось найти элемент карты');
+      return;
+    }
     
     try {
-      const canvas = await html2canvas(svgElement.parentElement as HTMLElement, {
-        backgroundColor: '#1e2a1e',
-        scale: 2,
-      });
+      // Клонируем SVG для модификации
+      const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
       
-      const link = document.createElement('a');
-      link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 10)}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
+      // Устанавливаем размеры
+      svgClone.setAttribute('width', '1000');
+      svgClone.setAttribute('height', '600');
+      
+      // Сериализуем SVG в строку
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(svgClone);
+      
+      // Создаём Data URL
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      
+      // Создаём изображение
+      const img = new Image();
+      img.onload = () => {
+        // Создаём canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = 2000; // 2x для высокого качества
+        canvas.height = 1200;
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          alert('Не удалось создать контекст canvas');
+          URL.revokeObjectURL(url);
+          return;
+        }
+        
+        // Рисуем фон
+        ctx.fillStyle = '#1e2a1e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Рисуем SVG
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Скачиваем
+        const link = document.createElement('a');
+        link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        
+        URL.revokeObjectURL(url);
+      };
+      
+      img.onerror = () => {
+        alert('Ошибка загрузки SVG изображения');
+        URL.revokeObjectURL(url);
+      };
+      
+      img.src = url;
     } catch (error) {
       console.error('Ошибка при создании скриншота:', error);
       alert('Не удалось создать скриншот обстановки');
@@ -973,18 +1019,31 @@ export default function App() {
   }, []);
 
   const handleScreenshotFullScreen = useCallback(async () => {
-    const appElement = document.querySelector('.min-h-screen');
-    if (!appElement) return;
+    const appElement = document.querySelector('.min-h-screen') as HTMLElement;
+    if (!appElement) {
+      alert('Не удалось найти элемент приложения');
+      return;
+    }
     
     try {
-      const canvas = await html2canvas(appElement as HTMLElement, {
+      const canvas = await html2canvas(appElement, {
         backgroundColor: '#111827',
         scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        onclone: (clonedDoc) => {
+          // Убеждаемся, что все стили скопированы
+          const clonedElement = clonedDoc.querySelector('.min-h-screen') as HTMLElement;
+          if (clonedElement) {
+            clonedElement.style.overflow = 'visible';
+          }
+        }
       });
       
       const link = document.createElement('a');
-      link.download = `полный-экран-${new Date().toISOString().slice(0, 10)}.png`;
-      link.href = canvas.toDataURL();
+      link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+      link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (error) {
       console.error('Ошибка при создании скриншота:', error);
