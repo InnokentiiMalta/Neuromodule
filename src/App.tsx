@@ -34,7 +34,7 @@ interface ManualUnit extends FireUnit {
 }
 
 interface DragState {
-  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'personnel';
+  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'personnel' | 'pump';
   id: string;
   unitId?: string;
   offsetX: number;
@@ -240,13 +240,14 @@ function routeHoseAlongCorridor(
   wagons: Wagon[], obstacles: Obstacle[],
   customBranchPoint?: { x: number; y: number },
   customNozzles?: Array<{ x: number; y: number }>,
-  unitAngle?: number
+  unitAngle?: number,
+  customPumpPos?: { x: number; y: number }
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
   
-  // Получаем координаты насоса
-  const pumpPos = unitAngle !== undefined ? getPumpPosition(unitX, unitY, unitWidth, unitHeight, unitAngle) : { x: unitCenterX, y: unitCenterY };
+  // Получаем координаты насоса (пользовательские или расчётные)
+  const pumpPos = customPumpPos || (unitAngle !== undefined ? getPumpPosition(unitX, unitY, unitWidth, unitHeight, unitAngle) : { x: unitCenterX, y: unitCenterY });
   
   const angleToFire = Math.atan2(fireY - pumpPos.y, fireX - pumpPos.x);
   const distToFire = Math.sqrt((pumpPos.x - fireX) ** 2 + (pumpPos.y - fireY) ** 2);
@@ -441,6 +442,7 @@ export default function App() {
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [customPumpPositions, setCustomPumpPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [showHelp, setShowHelp] = useState(false);
   const [showResources, setShowResources] = useState(false);
   const [resources, setResources] = useState<AvailableResources>(DEFAULT_RESOURCES);
@@ -850,8 +852,21 @@ export default function App() {
           });
         }
       }
+    } else if (dragState.type === 'pump' && dragState.unitId) {
+      // Update pump position (start of hose)
+      let newX = x - dragState.offsetX;
+      let newY = y - dragState.offsetY;
+      
+      // Ограничение границами карты
+      newX = Math.max(10, Math.min(990, newX));
+      newY = Math.max(10, Math.min(590, newY));
+      
+      setCustomPumpPositions(prev => ({
+        ...prev,
+        [dragState.unitId!]: { x: newX, y: newY }
+      }));
     }
-  }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements]);
+  }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements, customPumpPositions]);
 
   const handleMouseUp = useCallback(() => {
     setDragState(null);
@@ -902,7 +917,8 @@ export default function App() {
             unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
             customPos?.branchPoint,
             customPos?.nozzles,
-            unit.angle
+            unit.angle,
+            customPumpPositions[unit.id]
           );
           
           routing.nozzles.forEach((nozzle, idx) => {
@@ -952,10 +968,11 @@ export default function App() {
     setFireTrains([]);
     setFireTrainPTW({});
     setSelectedFireTrainId(null);
+    setCustomPumpPositions({});
     setToolMode('none');
   }, []);
 
-  const handleScreenshotScene = useCallback(() => {
+  const handleScreenshotScene = useCallback(async () => {
     const svgElement = svgRef.current;
     if (!svgElement) {
       alert('Не удалось найти элемент карты');
@@ -980,7 +997,7 @@ export default function App() {
       
       // Создаём изображение
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         // Создаём canvas
         const canvas = document.createElement('canvas');
         canvas.width = 2000; // 2x для высокого качества
@@ -1000,13 +1017,31 @@ export default function App() {
         // Рисуем SVG
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
-        // Скачиваем
-        const link = document.createElement('a');
-        link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-        
-        URL.revokeObjectURL(url);
+        // Копируем в буфер обмена
+        try {
+          canvas.toBlob(async (blob) => {
+            if (blob) {
+              try {
+                await navigator.clipboard.write([
+                  new ClipboardItem({ 'image/png': blob })
+                ]);
+                alert('Скриншот обстановки скопирован в буфер обмена');
+              } catch (err) {
+                console.error('Ошибка копирования в буфер:', err);
+                // Fallback: скачиваем файл
+                const link = document.createElement('a');
+                link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                alert('Не удалось скопировать в буфер обмена. Файл сохранён.');
+              }
+            }
+            URL.revokeObjectURL(url);
+          }, 'image/png');
+        } catch (err) {
+          console.error('Ошибка:', err);
+          URL.revokeObjectURL(url);
+        }
       };
       
       img.onerror = () => {
@@ -1044,10 +1079,29 @@ export default function App() {
         }
       });
       
-      const link = document.createElement('a');
-      link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      // Копируем в буфер обмена
+      try {
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            try {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+              ]);
+              alert('Скриншот экрана скопирован в буфер обмена');
+            } catch (err) {
+              console.error('Ошибка копирования в буфер:', err);
+              // Fallback: скачиваем файл
+              const link = document.createElement('a');
+              link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+              link.href = canvas.toDataURL('image/png');
+              link.click();
+              alert('Не удалось скопировать в буфер обмена. Файл сохранён.');
+            }
+          }
+        }, 'image/png');
+      } catch (err) {
+        console.error('Ошибка:', err);
+      }
     } catch (error) {
       console.error('Ошибка при создании скриншота:', error);
       alert('Не удалось создать скриншот экрана');
@@ -1784,7 +1838,8 @@ export default function App() {
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
                   customPos?.nozzles,
-                  unit.angle
+                  unit.angle,
+                  customPumpPositions[unit.id]
                 );
                 
                 // Calculate connection points every 20m (40 units) along the path
@@ -1816,6 +1871,25 @@ export default function App() {
 
                 return (
                   <g key={`hose-${unit.id}`}>
+                    {/* Draggable pump position (start of hose) */}
+                    <g
+                      onMouseDown={e => {
+                        e.stopPropagation();
+                        const { x, y } = getSVGCoords(e);
+                        setDragState({
+                          type: 'pump',
+                          id: `pump-${unit.id}`,
+                          unitId: unit.id,
+                          offsetX: x - routing.path[0].x,
+                          offsetY: y - routing.path[0].y
+                        });
+                      }}
+                      style={{ cursor: 'move' }}
+                    >
+                      <circle cx={routing.path[0].x} cy={routing.path[0].y} r="5" fill="#ff6b00" stroke="#fff" strokeWidth="1.5" opacity="0.9" />
+                      <circle cx={routing.path[0].x} cy={routing.path[0].y} r="2" fill="#fff" />
+                    </g>
+                    
                     {/* Main hose path */}
                     {routing.path.slice(0, -1).map((point, idx) => (
                       <line key={idx} x1={point.x} y1={point.y} x2={routing.path[idx + 1].x} y2={routing.path[idx + 1].y}
@@ -1908,7 +1982,8 @@ export default function App() {
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
                   customPos?.nozzles,
-                  unit.angle
+                  unit.angle,
+                  customPumpPositions[unit.id]
                 );
                 
                 // Calculate connection points every 20m (40 units) along the path
@@ -2224,7 +2299,8 @@ export default function App() {
                       unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
                       customPos?.branchPoint,
                       customPos?.nozzles,
-                      unit.angle
+                      unit.angle,
+                      customPumpPositions[unit.id]
                     );
                     if (routing.nozzles[nozzleIndex]) {
                       return (
@@ -2251,7 +2327,8 @@ export default function App() {
                       unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
                       customPos?.branchPoint,
                       customPos?.nozzles,
-                      unit.angle
+                      unit.angle,
+                      customPumpPositions[unit.id]
                     );
                     return (
                       <rect
@@ -2343,7 +2420,8 @@ export default function App() {
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
                   customPos?.nozzles,
-                  unit.angle
+                  unit.angle,
+                  customPumpPositions[unit.id]
                 );
 
                 return routing.nozzles.map((nozzle, idx) => {
