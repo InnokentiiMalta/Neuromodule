@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit, WaterSource, FireTrain } from './types';
 import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
+import html2canvas from 'html2canvas';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -422,6 +423,8 @@ export default function App() {
   const [manualUnits, setManualUnits] = useState<ManualUnit[]>([]);
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
   const [fireTrains, setFireTrains] = useState<FireTrain[]>([]);
+  const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
+  const [fireTrainPTW, setFireTrainPTW] = useState<Record<string, boolean>>({});
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -934,7 +937,49 @@ export default function App() {
     setManualUnits([]);
     setWaterSources([]);
     setFireTrains([]);
+    setFireTrainPTW({});
+    setSelectedFireTrainId(null);
     setToolMode('none');
+  }, []);
+
+  const handleScreenshotScene = useCallback(async () => {
+    const svgElement = svgRef.current;
+    if (!svgElement) return;
+    
+    try {
+      const canvas = await html2canvas(svgElement.parentElement as HTMLElement, {
+        backgroundColor: '#1e2a1e',
+        scale: 2,
+      });
+      
+      const link = document.createElement('a');
+      link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    } catch (error) {
+      console.error('Ошибка при создании скриншота:', error);
+      alert('Не удалось создать скриншот обстановки');
+    }
+  }, []);
+
+  const handleScreenshotFullScreen = useCallback(async () => {
+    const appElement = document.querySelector('.min-h-screen');
+    if (!appElement) return;
+    
+    try {
+      const canvas = await html2canvas(appElement as HTMLElement, {
+        backgroundColor: '#111827',
+        scale: 2,
+      });
+      
+      const link = document.createElement('a');
+      link.download = `полный-экран-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    } catch (error) {
+      console.error('Ошибка при создании скриншота:', error);
+      alert('Не удалось создать скриншот экрана');
+    }
   }, []);
 
   const changeWagonType = useCallback((wagonId: number, newType: WagonType) => {
@@ -1062,6 +1107,8 @@ export default function App() {
             <button onClick={handleDeploy} disabled={!fireSource} className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-red-700 disabled:from-gray-600 disabled:to-gray-700 rounded-lg font-semibold text-xs">🚀 Расставить</button>
             <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 rounded-lg text-xs">❓</button>
             <button onClick={handleReset} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 rounded-lg text-xs font-semibold">🗑 Сброс обстановки</button>
+            <button onClick={handleScreenshotScene} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">📷 Скриншот обстановки</button>
+            <button onClick={handleScreenshotFullScreen} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">🖥 Скриншот экрана</button>
           </div>
         </div>
       </header>
@@ -1252,6 +1299,45 @@ export default function App() {
               </div>
             )}
 
+            {selectedFireTrainId && (
+              <div className="p-2.5 bg-red-900/20 rounded-lg border border-red-500/30">
+                <div className="flex items-center justify-between mb-1.5">
+                  <h3 className="text-[11px] font-semibold text-red-400">🚂 Пожарный поезд</h3>
+                  <button onClick={() => setSelectedFireTrainId(null)} className="text-[9px] text-red-400">✕</button>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[9px] text-gray-300">Выбран пожарный поезд</p>
+                  {(() => {
+                    const isPTWDeployed = fireTrainPTW[selectedFireTrainId];
+                    if (!isPTWDeployed && fireSource) {
+                      return (
+                        <button 
+                          onClick={() => {
+                            setFireTrainPTW(prev => ({ ...prev, [selectedFireTrainId]: true }));
+                          }}
+                          className="w-full py-1.5 bg-green-600 hover:bg-green-500 rounded text-[10px] font-semibold"
+                        >
+                          🔧 Расставить ПТВ
+                        </button>
+                      );
+                    } else if (isPTWDeployed) {
+                      return (
+                        <button 
+                          onClick={() => {
+                            setFireTrainPTW(prev => ({ ...prev, [selectedFireTrainId]: false }));
+                          }}
+                          className="w-full py-1.5 bg-orange-600 hover:bg-orange-500 rounded text-[10px] font-semibold"
+                        >
+                          ❌ Убрать ПТВ
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+            )}
+
             {fireSource && (
               <div className="p-2 bg-red-900/20 rounded-lg border border-red-500/30">
                 <h3 className="text-[10px] font-semibold text-red-400 mb-1">🔥 Очаг: {fireWagonLabel}</h3>
@@ -1399,26 +1485,38 @@ export default function App() {
               })}
 
               {/* Fire Trains */}
-              {fireTrains.map(train => (
-                <g key={train.id}>
-                  {train.wagons.map(wagon => (
-                    <g key={wagon.id}>
-                      <rect x={wagon.x} y={wagon.y} width={wagon.width} height={wagon.height}
-                        fill="#c62828"
-                        stroke="#8b0000"
-                        strokeWidth="1" rx="3" />
-                      {wagon.type === 'tank' && (
-                        <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 2} fill="none" stroke="#8b0000" strokeWidth="1" />
-                      )}
-                      <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill="#ff6666" fontSize="4" fontFamily="sans-serif" fontWeight="bold">{wagon.label}</text>
-                    </g>
-                  ))}
-                  <text x={train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2} y={train.wagons[0].y - 15} textAnchor="middle" fill="#ff4444" fontSize="8" fontFamily="sans-serif" fontWeight="bold">ПОЖАРНЫЙ ПОЕЗД</text>
-                </g>
-              ))}
+              {fireTrains.map(train => {
+                const isSelected = selectedFireTrainId === train.id;
+                return (
+                  <g 
+                    key={train.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedFireTrainId(isSelected ? null : train.id);
+                      setSelectedUnitId(null);
+                      setSelectedWagonId(null);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {train.wagons.map(wagon => (
+                      <g key={wagon.id}>
+                        <rect x={wagon.x} y={wagon.y} width={wagon.width} height={wagon.height}
+                          fill="#c62828"
+                          stroke={isSelected ? "#4fc3f7" : "#8b0000"}
+                          strokeWidth={isSelected ? 2 : 1} rx="3" />
+                        {wagon.type === 'tank' && (
+                          <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 2} fill="none" stroke="#8b0000" strokeWidth="1" />
+                        )}
+                        <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill="#ff6666" fontSize="4" fontFamily="sans-serif" fontWeight="bold">{wagon.label}</text>
+                      </g>
+                    ))}
+                    <text x={train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2} y={train.wagons[0].y - 15} textAnchor="middle" fill="#ff4444" fontSize="8" fontFamily="sans-serif" fontWeight="bold">ПОЖАРНЫЙ ПОЕЗД</text>
+                  </g>
+                );
+              })}
 
               {/* Fire Train PTW - 4 nozzles from fire train */}
-              {fireSource && fireTrains.length > 0 && fireTrains.map(train => {
+              {fireSource && fireTrains.length > 0 && fireTrains.filter(train => fireTrainPTW[train.id]).map(train => {
                 const trainCenterX = train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2;
                 const trainCenterY = train.wagons[0].y + train.wagons[0].height / 2;
                 
@@ -1434,11 +1532,51 @@ export default function App() {
                   { x: fireSource.x + 15, y: 325 }, // Below, right
                 ];
                 
+                // Calculate hose connections every 20m (40 units)
+                const HOSE_SEGMENT_LENGTH = 40;
+                const calculateConnections = (x1: number, y1: number, x2: number, y2: number) => {
+                  const dx = x2 - x1;
+                  const dy = y2 - y1;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  const connections: Array<{ x: number; y: number }> = [];
+                  
+                  if (dist > HOSE_SEGMENT_LENGTH) {
+                    const numSegments = Math.floor(dist / HOSE_SEGMENT_LENGTH);
+                    const segDx = dx / dist;
+                    const segDy = dy / dist;
+                    
+                    for (let i = 1; i <= numSegments; i++) {
+                      connections.push({
+                        x: x1 + segDx * (i * HOSE_SEGMENT_LENGTH),
+                        y: y1 + segDy * (i * HOSE_SEGMENT_LENGTH)
+                      });
+                    }
+                  }
+                  return connections;
+                };
+                
+                const trainToAboveConnections = calculateConnections(trainCenterX, trainCenterY, branchAbove.x, branchAbove.y);
+                const trainToBelowConnections = calculateConnections(trainCenterX, trainCenterY, branchBelow.x, branchBelow.y);
+                
                 return (
                   <g key={`train-ptw-${train.id}`}>
                     {/* Hoses from train to branches */}
                     <line x1={trainCenterX} y1={trainCenterY} x2={branchAbove.x} y2={branchAbove.y} stroke="#000" strokeWidth="3" />
                     <line x1={trainCenterX} y1={trainCenterY} x2={branchBelow.x} y2={branchBelow.y} stroke="#000" strokeWidth="3" />
+                    
+                    {/* Connection points on hoses from train to branches */}
+                    {trainToAboveConnections.map((conn, idx) => (
+                      <g key={`train-above-conn-${idx}`}>
+                        <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                        <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
+                      </g>
+                    ))}
+                    {trainToBelowConnections.map((conn, idx) => (
+                      <g key={`train-below-conn-${idx}`}>
+                        <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                        <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
+                      </g>
+                    ))}
                     
                     {/* Branch points */}
                     <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
@@ -1454,6 +1592,26 @@ export default function App() {
                     {nozzles.slice(2, 4).map((nozzle, idx) => (
                       <line key={`below-${idx}`} x1={branchBelow.x} y1={branchBelow.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
+                    
+                    {/* Connection points on hoses from branches to nozzles */}
+                    {nozzles.slice(0, 2).map((nozzle, idx) => {
+                      const connections = calculateConnections(branchAbove.x, branchAbove.y, nozzle.x, nozzle.y);
+                      return connections.map((conn, cidx) => (
+                        <g key={`above-nozzle-${idx}-conn-${cidx}`}>
+                          <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                          <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
+                        </g>
+                      ));
+                    })}
+                    {nozzles.slice(2, 4).map((nozzle, idx) => {
+                      const connections = calculateConnections(branchBelow.x, branchBelow.y, nozzle.x, nozzle.y);
+                      return connections.map((conn, cidx) => (
+                        <g key={`below-nozzle-${idx}-conn-${cidx}`}>
+                          <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                          <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
+                        </g>
+                      ));
+                    })}
                     
                     {/* Nozzles with firefighters */}
                     {nozzles.map((nozzle, idx) => {
