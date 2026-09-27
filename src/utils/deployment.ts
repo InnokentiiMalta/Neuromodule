@@ -116,8 +116,8 @@ function findPositionOnSafeCircle(
   const TRACK_TOP = 298;
   const TRACK_BOTTOM = 302;
   const MIN_DISTANCE_FROM_TRACKS = 30; // 15m = 30 SVG units
-  const MAX_DISTANCE_FROM_FIRE = 200; // 100m = 200 SVG units
-  const MIN_DISTANCE_BETWEEN_UNITS = 40; // 20m = 40 SVG units
+  const MAX_DISTANCE_FROM_FIRE = 250; // 125m = 250 SVG units
+  const MIN_DISTANCE_BETWEEN_UNITS = 30; // 15m = 30 SVG units
 
   // Try 72 angles around the fire (every 5 degrees) for better coverage
   for (let i = 0; i < 72; i++) {
@@ -241,7 +241,7 @@ export function calculateDeployment(
     const pos = isFirstUnit 
       ? findPositionNearWaterSource(nearestWaterSource!, fireX, fireY, 50, 22, obstacles, wagons, occupiedPositions)
       : findPositionOnSafeCircle(
-          fireX, fireY, 50, 22, obstacles, wagons, safeDist, nearestWaterSource, occupiedPositions, acCount * Math.PI / 6
+          fireX, fireY, 50, 22, obstacles, wagons, safeDist, nearestWaterSource, occupiedPositions, acCount * Math.PI / 3
         );
     if (pos) {
       const success = addUnit({ 

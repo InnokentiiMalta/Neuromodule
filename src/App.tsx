@@ -253,8 +253,8 @@ function routeHoseAlongCorridor(
   } else {
     // Calculate initial branch position
     const branchDist = Math.min(distToFire * 0.7, MAX_BRANCH_DISTANCE_FROM_UNIT);
-    branchX = unitCenterX + Math.cos(angleToFire) * branchDist;
-    branchY = unitCenterY + Math.sin(angleToFire) * branchDist;
+    branchX = pumpPos.x + Math.cos(angleToFire) * branchDist;
+    branchY = pumpPos.y + Math.sin(angleToFire) * branchDist;
     
     // Determine which side of tracks the unit is on
     const unitAboveTracks = unitCenterY < TRACK_TOP;
@@ -274,12 +274,12 @@ function routeHoseAlongCorridor(
       }
     }
     
-    // Ensure branch is not too far from unit (max 40m)
-    const distToUnit = Math.sqrt((branchX - unitCenterX) ** 2 + (branchY - unitCenterY) ** 2);
-    if (distToUnit > MAX_BRANCH_DISTANCE_FROM_UNIT) {
-      const scale = MAX_BRANCH_DISTANCE_FROM_UNIT / distToUnit;
-      branchX = unitCenterX + (branchX - unitCenterX) * scale;
-      branchY = unitCenterY + (branchY - unitCenterY) * scale;
+    // Ensure branch is not too far from pump (max 40m)
+    const distToPump = Math.sqrt((branchX - pumpPos.x) ** 2 + (branchY - pumpPos.y) ** 2);
+    if (distToPump > MAX_BRANCH_DISTANCE_FROM_UNIT) {
+      const scale = MAX_BRANCH_DISTANCE_FROM_UNIT / distToPump;
+      branchX = pumpPos.x + (branchX - pumpPos.x) * scale;
+      branchY = pumpPos.y + (branchY - pumpPos.y) * scale;
     }
   }
 
