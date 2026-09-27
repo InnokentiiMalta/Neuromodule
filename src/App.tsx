@@ -610,10 +610,10 @@ export default function App() {
         // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
         if (fireSource) {
           const distFromFire = Math.sqrt((moveX - fireSource.x) ** 2 + (moveY - fireSource.y) ** 2);
-          if (distFromFire > 800) {
+          if (distFromFire > 500) {
             const angle = Math.atan2(moveY - fireSource.y, moveX - fireSource.x);
-            moveX = fireSource.x + Math.cos(angle) * 800;
-            moveY = fireSource.y + Math.sin(angle) * 800;
+            moveX = fireSource.x + Math.cos(angle) * 500;
+            moveY = fireSource.y + Math.sin(angle) * 500;
           }
         }
         
@@ -696,10 +696,10 @@ export default function App() {
       // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
       if (fireSource) {
         const distFromFire = Math.sqrt((newX - fireSource.x) ** 2 + (newY - fireSource.y) ** 2);
-        if (distFromFire > 800) {
+        if (distFromFire > 500) {
           const angle = Math.atan2(newY - fireSource.y, newX - fireSource.x);
-          newX = fireSource.x + Math.cos(angle) * 800;
-          newY = fireSource.y + Math.sin(angle) * 800;
+          newX = fireSource.x + Math.cos(angle) * 500;
+          newY = fireSource.y + Math.sin(angle) * 500;
         }
       }
       
@@ -735,10 +735,10 @@ export default function App() {
       // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
       if (fireSource) {
         const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
-        if (distFromFire > 800) {
+        if (distFromFire > 500) {
           const angle = Math.atan2(branchY - fireSource.y, branchX - fireSource.x);
-          branchX = fireSource.x + Math.cos(angle) * 800;
-          branchY = fireSource.y + Math.sin(angle) * 800;
+          branchX = fireSource.x + Math.cos(angle) * 500;
+          branchY = fireSource.y + Math.sin(angle) * 500;
         }
       }
       
@@ -795,10 +795,10 @@ export default function App() {
           // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
           if (fireSource) {
             const distFromFire = Math.sqrt((nozzleX - fireSource.x) ** 2 + (nozzleY - fireSource.y) ** 2);
-            if (distFromFire > 800) {
+            if (distFromFire > 500) {
               const angle = Math.atan2(nozzleY - fireSource.y, nozzleX - fireSource.x);
-              nozzleX = fireSource.x + Math.cos(angle) * 800;
-              nozzleY = fireSource.y + Math.sin(angle) * 800;
+              nozzleX = fireSource.x + Math.cos(angle) * 500;
+              nozzleY = fireSource.y + Math.sin(angle) * 500;
             }
           }
           
