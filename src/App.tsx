@@ -33,7 +33,7 @@ interface ManualUnit extends FireUnit {
 }
 
 interface DragState {
-  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter';
+  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'personnel';
   id: string;
   unitId?: string;
   offsetX: number;
@@ -204,23 +204,22 @@ function getFireTruckPoints(x: number, y: number, angle: number): string {
   return points.map(p => `${p.x},${p.y}`).join(' ');
 }
 
-// Функция для получения координат насоса автомобиля
+// Функция для получения координат насоса автомобиля (на краю кузова)
 function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHeight: number, angle: number): { x: number; y: number } {
-  const centerX = unitX + unitWidth / 2;
-  const centerY = unitY + unitHeight / 2;
   const truckLength = 16;
+  const truckWidth = 5;
   
   // Нормализуем угол
   const normalizedAngle = ((angle % 360) + 360) % 360;
   const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
   
-  // Насос находится на противоположной стороне от кабины
+  // Насос находится на противоположной стороне от кабины, на краю кузова
   if (isCabinRight) {
-    // Кабина справа, насос слева
-    return { x: centerX - truckLength / 2, y: centerY };
+    // Кабина справа, насос слева - на левом краю
+    return { x: unitX, y: unitY + unitHeight / 2 };
   } else {
-    // Кабина слева, насос справа
-    return { x: centerX + truckLength / 2, y: centerY };
+    // Кабина слева, насос справа - на правом краю
+    return { x: unitX + unitWidth, y: unitY + unitHeight / 2 };
   }
 }
 
@@ -805,6 +804,36 @@ export default function App() {
           }
         };
       });
+    } else if (dragState.type === 'personnel') {
+      // Update personnel position
+      const personnelIndex = parseInt(dragState.id.split('-')[1]);
+      let newX = x - dragState.offsetX;
+      let newY = y - dragState.offsetY;
+      
+      // Ограничение перемещения: не дальше 100 м (200 единиц) от очага
+      if (fireSource) {
+        const distFromFire = Math.sqrt((newX - fireSource.x) ** 2 + (newY - fireSource.y) ** 2);
+        if (distFromFire > 200) {
+          const angle = Math.atan2(newY - fireSource.y, newX - fireSource.x);
+          newX = fireSource.x + Math.cos(angle) * 200;
+          newY = fireSource.y + Math.sin(angle) * 200;
+        }
+      }
+      
+      // Ограничение границами карты
+      newX = Math.max(10, Math.min(990, newX));
+      newY = Math.max(10, Math.min(590, newY));
+      
+      if (deployment) {
+        const newPersonnelPositions = [...(deployment.personnelPositions || [])];
+        if (personnelIndex < newPersonnelPositions.length) {
+          newPersonnelPositions[personnelIndex] = { x: newX, y: newY };
+          setDeployment({
+            ...deployment,
+            personnelPositions: newPersonnelPositions
+          });
+        }
+      }
     }
   }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements]);
 
@@ -1363,7 +1392,7 @@ export default function App() {
                         ))}
                       </>
                     )}
-                    <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill={isOnFire ? '#ff8800' : '#aaa'} fontSize="7" fontFamily="sans-serif" fontWeight={isOnFire ? 'bold' : 'normal'}>{wagon.label}</text>
+                    <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill={isOnFire ? '#ff8800' : '#aaa'} fontSize="5" fontFamily="sans-serif" fontWeight={isOnFire ? 'bold' : 'normal'}>{wagon.label}</text>
                   </g>
                 );
               })}
@@ -1380,12 +1409,102 @@ export default function App() {
                       {wagon.type === 'tank' && (
                         <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 2} fill="none" stroke="#8b0000" strokeWidth="1" />
                       )}
-                      <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill="#ff6666" fontSize="6" fontFamily="sans-serif" fontWeight="bold">{wagon.label}</text>
+                      <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill="#ff6666" fontSize="4" fontFamily="sans-serif" fontWeight="bold">{wagon.label}</text>
                     </g>
                   ))}
                   <text x={train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2} y={train.wagons[0].y - 15} textAnchor="middle" fill="#ff4444" fontSize="8" fontFamily="sans-serif" fontWeight="bold">ПОЖАРНЫЙ ПОЕЗД</text>
                 </g>
               ))}
+
+              {/* Fire Train PTW - 4 nozzles from fire train */}
+              {fireSource && fireTrains.length > 0 && fireTrains.map(train => {
+                const trainCenterX = train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2;
+                const trainCenterY = train.wagons[0].y + train.wagons[0].height / 2;
+                
+                // Two branch points: one above tracks, one below
+                const branchAbove = { x: trainCenterX, y: 268 }; // 10m above tracks
+                const branchBelow = { x: trainCenterX, y: 332 }; // 10m below tracks
+                
+                // Four nozzles: 2 from each branch
+                const nozzles = [
+                  { x: fireSource.x - 15, y: 275 }, // Above, left
+                  { x: fireSource.x + 15, y: 275 }, // Above, right
+                  { x: fireSource.x - 15, y: 325 }, // Below, left
+                  { x: fireSource.x + 15, y: 325 }, // Below, right
+                ];
+                
+                return (
+                  <g key={`train-ptw-${train.id}`}>
+                    {/* Hoses from train to branches */}
+                    <line x1={trainCenterX} y1={trainCenterY} x2={branchAbove.x} y2={branchAbove.y} stroke="#000" strokeWidth="3" />
+                    <line x1={trainCenterX} y1={trainCenterY} x2={branchBelow.x} y2={branchBelow.y} stroke="#000" strokeWidth="3" />
+                    
+                    {/* Branch points */}
+                    <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                    <text x={branchAbove.x} y={branchAbove.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    
+                    <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                    <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    
+                    {/* Hoses from branches to nozzles */}
+                    {nozzles.slice(0, 2).map((nozzle, idx) => (
+                      <line key={`above-${idx}`} x1={branchAbove.x} y1={branchAbove.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
+                    ))}
+                    {nozzles.slice(2, 4).map((nozzle, idx) => (
+                      <line key={`below-${idx}`} x1={branchBelow.x} y1={branchBelow.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
+                    ))}
+                    
+                    {/* Nozzles with firefighters */}
+                    {nozzles.map((nozzle, idx) => {
+                      const dx = fireSource.x - nozzle.x;
+                      const dy = fireSource.y - nozzle.y;
+                      const angle = Math.atan2(dy, dx);
+                      const dist = Math.sqrt(dx * dx + dy * dy);
+                      const sprayLength = Math.min(dist * 0.3, 30);
+                      const sprayX = nozzle.x + Math.cos(angle) * sprayLength;
+                      const sprayY = nozzle.y + Math.sin(angle) * sprayLength;
+                      
+                      return (
+                        <g key={`nozzle-${idx}`}>
+                          {/* Water stream */}
+                          <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
+                            stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
+                            <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
+                          </line>
+                          
+                          {/* Spray cone */}
+                          <path
+                            d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * 8} ${sprayY + Math.cos(angle) * 8} L ${sprayX + Math.sin(angle) * 8} ${sprayY - Math.cos(angle) * 8} Z`}
+                            fill="#4fc3f7"
+                            opacity="0.4"
+                          >
+                            <animate attributeName="opacity" values="0.3;0.5;0.3" dur="0.8s" repeatCount="indefinite" />
+                          </path>
+                          
+                          {/* Firefighter */}
+                          <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
+                          <line
+                            x1={nozzle.x}
+                            y1={nozzle.y}
+                            x2={nozzle.x + Math.cos(angle) * 8}
+                            y2={nozzle.y + Math.sin(angle) * 8}
+                            stroke="#1565c0"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
+                        </g>
+                      );
+                    })}
+                    
+                    {/* Personnel at branches */}
+                    <circle cx={branchAbove.x} cy={branchAbove.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                    <text x={branchAbove.x} y={branchAbove.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                    <circle cx={branchBelow.x} cy={branchBelow.y + 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                    <text x={branchBelow.x} y={branchBelow.y + 14} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                  </g>
+                );
+              })}
 
               {/* Fire */}
               {fireSource && (
@@ -1963,7 +2082,22 @@ export default function App() {
 
               {/* Personnel positions */}
               {deployment?.personnelPositions && deployment.personnelPositions.map((pos, idx) => (
-                <g key={`personnel-${idx}`}>
+                <g 
+                  key={`personnel-${idx}`}
+                  onMouseDown={e => {
+                    if (toolMode === 'select' || toolMode === 'none') {
+                      e.stopPropagation();
+                      const { x, y } = getSVGCoords(e);
+                      setDragState({
+                        type: 'personnel',
+                        id: `personnel-${idx}`,
+                        offsetX: x - pos.x,
+                        offsetY: y - pos.y
+                      });
+                    }
+                  }}
+                  style={{ cursor: toolMode === 'select' || toolMode === 'none' ? 'move' : 'default' }}
+                >
                   <circle cx={pos.x} cy={pos.y} r="3" fill="#ff9800" opacity="0.8" />
                   <text x={pos.x} y={pos.y + 1.5} textAnchor="middle" fontSize="4">🧑</text>
                 </g>
