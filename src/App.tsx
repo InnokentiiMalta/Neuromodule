@@ -205,26 +205,22 @@ function getFireTruckPoints(x: number, y: number, angle: number): string {
   return points.map(p => `${p.x},${p.y}`).join(' ');
 }
 
-// Функция для получения координат насоса автомобиля (на боковой стороне кузова)
+// Функция для получения координат насоса автомобиля (на задней части кузова)
 function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHeight: number, angle: number): { x: number; y: number } {
-  const truckLength = 16;
-  const truckWidth = 5;
-  
-  // Центр автомобиля
-  const centerX = unitX + unitWidth / 2;
+  // Центр автомобиля по высоте
   const centerY = unitY + unitHeight / 2;
   
   // Нормализуем угол
   const normalizedAngle = ((angle % 360) + 360) % 360;
   const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
   
-  // Насос находится на противоположной стороне от кабины, на боковой стороне кузова
+  // Насос находится на противоположной стороне от кабины
   if (isCabinRight) {
-    // Кабина справа, насос слева - на левом краю кузова
-    return { x: centerX - truckLength / 2, y: centerY };
+    // Кабина справа, насос слева - на левом краю автомобиля
+    return { x: unitX, y: centerY };
   } else {
-    // Кабина слева, насос справа - на правом краю кузова
-    return { x: centerX + truckLength / 2, y: centerY };
+    // Кабина слева, насос справа - на правом краю автомобиля
+    return { x: unitX + unitWidth, y: centerY };
   }
 }
 
