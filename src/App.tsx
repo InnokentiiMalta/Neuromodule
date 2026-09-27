@@ -933,6 +933,7 @@ export default function App() {
     setDeployment(null);
     setManualUnits([]);
     setWaterSources([]);
+    setFireTrains([]);
     setToolMode('none');
   }, []);
 
