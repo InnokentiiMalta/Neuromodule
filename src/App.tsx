@@ -972,7 +972,7 @@ export default function App() {
     setToolMode('none');
   }, []);
 
-  const handleScreenshotScene = useCallback(async () => {
+  const handleScreenshotScene = useCallback(() => {
     const svgElement = svgRef.current;
     if (!svgElement) {
       alert('Не удалось найти элемент карты');
@@ -997,7 +997,7 @@ export default function App() {
       
       // Создаём изображение
       const img = new Image();
-      img.onload = async () => {
+      img.onload = () => {
         // Создаём canvas
         const canvas = document.createElement('canvas');
         canvas.width = 2000; // 2x для высокого качества
@@ -1018,30 +1018,31 @@ export default function App() {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
         // Копируем в буфер обмена
-        try {
-          canvas.toBlob(async (blob) => {
-            if (blob) {
-              try {
-                await navigator.clipboard.write([
-                  new ClipboardItem({ 'image/png': blob })
-                ]);
-                alert('Скриншот обстановки скопирован в буфер обмена');
-              } catch (err) {
-                console.error('Ошибка копирования в буфер:', err);
-                // Fallback: скачиваем файл
-                const link = document.createElement('a');
-                link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                alert('Не удалось скопировать в буфер обмена. Файл сохранён.');
-              }
-            }
-            URL.revokeObjectURL(url);
-          }, 'image/png');
-        } catch (err) {
-          console.error('Ошибка:', err);
+        canvas.toBlob((blob) => {
+          if (blob && navigator.clipboard && navigator.clipboard.write) {
+            navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]).then(() => {
+              alert('Скриншот обстановки скопирован в буфер обмена');
+            }).catch((err) => {
+              console.error('Ошибка копирования в буфер:', err);
+              // Fallback: скачиваем файл
+              const link = document.createElement('a');
+              link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+              link.href = canvas.toDataURL('image/png');
+              link.click();
+              alert('Скриншот сохранён в файл');
+            });
+          } else {
+            // Fallback: скачиваем файл
+            const link = document.createElement('a');
+            link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            alert('Скриншот сохранён в файл');
+          }
           URL.revokeObjectURL(url);
-        }
+        }, 'image/png');
       };
       
       img.onerror = () => {
@@ -1080,28 +1081,30 @@ export default function App() {
       });
       
       // Копируем в буфер обмена
-      try {
-        canvas.toBlob(async (blob) => {
-          if (blob) {
-            try {
-              await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': blob })
-              ]);
-              alert('Скриншот экрана скопирован в буфер обмена');
-            } catch (err) {
-              console.error('Ошибка копирования в буфер:', err);
-              // Fallback: скачиваем файл
-              const link = document.createElement('a');
-              link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
-              link.href = canvas.toDataURL('image/png');
-              link.click();
-              alert('Не удалось скопировать в буфер обмена. Файл сохранён.');
-            }
-          }
-        }, 'image/png');
-      } catch (err) {
-        console.error('Ошибка:', err);
-      }
+      canvas.toBlob((blob) => {
+        if (blob && navigator.clipboard && navigator.clipboard.write) {
+          navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]).then(() => {
+            alert('Скриншот экрана скопирован в буфер обмена');
+          }).catch((err) => {
+            console.error('Ошибка копирования в буфер:', err);
+            // Fallback: скачиваем файл
+            const link = document.createElement('a');
+            link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            alert('Скриншот сохранён в файл');
+          });
+        } else {
+          // Fallback: скачиваем файл
+          const link = document.createElement('a');
+          link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          alert('Скриншот сохранён в файл');
+        }
+      }, 'image/png');
     } catch (error) {
       console.error('Ошибка при создании скриншота:', error);
       alert('Не удалось создать скриншот экрана');
@@ -2015,6 +2018,25 @@ export default function App() {
 
                 return (
                   <g key={`hose-${unit.id}`}>
+                    {/* Draggable pump position (start of hose) */}
+                    <g
+                      onMouseDown={e => {
+                        e.stopPropagation();
+                        const { x, y } = getSVGCoords(e);
+                        setDragState({
+                          type: 'pump',
+                          id: `pump-${unit.id}`,
+                          unitId: unit.id,
+                          offsetX: x - routing.path[0].x,
+                          offsetY: y - routing.path[0].y
+                        });
+                      }}
+                      style={{ cursor: 'move' }}
+                    >
+                      <circle cx={routing.path[0].x} cy={routing.path[0].y} r="5" fill="#ff6b00" stroke="#fff" strokeWidth="1.5" opacity="0.9" />
+                      <circle cx={routing.path[0].x} cy={routing.path[0].y} r="2" fill="#fff" />
+                    </g>
+                    
                     {routing.path.slice(0, -1).map((point, idx) => (
                       <line key={idx} x1={point.x} y1={point.y} x2={routing.path[idx + 1].x} y2={routing.path[idx + 1].y}
                         stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
