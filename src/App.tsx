@@ -1191,7 +1191,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-sm font-bold">Расстановка сил и средств ПО</h1>
-              <p className="text-[10px] text-gray-400">Тушение пожаров ЖД составов</p>
+              <p className="text-[10px] text-gray-400">Тушение пожаров ЖД составов • v1.2.1</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
