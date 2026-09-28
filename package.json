@@ -75,8 +75,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "fire-deployment",
-        "repo": "fire-deployment-app"
+        "owner": "InnokentiiMalta",
+        "repo": "Neuromodule"
       }
     ]
   }
