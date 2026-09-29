@@ -309,11 +309,20 @@ export function calculateDeployment(
   if (fireSource.type === 'tank') strategy += 'Подача пены на цистерну. ';
   strategy += `Безопасное расстояние: ${(safeDist * 0.5).toFixed(0)} м.`;
 
-  // Generate personnel positions
-  const totalPersonnel = units.reduce((s, u) => s + u.personnel, 0);
+  // Calculate occupied personnel
+  const nozzleOperators = units.reduce((s, u) => s + u.hoses, 0); // Ствольщики
+  const branchOperators = units.filter(u => u.hoses > 0).length; // Люди на разветвлениях
+  const vehicleOperators = units.length; // Люди около автомобилей
+  const occupiedPersonnel = nozzleOperators + branchOperators + vehicleOperators;
+  
+  // Calculate free personnel from resources
+  const totalAvailablePersonnel = resources ? resources.personnel : 100;
+  const freePersonnel = Math.max(0, totalAvailablePersonnel - occupiedPersonnel);
+  
+  // Generate free personnel positions
   const personnelPositions = generatePersonnelPositions(
     fireX, fireY,
-    totalPersonnel,
+    freePersonnel,
     units,
     obstacles,
     wagons
@@ -321,7 +330,7 @@ export function calculateDeployment(
 
   return {
     units,
-    totalPersonnel,
+    totalPersonnel: totalAvailablePersonnel,
     totalHoses: units.reduce((s, u) => s + u.hoses, 0),
     strategy,
     warnings,
