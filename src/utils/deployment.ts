@@ -312,10 +312,19 @@ export function calculateDeployment(
   // Calculate total personnel from resources
   const totalAvailablePersonnel = resources ? resources.personnel : 100;
   
-  // Generate ALL personnel positions (including those at vehicles, branches, and nozzles)
+  // Calculate occupied personnel (already displayed as icons)
+  const nozzleOperators = units.reduce((s, u) => s + u.hoses, 0); // Ствольщики
+  const branchOperators = units.filter(u => u.hoses > 0).length; // Люди на разветвлениях
+  const vehicleOperators = units.length; // Люди около автомобилей
+  const occupiedPersonnel = nozzleOperators + branchOperators + vehicleOperators;
+  
+  // Calculate free personnel
+  const freePersonnel = Math.max(0, totalAvailablePersonnel - occupiedPersonnel);
+  
+  // Generate FREE personnel positions only
   const personnelPositions = generatePersonnelPositions(
     fireX, fireY,
-    totalAvailablePersonnel,
+    freePersonnel,
     units,
     obstacles,
     wagons
@@ -358,10 +367,10 @@ export function getIdealResources(fireSource: FireSource): { ac: number; al: num
   return { ac, al, asr: 1, personnel: Math.ceil((7 * 2 + 6 * (fireSource.intensity === 'high' ? 4 : fireSource.intensity === 'medium' ? 2 : 0) + 5 * al + 3) * m) };
 }
 
-// Generate random positions for personnel
+// Generate random positions for FREE personnel only
 function generatePersonnelPositions(
   fireX: number, fireY: number,
-  totalPersonnel: number,
+  freePersonnel: number,
   units: FireUnit[],
   obstacles: Obstacle[],
   wagons: Wagon[]
@@ -405,57 +414,9 @@ function generatePersonnelPositions(
     return null;
   };
   
-  // 1. Place people near vehicles (1 per vehicle)
-  for (const unit of units) {
-    const pos = generatePosition(preferAbove);
-    if (pos) {
-      // Place near the vehicle (within 10 units)
-      const offsetX = (Math.random() - 0.5) * 20;
-      const offsetY = (Math.random() - 0.5) * 20;
-      positions.push({ 
-        x: Math.max(10, Math.min(990, unit.x + 25 + offsetX)), 
-        y: Math.max(10, Math.min(590, unit.y + 10 + offsetY)) 
-      });
-    }
-  }
-  
-  // 2. Place people at branch points (1 per unit with hoses)
-  for (const unit of units.filter(u => u.hoses > 0)) {
-    const pos = generatePosition(preferAbove);
-    if (pos) {
-      // Place at a reasonable distance from fire (around 60-80% of distance to fire)
-      const angle = Math.atan2(pos.y - fireY, pos.x - fireX);
-      const distance = 60 + Math.random() * 40;
-      positions.push({ 
-        x: fireX + Math.cos(angle) * distance, 
-        y: fireY + Math.sin(angle) * distance 
-      });
-    }
-  }
-  
-  // 3. Place nozzle operators (at nozzle positions)
-  for (const unit of units) {
-    for (let i = 0; i < unit.hoses; i++) {
-      const pos = generatePosition(preferAbove);
-      if (pos) {
-        // Place close to fire (within 30-50 units)
-        const angle = Math.atan2(pos.y - fireY, pos.x - fireX);
-        const distance = 30 + Math.random() * 20;
-        positions.push({ 
-          x: fireX + Math.cos(angle) * distance, 
-          y: fireY + Math.sin(angle) * distance 
-        });
-      }
-    }
-  }
-  
-  // 4. Place remaining free personnel
-  const occupiedCount = positions.length;
-  const freeCount = totalPersonnel - occupiedCount;
-  
   // Calculate how many free people should be on each side (90% on same side as units)
-  const freeOnPreferredSide = Math.ceil(freeCount * 0.9);
-  const freeOnOtherSide = freeCount - freeOnPreferredSide;
+  const freeOnPreferredSide = Math.ceil(freePersonnel * 0.9);
+  const freeOnOtherSide = freePersonnel - freeOnPreferredSide;
   
   // Generate positions for free people on preferred side
   for (let i = 0; i < freeOnPreferredSide; i++) {
