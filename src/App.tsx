@@ -2158,19 +2158,6 @@ export default function App() {
                     
                     <text x={centerX} y={unit.y - 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
                     <text x={centerX} y={unit.y + 12} textAnchor="middle" fill="#aaa" fontSize="5" fontFamily="sans-serif">{unit.role}</text>
-                    
-                    {/* Person near pump */}
-                    {(() => {
-                      const normalizedAngle = ((unit.angle % 360) + 360) % 360;
-                      const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
-                      const pumpX = isCabinRight ? centerX - 5.5 : centerX + 5.5;
-                      return (
-                        <>
-                          <circle cx={pumpX} cy={centerY + 4} r="2" fill="#ffeb3b" opacity="0.6" />
-                          <text x={pumpX} y={centerY + 5} textAnchor="middle" fontSize="3">🧑‍🚒</text>
-                        </>
-                      );
-                    })()}
                   </g>
                 );
               })}
@@ -2225,19 +2212,6 @@ export default function App() {
                     {!unit.ptvDeployed && (
                       <text x={centerX} y={unit.y + 20} textAnchor="middle" fill="#ffeb3b" fontSize="5" fontFamily="sans-serif">Нажмите ПТВ</text>
                     )}
-                    
-                    {/* Person near pump */}
-                    {(() => {
-                      const normalizedAngle = ((unit.angle % 360) + 360) % 360;
-                      const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
-                      const pumpX = isCabinRight ? centerX - 5.5 : centerX + 5.5;
-                      return (
-                        <>
-                          <circle cx={pumpX} cy={centerY + 4} r="2" fill="#ffeb3b" opacity="0.6" />
-                          <text x={pumpX} y={centerY + 5} textAnchor="middle" fontSize="3">🧑‍🚒</text>
-                        </>
-                      );
-                    })()}
                   </g>
                 );
               })}

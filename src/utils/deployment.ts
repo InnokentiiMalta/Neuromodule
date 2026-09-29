@@ -315,8 +315,7 @@ export function calculateDeployment(
   // Calculate occupied personnel (already displayed as icons)
   const nozzleOperators = units.reduce((s, u) => s + u.hoses, 0); // Ствольщики
   const branchOperators = units.filter(u => u.hoses > 0).length; // Люди на разветвлениях
-  const vehicleOperators = units.length; // Люди около автомобилей
-  const occupiedPersonnel = nozzleOperators + branchOperators + vehicleOperators;
+  const occupiedPersonnel = nozzleOperators + branchOperators;
   
   // Calculate free personnel
   const freePersonnel = Math.max(0, totalAvailablePersonnel - occupiedPersonnel);
