@@ -313,9 +313,10 @@ export function calculateDeployment(
   const totalAvailablePersonnel = resources ? resources.personnel : 100;
   
   // Calculate occupied personnel (already displayed as icons)
-  const nozzleOperators = units.reduce((s, u) => s + u.hoses, 0); // Ствольщики
-  const branchOperators = units.filter(u => u.hoses > 0).length; // Люди на разветвлениях
-  const occupiedPersonnel = nozzleOperators + branchOperators;
+  const vehicleOperators = units.length; // 1 человек у каждой техники
+  const branchOperators = units.filter(u => u.hoses > 0).length; // 1 человек на разветвлении
+  const nozzleOperators = units.reduce((s, u) => s + u.hoses, 0); // Ствольщики (по количеству стволов)
+  const occupiedPersonnel = vehicleOperators + branchOperators + nozzleOperators;
   
   // Calculate free personnel
   const freePersonnel = Math.max(0, totalAvailablePersonnel - occupiedPersonnel);
