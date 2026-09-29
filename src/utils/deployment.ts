@@ -117,11 +117,13 @@ function findPositionOnSafeCircle(
   const TRACK_BOTTOM = 302;
   const MIN_DISTANCE_FROM_TRACKS = 30; // 15m = 30 SVG units
   const MAX_DISTANCE_FROM_FIRE = 350; // 175m = 350 SVG units
-  const MIN_DISTANCE_BETWEEN_UNITS = 100; // 50m = 100 SVG units - STRICT RULE
+  const MIN_DISTANCE_BETWEEN_UNITS = 60; // 30m = 60 SVG units - reduced for better placement
 
   // Try 144 angles around the fire (every 2.5 degrees) for better coverage
+  // Start from angleOffset to ensure different units search in different directions
   for (let i = 0; i < 144; i++) {
-    const angle = (i * Math.PI * 2) / 144 + angleOffset;
+    const baseAngle = (i * Math.PI * 2) / 144;
+    const angle = baseAngle + angleOffset;
     
     // Try different distances with step of 8 units
     for (let distance = safeDistance; distance <= MAX_DISTANCE_FROM_FIRE; distance += 8) {
@@ -238,8 +240,9 @@ export function calculateDeployment(
     iterations++;
     // First unit goes near water source, others use normal logic
     const isFirstUnit = acCount === 0 && nearestWaterSource !== null;
-    // Each subsequent unit starts searching from a different angle (90 degrees apart)
-    const angleOffset = acCount * Math.PI / 2;
+    // Distribute units evenly around the fire (360 / totalUnits degrees apart)
+    // For simplicity, use fixed angles: 0, 90, 180, 270 degrees for up to 4 units
+    const angleOffset = isFirstUnit ? 0 : (acCount * Math.PI / 2);
     const pos = isFirstUnit 
       ? findPositionNearWaterSource(nearestWaterSource!, fireX, fireY, 50, 22, obstacles, wagons, occupiedPositions)
       : findPositionOnSafeCircle(
