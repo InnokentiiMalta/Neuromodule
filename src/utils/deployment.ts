@@ -116,8 +116,8 @@ function findPositionOnSafeCircle(
   const TRACK_TOP = 298;
   const TRACK_BOTTOM = 302;
   const MIN_DISTANCE_FROM_TRACKS = 30; // 15m = 30 SVG units
-  const MAX_DISTANCE_FROM_FIRE = 350; // 175m = 350 SVG units
-  const MIN_DISTANCE_BETWEEN_UNITS = 60; // 30m = 60 SVG units - reduced for better placement
+  const MAX_DISTANCE_FROM_FIRE = 300; // 150m = 300 SVG units
+  const MIN_DISTANCE_BETWEEN_UNITS = 100; // 50m = 100 SVG units - STRICT RULE
 
   // Try 144 angles around the fire (every 2.5 degrees) for better coverage
   // Start from angleOffset to ensure different units search in different directions
@@ -196,22 +196,20 @@ export function calculateDeployment(
   let availAC = resources ? resources.ac : 10;
   let availAL = resources ? resources.al : 3;
   let availASR = resources ? resources.asr : 1;
-  let availPersonnel = resources ? resources.personnel : 100;
 
   const occupiedPositions: Array<{ x: number; y: number; w: number; h: number }> = [];
 
   const addUnit = (unit: Omit<FireUnit, 'id' | 'safeDistance'>): boolean => {
     if (unit.type === 'ac') {
-      if (availAC <= 0 || availPersonnel < unit.personnel) return false;
+      if (availAC <= 0) return false;
       availAC--;
     } else if (unit.type === 'asa') {
-      if (availAL <= 0 || availPersonnel < unit.personnel) return false;
+      if (availAL <= 0) return false;
       availAL--;
     } else if (unit.type === 'aso') {
-      if (availASR <= 0 || availPersonnel < unit.personnel) return false;
+      if (availASR <= 0) return false;
       availASR--;
     }
-    availPersonnel -= unit.personnel;
 
     units.push({ ...unit, id: `unit-${unitId++}`, safeDistance: safeDist });
     occupiedPositions.push({ x: unit.x, y: unit.y, w: 50, h: 22 });
