@@ -615,10 +615,10 @@ export default function App() {
         // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
         if (fireSource) {
           const distFromFire = Math.sqrt((moveX - fireSource.x) ** 2 + (moveY - fireSource.y) ** 2);
-          if (distFromFire > 500) {
+          if (distFromFire > 700) {
             const angle = Math.atan2(moveY - fireSource.y, moveX - fireSource.x);
-            moveX = fireSource.x + Math.cos(angle) * 500;
-            moveY = fireSource.y + Math.sin(angle) * 500;
+            moveX = fireSource.x + Math.cos(angle) * 700;
+            moveY = fireSource.y + Math.sin(angle) * 700;
           }
         }
         
@@ -701,10 +701,10 @@ export default function App() {
       // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
       if (fireSource) {
         const distFromFire = Math.sqrt((newX - fireSource.x) ** 2 + (newY - fireSource.y) ** 2);
-        if (distFromFire > 500) {
+        if (distFromFire > 700) {
           const angle = Math.atan2(newY - fireSource.y, newX - fireSource.x);
-          newX = fireSource.x + Math.cos(angle) * 500;
-          newY = fireSource.y + Math.sin(angle) * 500;
+          newX = fireSource.x + Math.cos(angle) * 700;
+          newY = fireSource.y + Math.sin(angle) * 700;
         }
       }
       
@@ -740,10 +740,10 @@ export default function App() {
       // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
       if (fireSource) {
         const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
-        if (distFromFire > 500) {
+        if (distFromFire > 700) {
           const angle = Math.atan2(branchY - fireSource.y, branchX - fireSource.x);
-          branchX = fireSource.x + Math.cos(angle) * 500;
-          branchY = fireSource.y + Math.sin(angle) * 500;
+          branchX = fireSource.x + Math.cos(angle) * 700;
+          branchY = fireSource.y + Math.sin(angle) * 700;
         }
       }
       
@@ -800,10 +800,10 @@ export default function App() {
           // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
           if (fireSource) {
             const distFromFire = Math.sqrt((nozzleX - fireSource.x) ** 2 + (nozzleY - fireSource.y) ** 2);
-            if (distFromFire > 500) {
+            if (distFromFire > 700) {
               const angle = Math.atan2(nozzleY - fireSource.y, nozzleX - fireSource.x);
-              nozzleX = fireSource.x + Math.cos(angle) * 500;
-              nozzleY = fireSource.y + Math.sin(angle) * 500;
+              nozzleX = fireSource.x + Math.cos(angle) * 700;
+              nozzleY = fireSource.y + Math.sin(angle) * 700;
             }
           }
           
@@ -2159,15 +2159,15 @@ export default function App() {
                     <text x={centerX} y={unit.y - 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
                     <text x={centerX} y={unit.y + 12} textAnchor="middle" fill="#aaa" fontSize="5" fontFamily="sans-serif">{unit.role}</text>
                     
-                    {/* Person near pump */}
+                    {/* Person near vehicle */}
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
-                      const pumpX = isCabinRight ? centerX - 5.5 : centerX + 5.5;
+                      const personX = isCabinRight ? centerX - 10 : centerX + 10;
                       return (
                         <>
-                          <circle cx={pumpX} cy={centerY + 4} r="2" fill="#ffeb3b" opacity="0.6" />
-                          <text x={pumpX} y={centerY + 5} textAnchor="middle" fontSize="3">🧑‍🚒</text>
+                          <circle cx={personX} cy={centerY + 4} r="2" fill="#ffeb3b" opacity="0.6" />
+                          <text x={personX} y={centerY + 5} textAnchor="middle" fontSize="3">🧑‍🚒</text>
                         </>
                       );
                     })()}
@@ -2226,15 +2226,15 @@ export default function App() {
                       <text x={centerX} y={unit.y + 20} textAnchor="middle" fill="#ffeb3b" fontSize="5" fontFamily="sans-serif">Нажмите ПТВ</text>
                     )}
                     
-                    {/* Person near pump */}
+                    {/* Person near vehicle */}
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
-                      const pumpX = isCabinRight ? centerX - 5.5 : centerX + 5.5;
+                      const personX = isCabinRight ? centerX - 10 : centerX + 10;
                       return (
                         <>
-                          <circle cx={pumpX} cy={centerY + 4} r="2" fill="#ffeb3b" opacity="0.6" />
-                          <text x={pumpX} y={centerY + 5} textAnchor="middle" fontSize="3">🧑‍🚒</text>
+                          <circle cx={personX} cy={centerY + 4} r="2" fill="#ffeb3b" opacity="0.6" />
+                          <text x={personX} y={centerY + 5} textAnchor="middle" fontSize="3">🧑‍🚒</text>
                         </>
                       );
                     })()}
