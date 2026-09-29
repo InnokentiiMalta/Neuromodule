@@ -309,20 +309,13 @@ export function calculateDeployment(
   if (fireSource.type === 'tank') strategy += 'Подача пены на цистерну. ';
   strategy += `Безопасное расстояние: ${(safeDist * 0.5).toFixed(0)} м.`;
 
-  // Calculate occupied personnel
-  const nozzleOperators = units.reduce((s, u) => s + u.hoses, 0); // Ствольщики
-  const branchOperators = units.filter(u => u.hoses > 0).length; // Люди на разветвлениях
-  const vehicleOperators = units.length; // Люди около автомобилей
-  const occupiedPersonnel = nozzleOperators + branchOperators + vehicleOperators;
-  
-  // Calculate free personnel from resources
+  // Calculate total personnel from resources
   const totalAvailablePersonnel = resources ? resources.personnel : 100;
-  const freePersonnel = Math.max(0, totalAvailablePersonnel - occupiedPersonnel);
   
-  // Generate free personnel positions
+  // Generate ALL personnel positions (including those at vehicles, branches, and nozzles)
   const personnelPositions = generatePersonnelPositions(
     fireX, fireY,
-    freePersonnel,
+    totalAvailablePersonnel,
     units,
     obstacles,
     wagons
@@ -385,64 +378,95 @@ function generatePersonnelPositions(
   const unitsBelowTracks = units.filter(u => (u.y + 10) > TRACK_BOTTOM).length;
   const preferAbove = unitsAboveTracks >= unitsBelowTracks;
   
-  // Calculate how many people should be on each side (90% on same side as units)
-  const peopleOnPreferredSide = Math.ceil(totalPersonnel * 0.9);
-  const peopleOnOtherSide = totalPersonnel - peopleOnPreferredSide;
+  // Helper function to generate a position
+  const generatePosition = (preferSide: boolean): { x: number; y: number } | null => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = MIN_DISTANCE_FROM_FIRE + Math.random() * (MAX_DISTANCE_FROM_FIRE - MIN_DISTANCE_FROM_FIRE);
+      const px = fireX + Math.cos(angle) * distance;
+      const py = fireY + Math.sin(angle) * distance;
+      
+      // Check if on preferred side
+      const isOnPreferredSide = preferSide ? py < TRACK_TOP : py > TRACK_BOTTOM;
+      if (!isOnPreferredSide) continue;
+      
+      // Check bounds
+      if (px < 10 || px > 990 || py < 10 || py > 590) continue;
+      
+      // Check distance from fire
+      const distFromFire = Math.sqrt((px - fireX) ** 2 + (py - fireY) ** 2);
+      if (distFromFire < MIN_DISTANCE_FROM_FIRE || distFromFire > MAX_DISTANCE_FROM_FIRE) continue;
+      
+      // Check if blocked by obstacles or wagons
+      if (isPositionBlocked(px - 3, py - 3, 6, 6, obstacles, wagons)) continue;
+      
+      return { x: px, y: py };
+    }
+    return null;
+  };
   
-  // Generate positions for people on preferred side
-  let attempts = 0;
-  let generated = 0;
-  while (generated < peopleOnPreferredSide && attempts < 1000) {
-    attempts++;
-    const angle = Math.random() * Math.PI * 2;
-    const distance = MIN_DISTANCE_FROM_FIRE + Math.random() * (MAX_DISTANCE_FROM_FIRE - MIN_DISTANCE_FROM_FIRE);
-    const px = fireX + Math.cos(angle) * distance;
-    const py = fireY + Math.sin(angle) * distance;
-    
-    // Check if on preferred side
-    const isOnPreferredSide = preferAbove ? py < TRACK_TOP : py > TRACK_BOTTOM;
-    if (!isOnPreferredSide) continue;
-    
-    // Check bounds
-    if (px < 10 || px > 990 || py < 10 || py > 590) continue;
-    
-    // Check distance from fire
-    const distFromFire = Math.sqrt((px - fireX) ** 2 + (py - fireY) ** 2);
-    if (distFromFire < MIN_DISTANCE_FROM_FIRE || distFromFire > MAX_DISTANCE_FROM_FIRE) continue;
-    
-    // Check if blocked by obstacles or wagons
-    if (isPositionBlocked(px - 3, py - 3, 6, 6, obstacles, wagons)) continue;
-    
-    positions.push({ x: px, y: py });
-    generated++;
+  // 1. Place people near vehicles (1 per vehicle)
+  for (const unit of units) {
+    const pos = generatePosition(preferAbove);
+    if (pos) {
+      // Place near the vehicle (within 10 units)
+      const offsetX = (Math.random() - 0.5) * 20;
+      const offsetY = (Math.random() - 0.5) * 20;
+      positions.push({ 
+        x: Math.max(10, Math.min(990, unit.x + 25 + offsetX)), 
+        y: Math.max(10, Math.min(590, unit.y + 10 + offsetY)) 
+      });
+    }
   }
   
-  // Generate positions for people on other side
-  attempts = 0;
-  generated = 0;
-  while (generated < peopleOnOtherSide && attempts < 500) {
-    attempts++;
-    const angle = Math.random() * Math.PI * 2;
-    const distance = MIN_DISTANCE_FROM_FIRE + Math.random() * (MAX_DISTANCE_FROM_FIRE - MIN_DISTANCE_FROM_FIRE);
-    const px = fireX + Math.cos(angle) * distance;
-    const py = fireY + Math.sin(angle) * distance;
-    
-    // Check if on other side
-    const isOnOtherSide = preferAbove ? py > TRACK_BOTTOM : py < TRACK_TOP;
-    if (!isOnOtherSide) continue;
-    
-    // Check bounds
-    if (px < 10 || px > 990 || py < 10 || py > 590) continue;
-    
-    // Check distance from fire
-    const distFromFire = Math.sqrt((px - fireX) ** 2 + (py - fireY) ** 2);
-    if (distFromFire < MIN_DISTANCE_FROM_FIRE || distFromFire > MAX_DISTANCE_FROM_FIRE) continue;
-    
-    // Check if blocked by obstacles or wagons
-    if (isPositionBlocked(px - 3, py - 3, 6, 6, obstacles, wagons)) continue;
-    
-    positions.push({ x: px, y: py });
-    generated++;
+  // 2. Place people at branch points (1 per unit with hoses)
+  for (const unit of units.filter(u => u.hoses > 0)) {
+    const pos = generatePosition(preferAbove);
+    if (pos) {
+      // Place at a reasonable distance from fire (around 60-80% of distance to fire)
+      const angle = Math.atan2(pos.y - fireY, pos.x - fireX);
+      const distance = 60 + Math.random() * 40;
+      positions.push({ 
+        x: fireX + Math.cos(angle) * distance, 
+        y: fireY + Math.sin(angle) * distance 
+      });
+    }
+  }
+  
+  // 3. Place nozzle operators (at nozzle positions)
+  for (const unit of units) {
+    for (let i = 0; i < unit.hoses; i++) {
+      const pos = generatePosition(preferAbove);
+      if (pos) {
+        // Place close to fire (within 30-50 units)
+        const angle = Math.atan2(pos.y - fireY, pos.x - fireX);
+        const distance = 30 + Math.random() * 20;
+        positions.push({ 
+          x: fireX + Math.cos(angle) * distance, 
+          y: fireY + Math.sin(angle) * distance 
+        });
+      }
+    }
+  }
+  
+  // 4. Place remaining free personnel
+  const occupiedCount = positions.length;
+  const freeCount = totalPersonnel - occupiedCount;
+  
+  // Calculate how many free people should be on each side (90% on same side as units)
+  const freeOnPreferredSide = Math.ceil(freeCount * 0.9);
+  const freeOnOtherSide = freeCount - freeOnPreferredSide;
+  
+  // Generate positions for free people on preferred side
+  for (let i = 0; i < freeOnPreferredSide; i++) {
+    const pos = generatePosition(true);
+    if (pos) positions.push(pos);
+  }
+  
+  // Generate positions for free people on other side
+  for (let i = 0; i < freeOnOtherSide; i++) {
+    const pos = generatePosition(false);
+    if (pos) positions.push(pos);
   }
   
   return positions;
