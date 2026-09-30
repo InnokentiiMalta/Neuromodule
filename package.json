@@ -1,5 +1,5 @@
 {
-  "name": "fire-deployment-app",
+  "name": "neural-module-fire-prediction",
   "version": "1.2.2",
   "private": true,
   "main": "electron/main.cjs",
@@ -48,7 +48,7 @@
   },
   "build": {
     "appId": "com.fire-deployment.viteapp",
-    "productName": "Расстановка сил ПО",
+    "productName": "Нейромодуль прогнозирования оперативных параметров тушения пассажирского ЖД состава",
     "directories": {
       "output": "release"
     },

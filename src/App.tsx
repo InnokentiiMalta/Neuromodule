@@ -1190,8 +1190,8 @@ export default function App() {
               <span className="text-lg">🚒</span>
             </div>
             <div>
-              <h1 className="text-sm font-bold">Расстановка сил и средств ПО</h1>
-              <p className="text-[10px] text-gray-400">Тушение пожаров ЖД составов • v1.2.1</p>
+              <h1 className="text-sm font-bold">Нейромодуль прогнозирования оперативных параметров тушения пассажирского ЖД состава</h1>
+              <p className="text-[10px] text-gray-400">Версия 1.2.2</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1504,19 +1504,44 @@ export default function App() {
                   </div>
                   <div className="bg-gray-700/80 rounded p-1 text-center">
                     <div className="text-sm font-bold">{deployment.totalPersonnel}</div>
-                    <div className="text-[8px] text-gray-400">Л/с</div>
+                    <div className="text-[8px] text-gray-400">Л/с всего</div>
                   </div>
                   <div className="bg-gray-700/80 rounded p-1 text-center">
                     <div className="text-sm font-bold">{deployment.totalHoses}</div>
                     <div className="text-[8px] text-gray-400">Стволов</div>
                   </div>
                 </div>
-                {manualUnits.length > 0 && (
-                  <div className="mb-2 p-1.5 bg-blue-900/20 rounded border border-blue-500/30">
-                    <p className="text-[9px] text-blue-300">📌 Добавлено вручную: {manualUnits.length} ед.</p>
-                    <p className="text-[8px] text-blue-400">С ПТВ: {manualUnits.filter(u => u.ptvDeployed).length} ед.</p>
+                
+                {/* Детализация по людям */}
+                <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
+                  <p className="text-[9px] font-semibold text-gray-300 mb-1">👥 Личный состав:</p>
+                  <div className="space-y-0.5 text-[8px] text-gray-400">
+                    <p>• У техники: {deployment.units.length + manualUnits.filter(u => u.ptvDeployed).length} чел.</p>
+                    <p>• На разветвлениях: {deployment.units.filter(u => u.hoses > 0).length + manualUnits.filter(u => u.ptvDeployed).length} чел.</p>
+                    <p>• Ствольщики: {(deployment.units.filter(u => u.hoses > 0).length + manualUnits.filter(u => u.ptvDeployed).length) * 2} чел.</p>
+                    <p>• Свободные: {deployment.personnelPositions?.length || 0} чел.</p>
                   </div>
-                )}
+                </div>
+                
+                {/* Список техники */}
+                <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
+                  <p className="text-[9px] font-semibold text-gray-300 mb-1">🚒 Техника:</p>
+                  <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                    {deployment.units.map((unit, idx) => (
+                      <div key={unit.id} className="text-[8px] text-gray-400 flex justify-between">
+                        <span>{idx + 1}. {unit.name}</span>
+                        <span className="text-gray-500">{unit.role}</span>
+                      </div>
+                    ))}
+                    {manualUnits.filter(u => u.ptvDeployed).map((unit, idx) => (
+                      <div key={unit.id} className="text-[8px] text-blue-300 flex justify-between">
+                        <span>{deployment.units.length + idx + 1}. {unit.name}</span>
+                        <span className="text-blue-400">вручную</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
                 <p className="text-[9px] text-gray-400">{deployment.strategy}</p>
                 {deployment.warnings.length > 0 && (
                   <div className="mt-2 space-y-0.5">
