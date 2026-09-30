@@ -17,8 +17,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          lfs: true
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -34,12 +32,12 @@ jobs:
         working-directory: python-backend-src
         run: |
           python -m pip install --upgrade pip
-          python -m pip install fastapi uvicorn numpy pandas scikit-learn cryptography
+          python -m pip install fastapi uvicorn numpy pandas scikit-learn cryptography pyinstaller
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install pyinstaller
 
       - name: Build Python server
         working-directory: python-backend-src
+        shell: cmd
         run: |
           python -m PyInstaller --name server --onedir --console --noconfirm --clean ^
             --hidden-import=server_api ^
@@ -57,9 +55,9 @@ jobs:
             --add-data "encryption_key.key;." ^
             run_server.py
 
-      - name: Copy server to Electron project
-        run: |
-          xcopy /E /I /Y python-backend-src\dist\server python-backend\server
+      - name: Copy Python server to Electron project
+        shell: cmd
+        run: xcopy /E /I /Y python-backend-src\dist\server python-backend\server
 
       - name: Install Node dependencies
         run: npm install --no-audit --no-fund
