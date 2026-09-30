@@ -48,7 +48,7 @@
   },
   "build": {
     "appId": "com.fire-deployment.viteapp",
-    "productName": "Нейромодуль прогнозирования оперативных параметров тушения пассажирского ЖД состава",
+    "productName": "Нейромодуль",
     "directories": {
       "output": "release"
     },
