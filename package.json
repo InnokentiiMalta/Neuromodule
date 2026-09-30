@@ -83,7 +83,8 @@
       {
         "provider": "github",
         "owner": "InnokentiiMalta",
-        "repo": "Neuromodule"
+        "repo": "Neuromodule",
+        "releaseType": "release"
       }
     ]
   }
