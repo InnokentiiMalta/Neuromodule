@@ -78,6 +78,13 @@
         "owner": "InnokentiiMalta",
         "repo": "Neuromodule"
       }
+    ],
+    "extraResources": [
+      {
+        "from": "python-backend/server",
+        "to": "python-backend/server",
+        "filter": ["**/*"]
+      }
     ]
   }
 }
