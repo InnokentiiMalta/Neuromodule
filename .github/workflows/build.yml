@@ -17,27 +17,54 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          lfs: true
 
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'npm'
 
-      - name: Show versions
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Python dependencies
+        working-directory: python-backend-src
         run: |
-          node -v
-          npm -v
-          type package.json
+          python -m pip install --upgrade pip
+          python -m pip install fastapi uvicorn numpy pandas scikit-learn cryptography
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install pyinstaller
 
-      - name: Install dependencies
+      - name: Build Python server
+        working-directory: python-backend-src
+        run: |
+          python -m PyInstaller --name server --onedir --console --noconfirm --clean ^
+            --hidden-import=server_api ^
+            --hidden-import=uvicorn.logging ^
+            --hidden-import=uvicorn.loops.auto ^
+            --hidden-import=uvicorn.protocols.http.auto ^
+            --hidden-import=uvicorn.protocols.websockets.auto ^
+            --hidden-import=uvicorn.lifespan.on ^
+            --collect-all=torch ^
+            --collect-all=sklearn ^
+            --collect-all=cryptography ^
+            --add-data "fire_prediction_model.pth;." ^
+            --add-data "scalers.pkl;." ^
+            --add-data "fire_data_test_encrypted.bin;." ^
+            --add-data "encryption_key.key;." ^
+            run_server.py
+
+      - name: Copy server to Electron project
+        run: |
+          xcopy /E /I /Y python-backend-src\dist\server python-backend\server
+
+      - name: Install Node dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Build & publish
+      - name: Build & publish Electron app
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run electron:publish
-
-      - name: List release dir
-        if: always()
-        run: dir release

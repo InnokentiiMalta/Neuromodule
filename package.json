@@ -79,6 +79,13 @@
         "repo": "Neuromodule",
         "releaseType": "release"
       }
+    ],
+    "extraResources": [
+      {
+        "from": "python-backend/server",
+        "to": "python-backend/server",
+        "filter": ["**/*"]
+      }
     ]
   }
 }
