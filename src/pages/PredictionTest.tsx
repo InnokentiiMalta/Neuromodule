@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { predictStage, getMedianValues } from '../api/backend';
 
-const INITIAL_FIELDS = [
+interface Field {
+  key: string;
+  label: string;
+  default: number;
+}
+
+const INITIAL_FIELDS: Field[] = [
   { key: 'Время_следования_мин', label: 'Время следования (мин)', default: 8 },
   { key: 'Время_подачи_первого_ствола_мин', label: 'Время подачи первого ствола (мин)', default: 1 },
   { key: 'Количество_основных_пожарных_автомобилей_ед', label: 'Основных ПА', default: 2 },
@@ -11,18 +17,18 @@ const INITIAL_FIELDS = [
 ];
 
 export default function PredictionTest() {
-  const [values, setValues] = useState(
+  const [values, setValues] = useState<Record<string, number>>(
     Object.fromEntries(INITIAL_FIELDS.map(f => [f.key, f.default]))
   );
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState<unknown>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleChange = (key, value) => {
+  const handleChange = (key: string, value: string) => {
     setValues(prev => ({ ...prev, [key]: Number(value) || 0 }));
   };
 
-  const handlePredict = async (stage) => {
+  const handlePredict = async (stage: number) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -30,7 +36,7 @@ export default function PredictionTest() {
       const data = await predictStage(values, stage);
       setResult(data);
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -43,7 +49,7 @@ export default function PredictionTest() {
       const data = await getMedianValues({});
       setResult({ медианы: data });
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -75,7 +81,7 @@ export default function PredictionTest() {
 
       {loading && <p>Загрузка...</p>}
       {error && <p style={{ color: 'red' }}>Ошибка: {error}</p>}
-      {result && (
+      {result !== null && (
         <pre style={{ background: '#f5f5f5', padding: 12, marginTop: 16 }}>
           {JSON.stringify(result, null, 2)}
         </pre>
