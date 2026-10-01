@@ -173,18 +173,15 @@ app.whenReady().then(async () => {
 function killPythonProcess() {
   if (pythonProcess && !pythonProcess.killed) {
     console.log('[Electron] Завершение Python-сервера...');
-    pythonProcess.kill('SIGTERM');
+    if (process.platform === 'win32') {
+      try {
+        execSync(`taskkill /PID ${pythonProcess.pid} /T /F`, { stdio: 'ignore' });
+      } catch (err) {
+        pythonProcess.kill();
+      }
+    } else {
+      pythonProcess.kill('SIGTERM');
+    }
     pythonProcess = null;
-  }
-}
-
-app.on('before-quit', () => {
-  killPythonProcess();
-});
-
-app.on('window-all-closed', () => {
-  killPythonProcess();
-  if (process.platform !== 'darwin') {
-    app.quit();
   }
 });
