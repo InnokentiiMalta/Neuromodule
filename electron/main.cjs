@@ -145,7 +145,7 @@ autoUpdater.on('error', (error) => {
 
 app.whenReady().then(async () => {
   // Запуск Python-сервера
-  await startPythonServer(8000);
+  startPythonServer(8000);
   
   try {
     await waitForServer('http://127.0.0.1:8000/docs', 60000);
