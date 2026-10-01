@@ -48,7 +48,7 @@
   },
   "build": {
     "appId": "com.fire-deployment.viteapp",
-    "productName": "Нейромодуль прогнозирования оперативных параметров тушения пассажирского ЖД состава",
+    "productName": "Нейромодуль",
     "directories": {
       "output": "release"
     },
@@ -72,19 +72,19 @@
       "allowToChangeInstallationDirectory": true,
       "perMachine": false
     },
+    "extraResources": [
+      {
+        "from": "python-backend/server",
+        "to": "python-backend/server",
+        "filter": ["**/*"]
+      }
+    ],
     "publish": [
       {
         "provider": "github",
         "owner": "InnokentiiMalta",
         "repo": "Neuromodule",
         "releaseType": "release"
-      }
-    ],
-    "extraResources": [
-      {
-        "from": "python-backend/server",
-        "to": "python-backend/server",
-        "filter": ["**/*"]
       }
     ]
   }
