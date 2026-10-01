@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useMemo } from 'react';
 import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit, WaterSource, FireTrain } from './types';
 import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
 import html2canvas from 'html2canvas';
+import ServerStatus from './components/ServerStatus';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -1195,6 +1196,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ServerStatus />
             <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Силы</button>
             <div className="flex gap-1">
               <button onClick={() => setPlacingUnit('ac')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'ac' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АЦ</button>

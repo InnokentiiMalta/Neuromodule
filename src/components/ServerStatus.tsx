@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { checkServerHealth } from '../api/backend';
 
 export default function ServerStatus() {
-  const [status, setStatus] = useState('checking'); // 'checking' | 'online' | 'offline'
+  const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
   useEffect(() => {
     let mounted = true;
@@ -21,7 +21,7 @@ export default function ServerStatus() {
     };
   }, []);
 
-  const styles = {
+  const styles: Record<string, { color: string; label: string }> = {
     checking: { color: '#888', label: 'Проверка...' },
     online:   { color: '#2e7d32', label: 'Сервер прогноза: онлайн' },
     offline:  { color: '#c62828', label: 'Сервер прогноза: офлайн' },
