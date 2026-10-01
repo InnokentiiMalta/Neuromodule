@@ -3,6 +3,7 @@ import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, Availa
 import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
 import html2canvas from 'html2canvas';
 import ServerStatus from './components/ServerStatus';
+import { APP_VERSION } from './version';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -1192,7 +1193,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-sm font-bold">Нейромодуль прогнозирования оперативных параметров тушения пассажирского ЖД состава</h1>
-              <p className="text-[10px] text-gray-400">Версия 1.2.2</p>
+              <p className="text-[10px] text-gray-400">Версия {APP_VERSION}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
