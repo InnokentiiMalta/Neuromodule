@@ -211,8 +211,19 @@ export default function PredictionPage() {
 
         {/* Ошибки */}
         {error && (
-          <div className="bg-red-900 border border-red-700 rounded-lg p-4 mb-6">
-            <p className="text-red-200">Ошибка: {error}</p>
+          <div className="sticky top-2 z-50 bg-red-900 border-2 border-red-500 rounded-lg p-4 mb-6 shadow-xl">
+            <div className="flex justify-between items-start gap-4">
+              <div>
+                <p className="text-red-100 font-semibold mb-1">Ошибка запроса</p>
+                <p className="text-red-200 text-sm break-all">{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-200 hover:text-white text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         )}
 
