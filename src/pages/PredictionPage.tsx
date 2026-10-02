@@ -104,7 +104,7 @@ export default function PredictionPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="h-screen overflow-y-auto bg-gray-900 text-white p-6">
       <div className="max-w-4xl mx-auto">
         <Link to="/" className="inline-block mb-6 text-blue-400 hover:text-blue-300 text-sm">
           ← Назад к карте
