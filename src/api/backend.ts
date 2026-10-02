@@ -9,8 +9,14 @@ async function request(endpoint: string, body: unknown, retries = 5, delayMs = 1
         body: JSON.stringify(body),
       });
       if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errText}`);
+        let detail = '';
+        try {
+          const errJson = await response.json();
+          detail = errJson.detail || JSON.stringify(errJson);
+        } catch {
+          detail = await response.text();
+        }
+        throw new Error(`HTTP ${response.status}: ${detail}`);
       }
       return await response.json();
     } catch (err) {
