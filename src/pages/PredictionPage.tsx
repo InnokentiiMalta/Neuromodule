@@ -64,13 +64,13 @@ export default function PredictionPage() {
   const buildInputData = (stage: number) => {
     const data: Record<string, number> = { ...initialParams };
 
-    if (stage >= 0) {
+    if (stage >= 1) {
       data['Время_локализации_пожара_мин'] = additionalParams['Время_локализации_пожара_мин'];
     }
-    if (stage >= 1) {
+    if (stage >= 2) {
       data['Время_ликвидации_открытого_горения_мин'] = additionalParams['Время_ликвидации_открытого_горения_мин'];
     }
-    if (stage >= 2) {
+    if (stage >= 3) {
       data['Время_ликвидации_последствий_пожара_мин'] = additionalParams['Время_ликвидации_последствий_пожара_мин'];
     }
 
