@@ -9,6 +9,7 @@ import os
 import sys
 from cryptography.fernet import Fernet
 from fastapi.middleware.cors import CORSMiddleware
+import traceback
 
 app = FastAPI()
 
@@ -133,7 +134,7 @@ def predict_fire_parameters(model, scalers, y_scalers, input_data, stage):
         for feature in input_features[stage]:
             if feature not in input_data:
                 raise ValueError(f"Отсутствует параметр: {feature}")
-        X = np.array([input_data[feature] for feature in input_features[stage]]).reshape(1, -1)
+        X = np.array([float(input_data[feature]) for feature in input_features[stage]]).reshape(1, -1)
         if np.any(np.isnan(X)) or np.any(np.isinf(X)):
             raise ValueError("Входные данные содержат NaN или бесконечные значения")
         X = scalers[f'stage{stage+1}'].transform(X)
@@ -164,7 +165,12 @@ async def predict(data: dict):
         result = predict_fire_parameters(model, scalers, y_scalers, input_data, stage)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка предсказания: {str(e)}")
+        tb = traceback.format_exc()
+        print(f"[PREDICT ERROR] {tb}", flush=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка предсказания: {type(e).__name__}: {str(e)}\n{tb}"
+        )
 
 @app.post("/data")
 async def receive_data(data: dict):
