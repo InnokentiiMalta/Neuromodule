@@ -113,9 +113,9 @@ export default function PredictionPage() {
         <h1 className="text-2xl font-bold mb-6">Поэтапное прогнозирование</h1>
 
         {/* Начальные параметры */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+        <div className="bg-gray-800 rounded-lg p-4 mb-3">
           <h2 className="text-lg font-semibold mb-4">Начальные параметры</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             {INITIAL_FIELDS.map(field => (
               <div key={field.key}>
                 <label className="block text-sm text-gray-300 mb-1">{field.label}</label>
@@ -132,7 +132,7 @@ export default function PredictionPage() {
         </div>
 
         {/* Дополнительные параметры */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+        <div className="bg-gray-800 rounded-lg p-4 mb-3">
           <h2 className="text-lg font-semibold mb-4">Дополнительные параметры</h2>
           <div className="space-y-4">
             <div>
@@ -175,7 +175,7 @@ export default function PredictionPage() {
         </div>
 
         {/* Кнопки этапов */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+        <div className="bg-gray-800 rounded-lg p-4 mb-3">
           <h2 className="text-lg font-semibold mb-4">Этапы прогнозирования</h2>
           <div className="flex gap-3">
             <button
@@ -235,11 +235,11 @@ export default function PredictionPage() {
         )}
 
         {/* Результаты */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {stageResults.map((result, idx) => {
             if (!result) return null;
             return (
-              <div key={idx} className="bg-gray-800 rounded-lg p-6">
+              <div key={idx} className="bg-gray-800 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-3">
                   {idx === 3 ? 'Финальный этап' : `Этап ${idx + 1}`}
                 </h3>
