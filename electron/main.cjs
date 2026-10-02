@@ -1,7 +1,7 @@
 const { app, BrowserWindow, shell, dialog } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const fs = require('fs');
 
 let mainWindow;
@@ -19,33 +19,33 @@ function getServerPath() {
 // Запуск Python-сервера
 function startPythonServer(port = 8000) {
   const serverPath = getServerPath();
-  
+
   if (!fs.existsSync(serverPath)) {
     console.error('[Electron] Python-сервер не найден:', serverPath);
     return null;
   }
-  
+
   console.log('[Electron] Запуск Python-сервера:', serverPath);
-  
+
   pythonProcess = spawn(serverPath, [], {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, PYTHON_SERVER_PORT: String(port) },
     windowsHide: true
   });
-  
+
   pythonProcess.stdout.on('data', (data) => {
     console.log('[PYTHON]', data.toString().trim());
   });
-  
+
   pythonProcess.stderr.on('data', (data) => {
     console.error('[PYTHON ERR]', data.toString().trim());
   });
-  
+
   pythonProcess.on('exit', (code) => {
     console.log('[Electron] Python-сервер завершил работу с кодом:', code);
     pythonProcess = null;
   });
-  
+
   return pythonProcess;
 }
 
@@ -53,7 +53,7 @@ function startPythonServer(port = 8000) {
 function waitForServer(url, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
-    
+
     const checkServer = () => {
       fetch(url)
         .then(response => {
@@ -75,7 +75,7 @@ function waitForServer(url, timeoutMs = 60000) {
           }
         });
     };
-    
+
     checkServer();
   });
 }
@@ -126,7 +126,7 @@ autoUpdater.on('update-available', (info) => {
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('Обновление загружено:', info);
-  
+
   dialog.showMessageBox({
     type: 'info',
     title: 'Доступно обновление',
@@ -143,10 +143,27 @@ autoUpdater.on('error', (error) => {
   console.error('Ошибка при проверке обновлений:', error);
 });
 
+// Функция для завершения Python-процесса
+function killPythonProcess() {
+  if (pythonProcess && !pythonProcess.killed) {
+    console.log('[Electron] Завершение Python-сервера...');
+    if (process.platform === 'win32') {
+      try {
+        execSync(`taskkill /PID ${pythonProcess.pid} /T /F`, { stdio: 'ignore' });
+      } catch (err) {
+        pythonProcess.kill();
+      }
+    } else {
+      pythonProcess.kill('SIGTERM');
+    }
+    pythonProcess = null;
+  }
+}
+
 app.whenReady().then(async () => {
   // Запуск Python-сервера
   startPythonServer(8000);
-  
+
   try {
     await waitForServer('http://127.0.0.1:8000/docs', 60000);
     console.log('[Electron] Python-сервер готов');
@@ -154,9 +171,9 @@ app.whenReady().then(async () => {
     console.error('[Electron] Не дождались Python-сервера:', err);
     dialog.showErrorBox('Ошибка запуска', 'Python-сервер не запустился. Проверьте логи.');
   }
-  
+
   createWindow();
-  
+
   // Проверка обновлений только в packaged версии
   if (app.isPackaged) {
     checkForUpdates();
@@ -168,15 +185,6 @@ app.whenReady().then(async () => {
     }
   });
 });
-
-// Функция для завершения Python-процесса
-function killPythonProcess() {
-  if (pythonProcess && !pythonProcess.killed) {
-    console.log('[Electron] Завершение Python-сервера...');
-    pythonProcess.kill('SIGTERM');
-    pythonProcess = null;
-  }
-}
 
 app.on('before-quit', () => {
   killPythonProcess();
