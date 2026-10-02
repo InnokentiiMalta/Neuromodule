@@ -4,6 +4,7 @@ import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrain
 import html2canvas from 'html2canvas';
 import ServerStatus from './components/ServerStatus';
 import { APP_VERSION } from './version';
+import { Link } from 'react-router-dom';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -1198,6 +1199,12 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <ServerStatus />
+            <Link
+              to="/prediction"
+              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-xs font-semibold"
+            >
+              📊 Прогнозирование
+            </Link>
             <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Силы</button>
             <div className="flex gap-1">
               <button onClick={() => setPlacingUnit('ac')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'ac' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АЦ</button>
