@@ -9,23 +9,21 @@ async function request(endpoint: string, body: unknown, retries = 5, delayMs = 1
         body: JSON.stringify(body),
       });
       if (!response.ok) {
-        let detail = '';
+        const rawText = await response.text();
+        let detail = rawText;
         try {
-          const errJson = await response.json();
+          const errJson = JSON.parse(rawText);
           detail = errJson.detail || JSON.stringify(errJson);
         } catch {
-          detail = await response.text();
+          // не JSON — оставляем как текст
         }
-        // HTTP-ошибка — не retry, сразу выбрасываем
         throw new Error(`HTTP ${response.status}: ${detail}`);
       }
       return await response.json();
     } catch (err) {
-      // Если это HTTP-ошибка — сразу пробрасываем
       if (err instanceof Error && err.message.startsWith('HTTP ')) {
         throw err;
       }
-      // Иначе — это сеть, пробуем ещё раз
       if (i === retries - 1) throw err;
       await new Promise(r => setTimeout(r, delayMs));
     }
