@@ -281,6 +281,61 @@ export default function PredictionPage() {
               Финальный этап
             </button>
           </div>
+          
+          <button
+            onClick={handleSubmitFinal}
+            disabled={currentStage < 4 || loading || finalSubmitted}
+            className="mt-3 w-full py-2 bg-emerald-700 hover:bg-emerald-600 disabled:bg-gray-600 disabled:opacity-60 rounded font-semibold text-sm"
+          >
+            {finalSubmitted ? '✓ Результаты сохранены' : '📋 Общие итоговые результаты'}
+          </button>
+
+          {dataStatus && (
+            <div className="mt-2 text-xs text-gray-400 text-center">
+              Накоплено данных: <span className="font-mono text-white">{dataStatus.total_rows}</span> всего,
+              <span className={`font-mono ml-1 ${dataStatus.new_rows > 0 ? 'text-yellow-300' : 'text-gray-500'}`}>
+                +{dataStatus.new_rows}
+              </span> с последнего дообучения.
+              Порог авто-дообучения: <span className="font-mono text-white">{dataStatus.threshold}</span>.
+            </div>
+          )}
+
+          {finalSubmitted && (
+            <div className="mt-4 bg-gray-900 rounded-lg p-4 border border-emerald-700/50">
+              <h3 className="text-base font-semibold text-emerald-300 mb-2">📊 Итоговая сводка</h3>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Время следования:</span>
+                  <span className="font-mono">{initialParams['Время_следования_мин']} мин</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Подача первого ствола:</span>
+                  <span className="font-mono">{initialParams['Время_подачи_первого_ствола_мин']} мин</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Локализация пожара:</span>
+                  <span className="font-mono">{additionalParams['Время_локализации_пожара_мин']} мин</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Ликвидация открытого горения:</span>
+                  <span className="font-mono">{additionalParams['Время_ликвидации_открытого_горения_мин']} мин</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Ликвидация последствий:</span>
+                  <span className="font-mono">{additionalParams['Время_ликвидации_последствий_пожара_мин']} мин</span>
+                </div>
+                <div className="flex justify-between border-t border-gray-700 mt-2 pt-2">
+                  <span className="text-gray-300 font-semibold">Итого потушено за:</span>
+                  <span className="font-mono text-emerald-300 font-bold">
+                    {additionalParams['Время_локализации_пожара_мин'] +
+                     additionalParams['Время_ликвидации_открытого_горения_мин'] +
+                     additionalParams['Время_ликвидации_последствий_пожара_мин']} мин
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <p className="text-xs text-gray-400 mt-3">
             🔮 <span className="text-purple-300">Прогноз</span> — предсказание модели (время).
             ⭐ <span className="text-emerald-300">Рекомендация</span> — совет по силам (стволы, техника).
