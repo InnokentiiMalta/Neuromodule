@@ -91,6 +91,8 @@ export default function PredictionPage() {
 
   const [currentStage, setCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
   const [stageResults, setStageResults] = useLocalStorageState<(Record<string, unknown> | null)[]>('prediction_stageResults', [null, null, null, null]);
+  const [workDate, setWorkDate] = useLocalStorageState<string>('prediction_workDate', '');
+  const [workTime, setWorkTime] = useLocalStorageState<string>('prediction_workTime', '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [finalSubmitted, setFinalSubmitted] = useState(false);
@@ -188,6 +190,8 @@ export default function PredictionPage() {
     });
     setCurrentStage(0);
     setStageResults([null, null, null, null]);
+    setWorkDate('');
+    setWorkTime('');
     setFinalSubmitted(false);
     setError(null);
   };
@@ -226,7 +230,35 @@ export default function PredictionPage() {
             ))}
           </div>
         </div>
-
+        {/* Дата и время работ */}
+        <div className="bg-gray-800 rounded-lg p-4 mb-3">
+          <h2 className="text-lg font-semibold mb-3">🕐 Дата и время проведения работ</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Дата начала работ</label>
+              <input
+                type="date"
+                value={workDate}
+                onChange={(e) => setWorkDate(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Время начала работ</label>
+              <input
+                type="time"
+                value={workTime}
+                onChange={(e) => setWorkTime(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Используется для определения сезона и необходимости АСО (автомобиля связи и освещения).
+          </p>
+        </div>
         {/* Дополнительные параметры */}
         <div className="bg-gray-800 rounded-lg p-4 mb-3">
           <h2 className="text-lg font-semibold mb-4">Дополнительные параметры</h2>
