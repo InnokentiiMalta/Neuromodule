@@ -171,6 +171,27 @@ export default function PredictionPage() {
     }
   };
 
+  const handleNewFire = () => {
+    if (!confirm('Начать новый пожар? Все введённые данные будут удалены.')) return;
+    setInitialParams({
+      Время_следования_мин: 8,
+      Время_подачи_первого_ствола_мин: 1,
+      Количество_основных_пожарных_автомобилей_ед: 2,
+      Количество_специальных_пожарных_автомобилей_ед: 0,
+      Количество_пожарных_поездов_ед: 0,
+      Всего_подано_пожарных_стволов_ед: 1,
+    });
+    setAdditionalParams({
+      Время_локализации_пожара_мин: 0,
+      Время_ликвидации_открытого_горения_мин: 0,
+      Время_ликвидации_последствий_пожара_мин: 0,
+    });
+    setCurrentStage(0);
+    setStageResults([null, null, null, null]);
+    setFinalSubmitted(false);
+    setError(null);
+  };
+
   const formatValue = (v: unknown): string => {
     if (typeof v === 'number') {
       return v.toFixed(2);
@@ -282,7 +303,7 @@ export default function PredictionPage() {
               Финальный этап
             </button>
           </div>
-          
+
           <button
             onClick={handleSubmitFinal}
             disabled={currentStage < 4 || loading || finalSubmitted}
@@ -336,7 +357,16 @@ export default function PredictionPage() {
               </div>
             </div>
           )}
-          
+
+          {currentStage >= 4 && (
+            <button
+              onClick={handleNewFire}
+              className="mt-2 w-full py-2 bg-orange-700 hover:bg-orange-600 rounded font-semibold text-sm"
+            >
+              🔄 Новый пожар
+            </button>
+          )}
+
           <p className="text-xs text-gray-400 mt-3">
             🔮 <span className="text-purple-300">Прогноз</span> — предсказание модели (время).
             ⭐ <span className="text-emerald-300">Рекомендация</span> — совет по силам (стволы, техника).
