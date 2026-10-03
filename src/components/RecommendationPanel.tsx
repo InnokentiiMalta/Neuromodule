@@ -53,6 +53,7 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
           Источник: {summary.stageLabel}
         </div>
       </div>
+
       {(summary.workDate || summary.workTime) && (
         <div className="bg-sky-900/20 border border-sky-500/30 rounded-lg p-2.5">
           <div className="text-[10px] text-sky-400 font-semibold mb-1">🕐 Условия работ</div>
@@ -119,7 +120,6 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
         </div>
       )}
 
-      {/* Фактические силы — что уже введено пользователем */}
       {(actualAc > 0 || actualSpecial > 0 || actualTrains > 0) && (
         <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-2.5">
           <div className="text-[10px] text-blue-400 font-semibold mb-1">📋 Заявлено РТП</div>
