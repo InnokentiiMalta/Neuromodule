@@ -9,9 +9,9 @@ interface PredictionSummary {
   stage: number;
   stageLabel: string;
   recommendedStvols: number | null;
-  recommendedMainVehicles: number | null;
-  recommendedSpecialVehicles: number | null;
-  recommendedFireTrains: number | null;
+  actualMainVehicles: number;
+  actualSpecialVehicles: number;
+  actualFireTrains: number;
   forecastLocalization: number | null;
   forecastOpenFlame: number | null;
   forecastConsequences: number | null;
@@ -25,9 +25,9 @@ const EMPTY: PredictionSummary = {
   stage: 0,
   stageLabel: '',
   recommendedStvols: null,
-  recommendedMainVehicles: null,
-  recommendedSpecialVehicles: null,
-  recommendedFireTrains: null,
+  actualMainVehicles: 0,
+  actualSpecialVehicles: 0,
+  actualFireTrains: 0,
   forecastLocalization: null,
   forecastOpenFlame: null,
   forecastConsequences: null,
@@ -82,20 +82,22 @@ export function usePredictionSummary(): PredictionSummary {
       Object.assign(merged, r);
     }
 
-    // Рекомендации по силам — из последнего этапа, где есть значение
+    // Рекомендация модели — только по стволам
     let recommendedStvols: number | null = null;
-    let recommendedMainVehicles: number | null = null;
-    let recommendedSpecialVehicles: number | null = null;
-    let recommendedFireTrains: number | null = null;
-
     for (let i = currentStage - 1; i >= 0; i--) {
       const r = stageResults[i];
       if (!r) continue;
-      if (recommendedStvols === null) recommendedStvols = pickNumber(r, 'Всего_подано_пожарных_стволов_ед');
-      if (recommendedMainVehicles === null) recommendedMainVehicles = pickNumber(r, 'Количество_основных_пожарных_автомобилей_ед');
-      if (recommendedSpecialVehicles === null) recommendedSpecialVehicles = pickNumber(r, 'Количество_специальных_пожарных_автомобилей_ед');
-      if (recommendedFireTrains === null) recommendedFireTrains = pickNumber(r, 'Количество_пожарных_поездов_ед');
+      const v = pickNumber(r, 'Всего_подано_пожарных_стволов_ед');
+      if (v !== null) {
+        recommendedStvols = v;
+        break;
+      }
     }
+
+    // Фактические данные о силах — из того, что ввёл пользователь
+    const actualMainVehicles = Number(initialParams['Количество_основных_пожарных_автомобилей_ед'] ?? 0);
+    const actualSpecialVehicles = Number(initialParams['Количество_специальных_пожарных_автомобилей_ед'] ?? 0);
+    const actualFireTrains = Number(initialParams['Количество_пожарных_поездов_ед'] ?? 0);
 
     // Прогноз времени — по объединённым данным
     const forecastLocalization = pickNumber(merged, 'Время_локализации_пожара_мин');
@@ -110,9 +112,9 @@ export function usePredictionSummary(): PredictionSummary {
       stage: currentStage,
       stageLabel,
       recommendedStvols,
-      recommendedMainVehicles,
-      recommendedSpecialVehicles,
-      recommendedFireTrains,
+      actualMainVehicles,
+      actualSpecialVehicles,
+      actualFireTrains,
       forecastLocalization,
       forecastOpenFlame,
       forecastConsequences,
