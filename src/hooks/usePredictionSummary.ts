@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { checkAsoNeeded, formatHour, getSeasonName } from '../utils/sunsetCalculator';
 
 interface StageResult {
   [key: string]: unknown;
@@ -18,6 +19,14 @@ interface PredictionSummary {
   forecastExtinguishTotal: number | null;
   initialParams: Record<string, number>;
   additionalParams: Record<string, number>;
+  // --- Итерация 7: АСО ---
+  workDate: string;
+  workTime: string;
+  seasonName: string;
+  needsAso: boolean;
+  asoReason: string;
+  sunsetTime: string;
+  sunriseTime: string;
 }
 
 const EMPTY: PredictionSummary = {
@@ -34,6 +43,13 @@ const EMPTY: PredictionSummary = {
   forecastExtinguishTotal: null,
   initialParams: {},
   additionalParams: {},
+  workDate: '',
+  workTime: '',
+  seasonName: '',
+  needsAso: false,
+  asoReason: '',
+  sunsetTime: '',
+  sunriseTime: '',
 };
 
 function safeParse<T>(raw: string | null, fallback: T): T {
@@ -68,6 +84,8 @@ export function usePredictionSummary(): PredictionSummary {
       localStorage.getItem('prediction_additionalParams'),
       {}
     );
+    const workDate = localStorage.getItem('prediction_workDate') || '';
+    const workTime = localStorage.getItem('prediction_workTime') || '';
 
     if (currentStage < 1 || !stageResults[0]) {
       setSummary(EMPTY);
@@ -107,6 +125,11 @@ export function usePredictionSummary(): PredictionSummary {
 
     const stageLabel = currentStage === 4 ? 'Финальный' : `Этап ${currentStage}`;
 
+    // --- Итерация 7: АСО ---
+    const totalForecast = forecastExtinguishTotal ?? 0;
+    const asoCheck = checkAsoNeeded(workDate, workTime, totalForecast);
+    const seasonName = workDate ? getSeasonName(new Date(workDate).getMonth()) : '';
+
     setSummary({
       hasData: true,
       stage: currentStage,
@@ -121,8 +144,12 @@ export function usePredictionSummary(): PredictionSummary {
       forecastExtinguishTotal,
       initialParams,
       additionalParams,
+      workDate,
+      workTime,
+      seasonName,
+      needsAso: asoCheck.needsAso,
+      asoReason: asoCheck.reason,
+      sunsetTime: formatHour(asoCheck.sunsetHour),
+      sunriseTime: formatHour(asoCheck.sunriseHour),
     });
   }, []);
-
-  return summary;
-}
