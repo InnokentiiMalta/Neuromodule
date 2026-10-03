@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { predictStage } from '../api/backend';
+import { predictStage, sendFinalData, getDataStatus } from '../api/backend';
 
 interface InitialParams {
   Время_следования_мин: number;
@@ -92,6 +92,16 @@ export default function PredictionPage() {
   const [stageResults, setStageResults] = useState<(Record<string, unknown> | null)[]>([null, null, null, null]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [finalSubmitted, setFinalSubmitted] = useState(false);
+  const [dataStatus, setDataStatus] = useState<{ total_rows: number; new_rows: number; threshold: number } | null>(null);
+
+  useEffect(() => {
+    const loadStatus = async () => {
+      const status = await getDataStatus();
+      if (status) setDataStatus(status);
+    };
+    loadStatus();
+  }, [finalSubmitted]);
 
   const handleInitialChange = (key: keyof InitialParams, value: string) => {
     setInitialParams(prev => ({ ...prev, [key]: Number(value) || 0 }));
@@ -129,6 +139,30 @@ export default function PredictionPage() {
         return newResults;
       });
       setCurrentStage(prev => Math.max(prev, stage + 1));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitFinal = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const finalData: Record<string, number> = {
+        ...initialParams,
+        'Время_локализации_пожара_мин': additionalParams['Время_локализации_пожара_мин'],
+        'Время_ликвидации_открытого_горения_мин': additionalParams['Время_ликвидации_открытого_горения_мин'],
+        'Время_ликвидации_последствий_пожара_мин': additionalParams['Время_ликвидации_последствий_пожара_мин'],
+      };
+      finalData['Время_тушения_мин'] =
+        additionalParams['Время_локализации_пожара_мин'] +
+        additionalParams['Время_ликвидации_открытого_горения_мин'];
+
+      const result = await sendFinalData(finalData);
+      console.log('[submitFinal] Server response:', result);
+      setFinalSubmitted(true);
     } catch (err) {
       setError((err as Error).message);
     } finally {
