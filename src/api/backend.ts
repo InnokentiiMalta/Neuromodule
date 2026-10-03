@@ -47,6 +47,16 @@ export function getMedianValues(filterParams: unknown) {
   return request('/median_values', filterParams);
 }
 
-export function sendFinalData(data: unknown) {
-  return request('/data', data);
+export async function sendFinalData(data: Record<string, number>) {
+  return request('/data', data, 1, 0);
+}
+
+export async function getDataStatus() {
+  try {
+    const response = await fetch(`${BASE_URL}/data/status`, { method: 'GET' });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
