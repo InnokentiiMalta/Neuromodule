@@ -66,6 +66,18 @@ function pickNumber(obj: Record<string, unknown> | null, key: string): number | 
   return typeof v === 'number' ? v : null;
 }
 
+function isValidDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s);
+  return !isNaN(d.getTime());
+}
+
+function isValidTime(s: string): boolean {
+  if (!/^\d{2}:\d{2}$/.test(s)) return false;
+  const [hh, mm] = s.split(':').map(Number);
+  return hh >= 0 && hh < 24 && mm >= 0 && mm < 60;
+}
+
 export function usePredictionSummary(): PredictionSummary {
   const [summary, setSummary] = useState<PredictionSummary>(EMPTY);
 
@@ -83,8 +95,10 @@ export function usePredictionSummary(): PredictionSummary {
       localStorage.getItem('prediction_additionalParams'),
       {}
     );
-    const workDate = localStorage.getItem('prediction_workDate') || '';
-    const workTime = localStorage.getItem('prediction_workTime') || '';
+    const rawDate = localStorage.getItem('prediction_workDate') || '';
+    const rawTime = localStorage.getItem('prediction_workTime') || '';
+    const workDate = isValidDate(rawDate) ? rawDate : '';
+    const workTime = isValidTime(rawTime) ? rawTime : '';
 
     if (currentStage < 1 || !stageResults[0]) {
       setSummary(EMPTY);
