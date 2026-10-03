@@ -32,6 +32,46 @@ const ADDITIONAL_FIELDS = [
   { key: 'Время_ликвидации_последствий_пожара_мин', label: 'Время ликвидации последствий (мин)' },
 ];
 
+// Ключи, которые модель рекомендует (силы и средства)
+const RECOMMENDED_KEYS = new Set([
+  'Всего_подано_пожарных_стволов_ед',
+  'Количество_основных_пожарных_автомобилей_ед',
+  'Количество_специальных_пожарных_автомобилей_ед',
+  'Количество_пожарных_поездов_ед',
+]);
+
+// Ключи, которые модель прогнозирует (время)
+const FORECAST_KEYS = new Set([
+  'Время_локализации_пожара_мин',
+  'Время_ликвидации_открытого_горения_мин',
+  'Время_ликвидации_последствий_пожара_мин',
+  'Время_тушения_мин',
+]);
+
+// Красивые названия
+const PARAM_LABELS: Record<string, string> = {
+  'Время_локализации_пожара_мин': 'Время локализации пожара',
+  'Время_ликвидации_открытого_горения_мин': 'Время ликвидации открытого горения',
+  'Время_ликвидации_последствий_пожара_мин': 'Время ликвидации последствий',
+  'Время_тушения_мин': 'Общее время тушения',
+  'Всего_подано_пожарных_стволов_ед': 'Всего подано стволов',
+  'Количество_основных_пожарных_автомобилей_ед': 'Основных ПА',
+  'Количество_специальных_пожарных_автомобилей_ед': 'Специальных ПА',
+  'Количество_пожарных_поездов_ед': 'Пожарных поездов',
+};
+
+// Порядок вывода
+const PARAM_ORDER = [
+  'Время_локализации_пожара_мин',
+  'Время_ликвидации_открытого_горения_мин',
+  'Время_ликвидации_последствий_пожара_мин',
+  'Время_тушения_мин',
+  'Всего_подано_пожарных_стволов_ед',
+  'Количество_основных_пожарных_автомобилей_ед',
+  'Количество_специальных_пожарных_автомобилей_ед',
+  'Количество_пожарных_поездов_ед',
+];
+
 export default function PredictionPage() {
   const [initialParams, setInitialParams] = useState<InitialParams>({
     Время_следования_мин: 8,
@@ -207,6 +247,10 @@ export default function PredictionPage() {
               Финальный этап
             </button>
           </div>
+          <p className="text-xs text-gray-400 mt-3">
+            🔮 <span className="text-purple-300">Прогноз</span> — предсказание модели (время).
+            ⭐ <span className="text-emerald-300">Рекомендация</span> — совет по силам (стволы, техника).
+          </p>
         </div>
 
         {/* Ошибки */}
@@ -238,18 +282,77 @@ export default function PredictionPage() {
         <div className="space-y-3">
           {stageResults.map((result, idx) => {
             if (!result) return null;
+
+            const stageLabel = idx === 3 ? 'Финальный этап' : `Этап ${idx + 1}`;
+
+            // Текущее фактическое значение стволов (то, что ввёл пользователь)
+            const actualStvols = initialParams['Всего_подано_пожарных_стволов_ед'];
+
+            // Рекомендуемое значение стволов из прогноза модели
+            const recommendedStvols = result['Всего_подано_пожарных_стволов_ед'];
+
             return (
               <div key={idx} className="bg-gray-800 rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-3">
-                  {idx === 3 ? 'Финальный этап' : `Этап ${idx + 1}`}
-                </h3>
-                <div className="space-y-2">
-                  {Object.entries(result).map(([key, value]) => (
-                    <div key={key} className="flex justify-between text-sm">
-                      <span className="text-gray-400">{key}:</span>
-                      <span className="text-white font-mono">{formatValue(value)}</span>
+                <h3 className="text-lg font-semibold mb-3">{stageLabel}</h3>
+
+                {/* Плашка со сравнением стволов, если есть рекомендация */}
+                {idx < 3 && typeof recommendedStvols === 'number' && (
+                  <div className={`mb-3 p-2 rounded border ${
+                    recommendedStvols > actualStvols
+                      ? 'bg-orange-900/30 border-orange-500/50'
+                      : recommendedStvols < actualStvols
+                        ? 'bg-green-900/30 border-green-500/50'
+                        : 'bg-blue-900/30 border-blue-500/50'
+                  }`}>
+                    <div className="text-sm flex justify-between items-center">
+                      <span className="text-gray-300">
+                        📊 Фактически подано: <span className="font-mono font-bold">{actualStvols}</span> ств.
+                      </span>
+                      <span className={`font-mono font-bold ${
+                        recommendedStvols > actualStvols ? 'text-orange-300' :
+                        recommendedStvols < actualStvols ? 'text-green-300' : 'text-blue-300'
+                      }`}>
+                        ⭐ Рекомендуется: {recommendedStvols} ств.
+                        {recommendedStvols > actualStvols && ' ▲ увеличить'}
+                        {recommendedStvols < actualStvols && ' ▼ уменьшить'}
+                        {recommendedStvols === actualStvols && ' ✓ достаточно'}
+                      </span>
                     </div>
-                  ))}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {PARAM_ORDER.filter(key => key in result).map((key) => {
+                    const value = result[key];
+                    const isRecommended = RECOMMENDED_KEYS.has(key);
+                    const isForecast = FORECAST_KEYS.has(key);
+                    const label = PARAM_LABELS[key] || key;
+
+                    // Плашка типа
+                    let tag = null;
+                    if (isForecast) {
+                      tag = <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 ml-2">🔮 прогноз</span>;
+                    } else if (isRecommended) {
+                      tag = <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200 ml-2">⭐ рекомендация</span>;
+                    }
+
+                    return (
+                      <div key={key} className="flex justify-between items-center text-sm py-1 border-b border-gray-700/50">
+                        <span className="text-gray-400 flex items-center">
+                          {label}
+                          {tag}
+                        </span>
+                        <span className={`font-mono font-semibold ${
+                          isForecast ? 'text-purple-200' : isRecommended ? 'text-emerald-200' : 'text-white'
+                        }`}>
+                          {formatValue(value)}
+                          {isForecast && ' мин'}
+                          {key === 'Всего_подано_пожарных_стволов_ед' && ' ств.'}
+                          {(key.includes('автомобилей') || key.includes('поездов')) && ' ед.'}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
