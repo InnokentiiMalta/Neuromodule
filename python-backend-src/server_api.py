@@ -11,6 +11,115 @@ import sys
 from cryptography.fernet import Fernet
 from fastapi.middleware.cors import CORSMiddleware
 import traceback
+import shutil
+import json
+import threading
+from datetime import datetime
+
+
+# --- User-data директория ---
+_state_lock = threading.Lock()
+
+def get_user_data_dir():
+    """Директория для изменяемых данных. Electron передаёт через переменную окружения."""
+    user_dir = os.environ.get("USER_DATA_DIR")
+    if user_dir:
+        os.makedirs(user_dir, exist_ok=True)
+        return user_dir
+    fallback = os.path.join(os.path.expanduser("~"), ".neuromodule")
+    os.makedirs(fallback, exist_ok=True)
+    return fallback
+
+
+# --- Путь к CSV (с копированием bundled при первом запуске) ---
+def get_writable_csv_path():
+    """Путь к user-data версии CSV. При первом обращении копирует bundled."""
+    user_path = os.path.join(get_user_data_dir(), "fire_data_test_encrypted.bin")
+    if not os.path.exists(user_path):
+        bundled = resource_path("fire_data_test_encrypted.bin")
+        shutil.copy(bundled, user_path)
+    return user_path
+
+
+def get_writable_key_path():
+    """Аналогично для ключа шифрования."""
+    user_path = os.path.join(get_user_data_dir(), "encryption_key.key")
+    if not os.path.exists(user_path):
+        bundled = resource_path("encryption_key.key")
+        shutil.copy(bundled, user_path)
+    return user_path
+
+
+# --- Счётчик строк в CSV ---
+def _count_csv_rows() -> int:
+    try:
+        csv_path = get_writable_csv_path()
+        key_path = get_writable_key_path()
+        with open(key_path, "rb") as kf:
+            key = kf.read()
+        fernet = Fernet(key)
+        with open(csv_path, "rb") as f:
+            encrypted = f.read()
+        decrypted = fernet.decrypt(encrypted)
+        lines = decrypted.decode("utf-8").splitlines()
+        return max(0, len(lines) - 1)  # минус заголовок
+    except Exception as e:
+        print(f"[CSV COUNT ERROR] {e}", flush=True)
+        return 0
+
+
+# --- Состояние дообучения ---
+def _load_retrain_state():
+    path = os.path.join(get_user_data_dir(), "retrain_state.json")
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "rows_at_last_retrain": 0,
+        "threshold": 50,
+        "last_retrain_at": None,
+        "retrain_count": 0,
+    }
+
+
+def _save_retrain_state(state):
+    path = os.path.join(get_user_data_dir(), "retrain_state.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+
+
+# --- Добавление строки в CSV ---
+COLUMN_ORDER = [
+    'Время_следования_мин', 'Время_подачи_первого_ствола_мин',
+    'Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
+    'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин',
+    'Количество_основных_пожарных_автомобилей_ед',
+    'Количество_специальных_пожарных_автомобилей_ед',
+    'Количество_пожарных_поездов_ед', 'Всего_подано_пожарных_стволов_ед',
+]
+
+def _append_row_to_csv(data: dict):
+    """Добавляет строку в CSV. data — dict с ключами из COLUMN_ORDER."""
+    csv_path = get_writable_csv_path()
+    key_path = get_writable_key_path()
+    with open(key_path, "rb") as kf:
+        key = kf.read()
+    fernet = Fernet(key)
+    with open(csv_path, "rb") as f:
+        encrypted = f.read()
+    decrypted = fernet.decrypt(encrypted).decode("utf-8")
+
+    row = [str(data.get(col, 0)) for col in COLUMN_ORDER]
+    new_row = ",".join(row) + "\n"
+    updated = decrypted.rstrip("\n") + "\n" + new_row
+
+    encrypted_updated = fernet.encrypt(updated.encode("utf-8"))
+    with open(csv_path, "wb") as f:
+        f.write(encrypted_updated)
+
 
 app = FastAPI()
 
