@@ -23,16 +23,20 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
   }
 
   const stvols = summary.recommendedStvols ?? 0;
-  const ac = summary.recommendedMainVehicles ?? 0;
-  const special = summary.recommendedSpecialVehicles ?? 0;
-  const trains = summary.recommendedFireTrains ?? 0;
-  // Разложение специальных ПА: АСО при тёмном времени (пока без даты — весь в АСА)
-  // TODO: учесть дату/время в итерации 7
-  const asa = special;
-  const aso = 0;
+
+  // Расчёт рекомендуемой техники на основе стволов
+  // По боевому уставу: ~2 ствола РСК-50 на один АЦ-40
+  const recommendedAc = stvols > 0 ? Math.ceil(stvols / 2) : 0;
+
+  // Личный состав: 3 чел. на ствол (ствольщик + подствольщик + на разветвлении) + резерв
+  const recommendedPersonnel = stvols > 0 ? stvols * 3 + 3 : 0;
+
+  // Фактические данные (что ввёл пользователь)
+  const actualAc = summary.actualMainVehicles;
+  const actualSpecial = summary.actualSpecialVehicles;
+  const actualTrains = summary.actualFireTrains;
+
   const totalFlow = stvols * RSK_50_FLOW;
-  // Л/с: 3 человека на ствол (ствольщик + подствольщик + на разветвлении)
-  const personnel = stvols * 3 + ac + asa + aso;
 
   const formatTime = (v: number | null): string => (v === null ? '—' : `${v.toFixed(2)} мин`);
 
@@ -52,39 +56,51 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
           <div className="text-[10px] text-orange-400 font-semibold mb-1">🎯 Силы и средства</div>
           <div className="space-y-1 text-[11px]">
             <div className="flex justify-between">
-              <span className="text-gray-300">Стволов (РСК-50):</span>
+              <span className="text-gray-300">⭐ Стволов (РСК-50):</span>
               <span className="font-mono font-bold text-orange-200">{stvols}</span>
             </div>
             <div className="flex justify-between text-[10px] text-gray-500 pl-3">
               <span>≈ расход воды:</span>
               <span className="font-mono">{totalFlow.toFixed(1)} л/с</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-300">Основных ПА (АЦ):</span>
-              <span className="font-mono text-orange-200">{ac}</span>
+            <div className="border-t border-orange-700/30 mt-1 pt-1">
+              <div className="text-[9px] text-orange-300/70 mb-1">Расчёт по стволам:</div>
+              <div className="flex justify-between">
+                <span className="text-gray-300">АЦ-40:</span>
+                <span className="font-mono text-orange-200">≈ {recommendedAc}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-300">Л/с (расчёт):</span>
+                <span className="font-mono text-orange-200">≈ {recommendedPersonnel}</span>
+              </div>
             </div>
-            {asa > 0 && (
+          </div>
+        </div>
+      )}
+
+      {/* Фактические силы — что уже введено пользователем */}
+      {(actualAc > 0 || actualSpecial > 0 || actualTrains > 0) && (
+        <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-2.5">
+          <div className="text-[10px] text-blue-400 font-semibold mb-1">📋 Заявлено РТП</div>
+          <div className="space-y-1 text-[11px]">
+            {actualAc > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-300">АСА:</span>
-                <span className="font-mono text-orange-200">{asa}</span>
+                <span className="text-gray-300">АЦ:</span>
+                <span className="font-mono text-blue-200">{actualAc}</span>
               </div>
             )}
-            {aso > 0 && (
+            {actualSpecial > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-300">АСО:</span>
-                <span className="font-mono text-orange-200">{aso}</span>
+                <span className="text-gray-300">Спец. ПА (АСА/АСО):</span>
+                <span className="font-mono text-blue-200">{actualSpecial}</span>
               </div>
             )}
-            {trains > 0 && (
+            {actualTrains > 0 && (
               <div className="flex justify-between">
                 <span className="text-gray-300">Пожарных поездов:</span>
-                <span className="font-mono text-orange-200">{trains}</span>
+                <span className="font-mono text-blue-200">{actualTrains}</span>
               </div>
             )}
-            <div className="flex justify-between border-t border-orange-700/30 pt-1 mt-1">
-              <span className="text-gray-300">Л/с (оценка):</span>
-              <span className="font-mono text-orange-200">{personnel}</span>
-            </div>
           </div>
         </div>
       )}
@@ -126,7 +142,12 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
 
       {stvols > 0 && (
         <button
-          onClick={() => onApply({ ac, al: asa, asr: aso, personnel })}
+          onClick={() => onApply({
+            ac: recommendedAc,
+            al: actualSpecial > 0 ? actualSpecial : 0,
+            asr: 0,
+            personnel: recommendedPersonnel,
+          })}
           className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-xs font-semibold"
         >
           ⚡ Заполнить рекомендациями
