@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 import torch
 import torch.nn as nn  # Добавлен импорт torch.nn
 import pickle
@@ -20,6 +21,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    tb = traceback.format_exc()
+    print(f"[UNHANDLED] {tb}", flush=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Необработанная ошибка: {type(exc).__name__}: {str(exc)}\n{tb}"}
+    )
 
 def resource_path(relative_path):
     try:
