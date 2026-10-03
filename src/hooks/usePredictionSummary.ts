@@ -19,7 +19,6 @@ interface PredictionSummary {
   forecastExtinguishTotal: number | null;
   initialParams: Record<string, number>;
   additionalParams: Record<string, number>;
-  // --- Итерация 7: АСО ---
   workDate: string;
   workTime: string;
   seasonName: string;
@@ -153,3 +152,6 @@ export function usePredictionSummary(): PredictionSummary {
       sunriseTime: formatHour(asoCheck.sunriseHour),
     });
   }, []);
+
+  return summary;
+}
