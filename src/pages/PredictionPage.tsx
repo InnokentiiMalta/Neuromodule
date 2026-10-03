@@ -467,6 +467,30 @@ export default function PredictionPage() {
                   </div>
                 )}
 
+                {/* Рекомендуемые силы на этот этап */}
+                {typeof recommendedStvols === 'number' && recommendedStvols > 0 && (
+                  <div className="mb-3 p-2 rounded border border-orange-500/30 bg-orange-900/20">
+                    <div className="text-[10px] text-orange-400 font-semibold mb-1">🚒 Рекомендуемые силы на этап</div>
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 text-[9px]">Стволов РСК-50</span>
+                        <span className="font-mono font-bold text-orange-200">{recommendedStvols}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 text-[9px]">АЦ-40 ≈</span>
+                        <span className="font-mono font-bold text-orange-200">{Math.ceil(recommendedStvols / 2)}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 text-[9px]">Л/с ≈</span>
+                        <span className="font-mono font-bold text-orange-200">{recommendedStvols * 3 + 3}</span>
+                      </div>
+                    </div>
+                    <div className="text-[9px] text-orange-300/60 mt-1">
+                      Расчёт по боевому уставу: 2 ствола на АЦ-40, 3 чел./ствол + резерв
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   {PARAM_ORDER.filter(key => key in result).map((key) => {
                     const value = result[key];
