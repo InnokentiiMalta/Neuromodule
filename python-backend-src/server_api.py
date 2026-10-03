@@ -145,11 +145,12 @@ def predict_fire_parameters(model, scalers, y_scalers, input_data, stage):
         result = {}
         if stage < 3:
             for i, col in enumerate(output_features[stage][:-1]):
-                result[col] = y_scalers[col].inverse_transform(reg_pred[:, i:i+1])[0, 0]
+                val = float(y_scalers[col].inverse_transform(reg_pred[:, i:i+1])[0, 0])
                 if col in ['Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
                            'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин']:
-                    result[col] = max(1.0, min(result[col], 60.0))
-        result['Всего_подано_пожарных_стволов_ед'] = cls_pred
+                    val = max(1.0, min(val, 60.0))
+                result[col] = float(val)
+        result['Всего_подано_пожарных_стволов_ед'] = int(cls_pred)
         if stage == 2:
             result['Время_тушения_мин'] = (
                 input_data['Время_локализации_пожара_мин'] +
