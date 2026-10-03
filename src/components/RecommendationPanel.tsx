@@ -36,6 +36,9 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
   const actualSpecial = summary.actualSpecialVehicles;
   const actualTrains = summary.actualFireTrains;
 
+  // --- Итерация 7: АСО ---
+  const asoRecommended = summary.needsAso ? 1 : 0;
+
   const totalFlow = stvols * RSK_50_FLOW;
 
   const formatTime = (v: number | null): string => (v === null ? '—' : `${v.toFixed(2)} мин`);
@@ -50,6 +53,44 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
           Источник: {summary.stageLabel}
         </div>
       </div>
+      {(summary.workDate || summary.workTime) && (
+        <div className="bg-sky-900/20 border border-sky-500/30 rounded-lg p-2.5">
+          <div className="text-[10px] text-sky-400 font-semibold mb-1">🕐 Условия работ</div>
+          <div className="space-y-1 text-[11px]">
+            {summary.seasonName && (
+              <div className="flex justify-between">
+                <span className="text-gray-300">Сезон:</span>
+                <span className="text-sky-200">{summary.seasonName}</span>
+              </div>
+            )}
+            {summary.workDate && summary.workTime && (
+              <div className="flex justify-between">
+                <span className="text-gray-300">Начало:</span>
+                <span className="font-mono text-sky-200">{summary.workTime}</span>
+              </div>
+            )}
+            {summary.sunsetTime && (
+              <div className="flex justify-between text-[10px]">
+                <span className="text-gray-400">Закат ≈</span>
+                <span className="font-mono text-gray-400">{summary.sunsetTime}</span>
+              </div>
+            )}
+            {summary.sunriseTime && (
+              <div className="flex justify-between text-[10px]">
+                <span className="text-gray-400">Рассвет ≈</span>
+                <span className="font-mono text-gray-400">{summary.sunriseTime}</span>
+              </div>
+            )}
+            <div className={`mt-1 pt-1 border-t border-sky-700/30 text-[10px] ${
+              summary.needsAso ? 'text-amber-300' : 'text-emerald-300'
+            }`}>
+              {summary.needsAso
+                ? `💡 Нужен АСО — ${summary.asoReason.toLowerCase()}`
+                : `☀️ АСО не требуется — ${summary.asoReason.toLowerCase()}`}
+            </div>
+          </div>
+        </div>
+      )}
 
       {stvols > 0 && (
         <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-2.5">
@@ -145,7 +186,7 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
           onClick={() => onApply({
             ac: recommendedAc,
             al: actualSpecial > 0 ? actualSpecial : 0,
-            asr: 0,
+            asr: asoRecommended,
             personnel: recommendedPersonnel,
           })}
           className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-xs font-semibold"
