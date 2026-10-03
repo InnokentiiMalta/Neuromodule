@@ -295,10 +295,47 @@ async def predict(data: dict):
 @app.post("/data")
 async def receive_data(data: dict):
     try:
-        print(f"Получены данные от клиента: {data}")
-        return {"status": "success", "message": "Данные получены"}
+        with _state_lock:
+            _append_row_to_csv(data)
+            total = _count_csv_rows()
+            state = _load_retrain_state()
+            new_rows = total - state["rows_at_last_retrain"]
+            threshold = state["threshold"]
+
+        auto_retrain_pending = new_rows >= threshold
+        print(f"[DATA] Saved row. Total={total}, new={new_rows}/{threshold}", flush=True)
+
+        return {
+            "status": "success",
+            "total_rows": total,
+            "new_rows": new_rows,
+            "threshold": threshold,
+            "auto_retrain_pending": auto_retrain_pending,
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка обработки данных: {str(e)}")
+        tb = traceback.format_exc()
+        print(f"[DATA ERROR] {tb}", flush=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка сохранения: {type(e).__name__}: {str(e)}\n{tb}"
+        )
+
+
+@app.get("/data/status")
+async def data_status():
+    try:
+        total = _count_csv_rows()
+        state = _load_retrain_state()
+        new_rows = total - state["rows_at_last_retrain"]
+        return {
+            "total_rows": total,
+            "new_rows": new_rows,
+            "threshold": state["threshold"],
+            "retrain_count": state["retrain_count"],
+            "last_retrain_at": state["last_retrain_at"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/median_values")
 async def get_median_values(filter_params: dict):
