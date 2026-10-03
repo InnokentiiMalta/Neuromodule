@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 import torch
 import torch.nn as nn  # Добавлен импорт torch.nn
 import pickle
@@ -20,6 +21,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    tb = traceback.format_exc()
+    print(f"[UNHANDLED] {tb}", flush=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Необработанная ошибка: {type(exc).__name__}: {str(exc)}\n{tb}"}
+    )
 
 def resource_path(relative_path):
     try:
@@ -145,11 +155,12 @@ def predict_fire_parameters(model, scalers, y_scalers, input_data, stage):
         result = {}
         if stage < 3:
             for i, col in enumerate(output_features[stage][:-1]):
-                result[col] = y_scalers[col].inverse_transform(reg_pred[:, i:i+1])[0, 0]
+                val = float(y_scalers[col].inverse_transform(reg_pred[:, i:i+1])[0, 0])
                 if col in ['Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
                            'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин']:
-                    result[col] = max(1.0, min(result[col], 60.0))
-        result['Всего_подано_пожарных_стволов_ед'] = cls_pred
+                    val = max(1.0, min(val, 60.0))
+                result[col] = float(val)
+        result['Всего_подано_пожарных_стволов_ед'] = int(cls_pred)
         if stage == 2:
             result['Время_тушения_мин'] = (
                 input_data['Время_локализации_пожара_мин'] +
