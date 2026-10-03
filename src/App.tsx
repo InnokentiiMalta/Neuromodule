@@ -3,8 +3,8 @@ import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, Availa
 import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
 import html2canvas from 'html2canvas';
 import ServerStatus from './components/ServerStatus';
+import RecommendationPanel from './components/RecommendationPanel';
 import { APP_VERSION } from './version';
-import { Link } from 'react-router-dom';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -163,45 +163,32 @@ function isPointInBlockingObstacle(x: number, y: number, obstacles: Obstacle[], 
   return false;
 }
 
-// Hose routing - shortest path from unit to fire
 // Функция для генерации точек пятиугольника автомобиля (кабина + кузов + насос)
 // Согласно боевому уставу: темный квадратик - насос, острый угол - кабина
 function getFireTruckPoints(x: number, y: number, angle: number): string {
-  // Автомобиль в масштабе: длина ~16 единиц (8м), ширина ~5 единиц (2.5м)
   const truckLength = 16;
   const truckWidth = 5;
   
-  // Определяем направление кабины в зависимости от угла
-  // Угол 0° - автомобиль смотрит вправо, кабина справа
-  // Угол 90° - смотрит вниз
-  // Угол 180° - смотрит влево, кабина слева
-  // Угол 270° - смотрит вверх
-  
-  // Нормализуем угол
   const normalizedAngle = ((angle % 360) + 360) % 360;
-  
-  // Определяем, с какой стороны кабина (острый угол)
   const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
   
   let points: Array<{x: number, y: number}>;
   
   if (isCabinRight) {
-    // Кабина справа (острый угол справа)
     points = [
-      { x: x - truckLength/2, y: y - truckWidth/2 }, // верхний левый (насос)
-      { x: x - truckLength/2, y: y + truckWidth/2 }, // нижний левый (насос)
-      { x: x + truckLength/2 - 2, y: y + truckWidth/2 }, // нижний правый
-      { x: x + truckLength/2 + 2, y: y }, // острый угол кабины (справа)
-      { x: x + truckLength/2 - 2, y: y - truckWidth/2 }, // верхний правый
+      { x: x - truckLength/2, y: y - truckWidth/2 },
+      { x: x - truckLength/2, y: y + truckWidth/2 },
+      { x: x + truckLength/2 - 2, y: y + truckWidth/2 },
+      { x: x + truckLength/2 + 2, y: y },
+      { x: x + truckLength/2 - 2, y: y - truckWidth/2 },
     ];
   } else {
-    // Кабина слева (острый угол слева)
     points = [
-      { x: x - truckLength/2 - 2, y: y }, // острый угол кабины (слева)
-      { x: x - truckLength/2 + 2, y: y + truckWidth/2 }, // нижний левый
-      { x: x + truckLength/2, y: y + truckWidth/2 }, // нижний правый (насос)
-      { x: x + truckLength/2, y: y - truckWidth/2 }, // верхний правый (насос)
-      { x: x - truckLength/2 + 2, y: y - truckWidth/2 }, // верхний левый
+      { x: x - truckLength/2 - 2, y: y },
+      { x: x - truckLength/2 + 2, y: y + truckWidth/2 },
+      { x: x + truckLength/2, y: y + truckWidth/2 },
+      { x: x + truckLength/2, y: y - truckWidth/2 },
+      { x: x - truckLength/2 + 2, y: y - truckWidth/2 },
     ];
   }
   
@@ -210,29 +197,20 @@ function getFireTruckPoints(x: number, y: number, angle: number): string {
 
 // Функция для получения координат насоса автомобиля (внутри контура автомобиля)
 function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHeight: number, angle: number): { x: number; y: number } {
-  // Реальные размеры автомобиля (как в getFireTruckPoints)
   const truckLength = 16;
   
-  // Центр автомобиля (unitX, unitY - это верхний левый угол bounding box)
   const centerX = unitX + unitWidth / 2;
   const centerY = unitY + unitHeight / 2;
   
-  // Нормализуем угол (угол указывает направление от автомобиля к пожару)
   const normalizedAngle = ((angle % 360) + 360) % 360;
   
-  // Насос находится с той стороны автомобиля, которая обращена к пожару
-  // Это обеспечивает, что рукав начинается непосредственно у автомобиля
   if (normalizedAngle >= 315 || normalizedAngle < 45) {
-    // Пожар справа - насос справа
     return { x: centerX + truckLength / 2 - 1, y: centerY };
   } else if (normalizedAngle >= 45 && normalizedAngle < 135) {
-    // Пожар снизу - насос снизу
     return { x: centerX, y: centerY + 2 };
   } else if (normalizedAngle >= 135 && normalizedAngle < 225) {
-    // Пожар слева - насос слева
     return { x: centerX - truckLength / 2 + 1, y: centerY };
   } else {
-    // Пожар сверху - насос сверху
     return { x: centerX, y: centerY - 2 };
   }
 }
@@ -249,46 +227,38 @@ function routeHoseAlongCorridor(
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
   
-  // Получаем координаты насоса (пользовательские или расчётные)
   const pumpPos = customPumpPos || (unitAngle !== undefined ? getPumpPosition(unitX, unitY, unitWidth, unitHeight, unitAngle) : { x: unitCenterX, y: unitCenterY });
   
   const angleToFire = Math.atan2(fireY - pumpPos.y, fireX - pumpPos.x);
   const distToFire = Math.sqrt((pumpPos.x - fireX) ** 2 + (pumpPos.y - fireY) ** 2);
-  // Branch point: must be at least 30m (60 units) from tracks, max 40m (80 units) from unit
-  const TRACK_TOP = 298; // 1.6m = 3.2 units gap between rails
+  const TRACK_TOP = 298;
   const TRACK_BOTTOM = 302;
-  const MIN_BRANCH_DISTANCE_FROM_TRACKS = 60; // 30m = 60 SVG units
-  const MAX_BRANCH_DISTANCE_FROM_UNIT = 80; // 40m = 80 SVG units
+  const MIN_BRANCH_DISTANCE_FROM_TRACKS = 60;
+  const MAX_BRANCH_DISTANCE_FROM_UNIT = 80;
   
   let branchX: number, branchY: number;
   if (customBranchPoint) {
     branchX = customBranchPoint.x;
     branchY = customBranchPoint.y;
   } else {
-    // Calculate initial branch position
     const branchDist = Math.min(distToFire * 0.7, MAX_BRANCH_DISTANCE_FROM_UNIT);
     branchX = pumpPos.x + Math.cos(angleToFire) * branchDist;
     branchY = pumpPos.y + Math.sin(angleToFire) * branchDist;
     
-    // Determine which side of tracks the unit is on
     const unitAboveTracks = unitCenterY < TRACK_TOP;
     
-    // Ensure branch is on same side as unit and at least 30m from tracks
     if (unitAboveTracks) {
-      // Branch must be above tracks
       const minY = TRACK_TOP - MIN_BRANCH_DISTANCE_FROM_TRACKS;
       if (branchY > minY) {
         branchY = minY;
       }
     } else {
-      // Branch must be below tracks
       const maxY = TRACK_BOTTOM + MIN_BRANCH_DISTANCE_FROM_TRACKS;
       if (branchY < maxY) {
         branchY = maxY;
       }
     }
     
-    // Ensure branch is not too far from pump (max 40m)
     const distToPump = Math.sqrt((branchX - pumpPos.x) ** 2 + (branchY - pumpPos.y) ** 2);
     if (distToPump > MAX_BRANCH_DISTANCE_FROM_UNIT) {
       const scale = MAX_BRANCH_DISTANCE_FROM_UNIT / distToPump;
@@ -297,32 +267,24 @@ function routeHoseAlongCorridor(
     }
   }
 
-  // Find shortest path from pump to branch point
   const path = findShortestPath(pumpPos.x, pumpPos.y, branchX, branchY, wagons, obstacles);
   
-  // Nozzles: 5-6m from fire wagon, at least 3m (6 units) from tracks on unit's side
   const nozzles: Array<{ x: number; y: number }> = [];  
-  // Determine which side of tracks the unit is on
-  const MIN_DISTANCE_FROM_TRACKS = 6; // 3m = 6 SVG units
+  const MIN_DISTANCE_FROM_TRACKS = 6;
   const unitAboveTracks = unitCenterY < TRACK_TOP;
   
-  // Calculate default nozzle positions - both on same side as unit, at least 3m from tracks
   const defaultNozzles: Array<{ x: number; y: number }> = [];
   
-  // Base positions near fire (20m = 40 units apart to ensure minimum 8m/16 units after adjustments)
   const baseNozzle1X = fireX - 20;
   const baseNozzle2X = fireX + 20;
   let baseNozzle1Y = fireY;
   let baseNozzle2Y = fireY;
   
-  // Ensure minimum distance from tracks
   if (unitAboveTracks) {
-    // Both nozzles above tracks
     const minY = TRACK_TOP - MIN_DISTANCE_FROM_TRACKS;
     baseNozzle1Y = Math.min(baseNozzle1Y, minY);
     baseNozzle2Y = Math.min(baseNozzle2Y, minY);
   } else {
-    // Both nozzles below tracks
     const maxY = TRACK_BOTTOM + MIN_DISTANCE_FROM_TRACKS;
     baseNozzle1Y = Math.max(baseNozzle1Y, maxY);
     baseNozzle2Y = Math.max(baseNozzle2Y, maxY);
@@ -331,12 +293,10 @@ function routeHoseAlongCorridor(
   defaultNozzles.push({ x: baseNozzle1X, y: baseNozzle1Y });
   defaultNozzles.push({ x: baseNozzle2X, y: baseNozzle2Y });
 
-  // Adjust nozzle positions to ensure minimum distance from wagon contour
   for (let i = 0; i < defaultNozzles.length; i++) {
     let nozzleX = defaultNozzles[i].x;
     let nozzleY = defaultNozzles[i].y;
 
-    // Ensure minimum distance from fire
     const distToFireCheck = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
     if (distToFireCheck < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
       const angle = Math.atan2(nozzleY - fireY, nozzleX - fireX);
@@ -344,7 +304,6 @@ function routeHoseAlongCorridor(
       nozzleY = fireY + Math.sin(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
     }
 
-    // Ensure distance from wagon contour
     for (let attempt = 0; attempt < 10; attempt++) {
       let tooClose = false;
       for (const wagon of wagons) {
@@ -364,11 +323,9 @@ function routeHoseAlongCorridor(
     defaultNozzles[i] = { x: nozzleX, y: nozzleY };
   }
 
-  // Use custom positions if valid, otherwise use defaults
   if (customNozzles && customNozzles.length > 0) {
     for (let i = 0; i < defaultNozzles.length; i++) {
       const custom = customNozzles[i];
-      // Check if custom position is valid (not zero/undefined)
       if (custom && (custom.x !== 0 || custom.y !== 0)) {
         nozzles.push({ x: custom.x, y: custom.y });
       } else {
@@ -379,18 +336,15 @@ function routeHoseAlongCorridor(
     nozzles.push(...defaultNozzles);
   }
 
-  // Ensure minimum distance between nozzles (4m = 8 units) - STRICT RULE
   const MIN_DISTANCE_BETWEEN_NOZZLES = 8;
   if (nozzles.length >= 2) {
-    // Repeat check multiple times to ensure compliance after all adjustments
     for (let iteration = 0; iteration < 5; iteration++) {
       for (let i = 0; i < nozzles.length; i++) {
         for (let j = i + 1; j < nozzles.length; j++) {
           const dist = Math.sqrt((nozzles[i].x - nozzles[j].x) ** 2 + (nozzles[i].y - nozzles[j].y) ** 2);
           if (dist < MIN_DISTANCE_BETWEEN_NOZZLES) {
-            // Move nozzles apart
             const angle = Math.atan2(nozzles[j].y - nozzles[i].y, nozzles[j].x - nozzles[i].x);
-            const moveDist = (MIN_DISTANCE_BETWEEN_NOZZLES - dist) / 2 + 1; // Add 1 unit buffer
+            const moveDist = (MIN_DISTANCE_BETWEEN_NOZZLES - dist) / 2 + 1;
             nozzles[i].x -= Math.cos(angle) * moveDist;
             nozzles[i].y -= Math.sin(angle) * moveDist;
             nozzles[j].x += Math.cos(angle) * moveDist;
@@ -401,17 +355,14 @@ function routeHoseAlongCorridor(
     }
   }
 
-  // Calculate branch connections (отсечки) for hoses after branch point
-  // Each hose segment is 20m (40 SVG units)
   const branchConnections: Array<{ x: number; y: number }> = [];
-  const HOSE_SEGMENT_LENGTH = 40; // 20m = 40 SVG units
+  const HOSE_SEGMENT_LENGTH = 40;
   
   for (const nozzle of nozzles) {
     const dx = nozzle.x - branchX;
     const dy = nozzle.y - branchY;
     const dist = Math.sqrt(dx * dx + dy * dy);
     
-    // If distance is more than 20m, add connection points
     if (dist > HOSE_SEGMENT_LENGTH) {
       const numSegments = Math.floor(dist / HOSE_SEGMENT_LENGTH);
       const segDx = dx / dist;
@@ -466,9 +417,7 @@ export default function App() {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
-    // Получаем текущий viewBox
     const viewBox = svg.viewBox.baseVal;
-    // Преобразуем координаты мыши в координаты SVG
     const x = viewBox.x + ((e.clientX - rect.left) / rect.width) * viewBox.width;
     const y = viewBox.y + ((e.clientY - rect.top) / rect.height) * viewBox.height;
     return { x, y };
@@ -533,10 +482,8 @@ export default function App() {
       setDeployment(null);
       setToolMode('none');
     } else if (toolMode === 'ruler') {
-      // Добавляем точку для измерения
       setRulerPoints(prev => {
         const newPoints = [...prev, { x, y }];
-        // Оставляем только последние 2 точки
         if (newPoints.length > 2) {
           return newPoints.slice(-2);
         }
@@ -544,13 +491,11 @@ export default function App() {
       });
       return;
     } else {
-      // Check wagon click for type change
       const clickedWagon = wagons.find(w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height);
       if (clickedWagon) {
         setSelectedWagonId(clickedWagon.id);
         setSelectedUnitId(null);
       } else {
-        // Check unit click
         const allUnits = [...(deployment?.units || []), ...manualUnits];
         const clickedUnit = allUnits.find(u => {
           const w = u.type === 'asa' ? 55 : 44;
@@ -568,8 +513,6 @@ export default function App() {
   }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
-    // Allow dragging in select mode for all types
-    // Allow dragging firefighters and branches in any mode (including 'none')
     if (toolMode !== 'select' && toolMode !== 'none') {
       if (type !== 'firefighter' && type !== 'branch') return;
     }
@@ -588,7 +531,6 @@ export default function App() {
         setDragState({ type, id, offsetX: x - unit.x, offsetY: y - unit.y });
       }
     } else if (type === 'branch' || type === 'firefighter') {
-      // For branch points and firefighters, we need to track their position in customPositions
       setDragState({ type, id, unitId, offsetX: x, offsetY: y });
     }
   }, [toolMode, obstacles, getSVGCoords, deployment, manualUnits, selectedElements, fireSource, customPositions, wagons]);
@@ -596,7 +538,6 @@ export default function App() {
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const { x, y } = getSVGCoords(e);
     
-    // Рисование прямоугольника выделения
     if (isSelecting && selectionBox) {
       setSelectionBox({
         ...selectionBox,
@@ -606,7 +547,6 @@ export default function App() {
       return;
     }
     
-    // Групповое перемещение выделенных элементов
     if (dragState && selectedElements.length > 1) {
       const deltaX = x - dragState.offsetX;
       const deltaY = y - dragState.offsetY;
@@ -615,7 +555,6 @@ export default function App() {
         let moveX = elem.startX + deltaX;
         let moveY = elem.startY + deltaY;
         
-        // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
         if (fireSource) {
           const distFromFire = Math.sqrt((moveX - fireSource.x) ** 2 + (moveY - fireSource.y) ** 2);
           if (distFromFire > 700) {
@@ -625,23 +564,19 @@ export default function App() {
           }
         }
         
-        // Ограничение границами карты
         moveX = Math.max(10, Math.min(990, moveX));
         moveY = Math.max(10, Math.min(590, moveY));
         
         if (elem.type === 'unit') {
-          // Проверяем, в каком массиве находится техника
           const isManualUnit = manualUnits.some(u => u.id === elem.id);
           const isDeploymentUnit = deployment?.units.some(u => u.id === elem.id);
           
-          // Update manualUnits
           if (isManualUnit) {
             setManualUnits(prev => prev.map(u =>
               u.id === elem.id ? { ...u, x: moveX, y: moveY } : u
             ));
           }
           
-          // Update deployment units
           if (isDeploymentUnit && deployment) {
             setDeployment({
               ...deployment,
@@ -690,7 +625,6 @@ export default function App() {
       let newX = x - dragState.offsetX;
       let newY = y - dragState.offsetY;
       
-      // Ограничение границами карты
       newX = Math.max(10, Math.min(990, newX));
       newY = Math.max(10, Math.min(590, newY));
       
@@ -701,7 +635,6 @@ export default function App() {
       let newX = x - dragState.offsetX;
       let newY = y - dragState.offsetY;
       
-      // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
       if (fireSource) {
         const distFromFire = Math.sqrt((newX - fireSource.x) ** 2 + (newY - fireSource.y) ** 2);
         if (distFromFire > 700) {
@@ -711,22 +644,18 @@ export default function App() {
         }
       }
       
-      // Ограничение границами карты
       newX = Math.max(10, Math.min(990, newX));
       newY = Math.max(10, Math.min(590, newY));
       
-      // Проверяем, в каком массиве находится техника
       const isManualUnit = manualUnits.some(u => u.id === dragState.id);
       const isDeploymentUnit = deployment?.units.some(u => u.id === dragState.id);
       
-      // Update manualUnits
       if (isManualUnit) {
         setManualUnits(prev => prev.map(u =>
           u.id === dragState.id ? { ...u, x: newX, y: newY } : u
         ));
       }
       
-      // Update deployment units
       if (isDeploymentUnit && deployment) {
         setDeployment({
           ...deployment,
@@ -736,11 +665,9 @@ export default function App() {
         });
       }
     } else if (dragState.type === 'branch' && dragState.unitId) {
-      // Update branch point position
       let branchX = x;
       let branchY = y;
       
-      // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
       if (fireSource) {
         const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
         if (distFromFire > 700) {
@@ -750,7 +677,6 @@ export default function App() {
         }
       }
       
-      // Ограничение границами карты
       branchX = Math.max(10, Math.min(990, branchX));
       branchY = Math.max(10, Math.min(590, branchY));
       
@@ -762,7 +688,6 @@ export default function App() {
         }
       }));
     } else if (dragState.type === 'firefighter' && dragState.unitId) {
-      // Update nozzle position (firefighter/nozzle)
       const nozzleIndex = parseInt(dragState.id.split('-').pop() || '0');
       
       setCustomPositions(prev => {
@@ -770,9 +695,7 @@ export default function App() {
         const nozzles = positions.nozzles || [];
         const newNozzles = [...nozzles];
         
-        // If this is the first drag for this unit, initialize all nozzle positions
         if (newNozzles.length === 0) {
-          // Get the unit to calculate initial positions
           const allUnits = [...(deployment?.units || []), ...manualUnits];
           const unit = allUnits.find(u => u.id === dragState.unitId);
           
@@ -782,7 +705,6 @@ export default function App() {
             const unitCenterY = unit.y + 10;
             const angleToFire = Math.atan2(fireSource.y - unitCenterY, fireSource.x - unitCenterX);
             
-            // Initialize both nozzle positions (for 2 nozzles per unit)
             const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
             for (const angle of nozzleAngles) {
               const nozzleX = fireSource.x + Math.cos(angle) * 12;
@@ -790,17 +712,14 @@ export default function App() {
               newNozzles.push({ x: nozzleX, y: nozzleY });
             }
           } else {
-            // Не добавляем позиции, если не можем их корректно рассчитать
             return prev;
           }
         }
         
-        // Update only the dragged nozzle
         if (nozzleIndex < newNozzles.length) {
           let nozzleX = x;
           let nozzleY = y;
           
-          // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
           if (fireSource) {
             const distFromFire = Math.sqrt((nozzleX - fireSource.x) ** 2 + (nozzleY - fireSource.y) ** 2);
             if (distFromFire > 700) {
@@ -810,7 +729,6 @@ export default function App() {
             }
           }
           
-          // Ограничение границами карты
           nozzleX = Math.max(10, Math.min(990, nozzleX));
           nozzleY = Math.max(10, Math.min(590, nozzleY));
           
@@ -826,12 +744,10 @@ export default function App() {
         };
       });
     } else if (dragState.type === 'personnel') {
-      // Update personnel position
       const personnelIndex = parseInt(dragState.id.split('-')[1]);
       let newX = x - dragState.offsetX;
       let newY = y - dragState.offsetY;
       
-      // Ограничение перемещения: не дальше 100 м (200 единиц) от очага
       if (fireSource) {
         const distFromFire = Math.sqrt((newX - fireSource.x) ** 2 + (newY - fireSource.y) ** 2);
         if (distFromFire > 200) {
@@ -841,7 +757,6 @@ export default function App() {
         }
       }
       
-      // Ограничение границами карты
       newX = Math.max(10, Math.min(990, newX));
       newY = Math.max(10, Math.min(590, newY));
       
@@ -856,11 +771,9 @@ export default function App() {
         }
       }
     } else if (dragState.type === 'pump' && dragState.unitId) {
-      // Update pump position (start of hose)
       let newX = x - dragState.offsetX;
       let newY = y - dragState.offsetY;
       
-      // Ограничение границами карты
       newX = Math.max(10, Math.min(990, newX));
       newY = Math.max(10, Math.min(590, newY));
       
@@ -874,7 +787,6 @@ export default function App() {
   const handleMouseUp = useCallback(() => {
     setDragState(null);
     
-    // Завершить выделение прямоугольником
     if (isSelecting && selectionBox) {
       const minX = Math.min(selectionBox.startX, selectionBox.endX);
       const maxX = Math.max(selectionBox.startX, selectionBox.endX);
@@ -883,7 +795,6 @@ export default function App() {
       
       const newSelected: SelectedElement[] = [];
       
-      // Проверить технику
       const allUnits = [...(deployment?.units || []), ...manualUnits];
       allUnits.forEach(unit => {
         const unitWidth = unit.type === 'asa' ? 55 : 44;
@@ -898,7 +809,6 @@ export default function App() {
         }
       });
       
-      // Проверить препятствия
       obstacles.forEach(obs => {
         if (obs.x >= minX && obs.x + obs.width <= maxX &&
             obs.y >= minY && obs.y + obs.height <= maxY) {
@@ -911,7 +821,6 @@ export default function App() {
         }
       });
       
-      // Проверить ствольщиков
       if (fireSource) {
         allUnits.filter(u => u.type !== 'aso' && (u.hoses > 0 || (u as any).ptvDeployed)).forEach(unit => {
           const unitWidth = unit.type === 'asa' ? 55 : 44;
@@ -937,7 +846,6 @@ export default function App() {
             }
           });
           
-          // Проверить разветвления
           if (routing.branchPoint.x >= minX && routing.branchPoint.x <= maxX &&
               routing.branchPoint.y >= minY && routing.branchPoint.y <= maxY) {
             newSelected.push({
@@ -962,6 +870,25 @@ export default function App() {
     setDeployment(result);
   }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
 
+  const handleApplyRecommendations = useCallback(
+    (rec: { ac: number; al: number; asr: number; personnel: number }) => {
+      setResources({ ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel });
+      setUseCustomResources(true);
+
+      if (fireSource) {
+        const newDeployment = calculateDeployment(
+          wagons,
+          fireSource,
+          obstacles,
+          { ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel },
+          waterSources
+        );
+        setDeployment(newDeployment);
+      }
+    },
+    [fireSource, wagons, obstacles, waterSources]
+  );
+
   const handleReset = useCallback(() => {
     setFireSource(null);
     setObstacles([]);
@@ -983,27 +910,21 @@ export default function App() {
     }
     
     try {
-      // Клонируем SVG для модификации
       const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
       
-      // Устанавливаем размеры
       svgClone.setAttribute('width', '1000');
       svgClone.setAttribute('height', '600');
       
-      // Сериализуем SVG в строку
       const serializer = new XMLSerializer();
       const svgString = serializer.serializeToString(svgClone);
       
-      // Создаём Data URL
       const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(svgBlob);
       
-      // Создаём изображение
       const img = new Image();
       img.onload = () => {
-        // Создаём canvas
         const canvas = document.createElement('canvas');
-        canvas.width = 2000; // 2x для высокого качества
+        canvas.width = 2000;
         canvas.height = 1200;
         const ctx = canvas.getContext('2d');
         
@@ -1013,14 +934,11 @@ export default function App() {
           return;
         }
         
-        // Рисуем фон
         ctx.fillStyle = '#1e2a1e';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Рисуем SVG
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
-        // Копируем в буфер обмена
         canvas.toBlob((blob) => {
           if (blob && navigator.clipboard && navigator.clipboard.write) {
             navigator.clipboard.write([
@@ -1029,7 +947,6 @@ export default function App() {
               alert('Скриншот обстановки скопирован в буфер обмена');
             }).catch((err) => {
               console.error('Ошибка копирования в буфер:', err);
-              // Fallback: скачиваем файл
               const link = document.createElement('a');
               link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
               link.href = canvas.toDataURL('image/png');
@@ -1037,7 +954,6 @@ export default function App() {
               alert('Скриншот сохранён в файл');
             });
           } else {
-            // Fallback: скачиваем файл
             const link = document.createElement('a');
             link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
             link.href = canvas.toDataURL('image/png');
@@ -1075,7 +991,6 @@ export default function App() {
         allowTaint: true,
         logging: false,
         onclone: (clonedDoc) => {
-          // Убеждаемся, что все стили скопированы
           const clonedElement = clonedDoc.querySelector('.min-h-screen') as HTMLElement;
           if (clonedElement) {
             clonedElement.style.overflow = 'visible';
@@ -1083,7 +998,6 @@ export default function App() {
         }
       });
       
-      // Копируем в буфер обмена
       canvas.toBlob((blob) => {
         if (blob && navigator.clipboard && navigator.clipboard.write) {
           navigator.clipboard.write([
@@ -1092,7 +1006,6 @@ export default function App() {
             alert('Скриншот экрана скопирован в буфер обмена');
           }).catch((err) => {
             console.error('Ошибка копирования в буфер:', err);
-            // Fallback: скачиваем файл
             const link = document.createElement('a');
             link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
             link.href = canvas.toDataURL('image/png');
@@ -1100,7 +1013,6 @@ export default function App() {
             alert('Скриншот сохранён в файл');
           });
         } else {
-          // Fallback: скачиваем файл
           const link = document.createElement('a');
           link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
           link.href = canvas.toDataURL('image/png');
@@ -1117,7 +1029,7 @@ export default function App() {
   const changeWagonType = useCallback((wagonId: number, newType: WagonType) => {
     const newWagons = wagons.map(w => {
       if (w.id === wagonId) {
-        const height = 7; // 3.5m = 7 SVG units (wagon width)
+        const height = 7;
         return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
       }
       return w;
@@ -1125,7 +1037,6 @@ export default function App() {
     setWagons(newWagons);
     setSelectedWagonId(null);
     
-    // Автоматический пересчёт расстановки после изменения типа вагона
     if (fireSource) {
       const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
       setDeployment(newDeployment);
@@ -1136,12 +1047,11 @@ export default function App() {
 
   const changeAllWagonsType = useCallback((newType: WagonType) => {
     const newWagons = wagons.map(w => {
-      const height = 7; // 3.5m = 7 SVG units (wagon width)
+      const height = 7;
       return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
     });
     setWagons(newWagons);
     
-    // Автоматический пересчёт расстановки после изменения типа всех вагонов
     if (fireSource) {
       const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
       setDeployment(newDeployment);
@@ -1158,7 +1068,6 @@ export default function App() {
       u.id === unitId ? { ...u, type: newType, name: newName, personnel: newPersonnel } : u
     ));
     
-    // Автоматический пересчёт расстановки после изменения типа техники
     if (fireSource) {
       const newDeployment = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
       setDeployment(newDeployment);
@@ -1211,17 +1120,12 @@ export default function App() {
               <button onClick={() => setPlacingUnit('asa')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'asa' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСА</button>
               <button onClick={() => setPlacingUnit('aso')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'aso' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСО</button>
               <button onClick={() => {
-                // Добавление пожарного поезда
                 const trainId = `train-${Date.now()}`;
                 
-                // Рассчитываем позицию для пожарного поезда
-                // Находим правую границу основного поезда
                 const mainTrainRightEdge = Math.max(...wagons.map(w => w.x + w.width));
                 
-                // Позиция пожарного поезда: 50 метров (100 единиц) от основного поезда
                 const startX = mainTrainRightEdge + 100;
                 
-                // Проверяем, помещается ли поезд на карте
                 if (startX + 3 * 56 > 990) {
                   alert('Недостаточно места для пожарного поезда');
                   return;
@@ -1229,11 +1133,11 @@ export default function App() {
                 
                 const trainWagons: Wagon[] = [];
                 for (let i = 0; i < 3; i++) {
-                  const isTank = i === 1; // 1 цистерна в середине
+                  const isTank = i === 1;
                   trainWagons.push({
                     id: i + 1,
                     x: startX + i * 56,
-                    y: TRACK_Y - 3.5, // На тех же путях
+                    y: TRACK_Y - 3.5,
                     width: 50,
                     height: 7,
                     type: isTank ? 'tank' : 'freight',
@@ -1271,7 +1175,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Масштабирование */}
             <div className="p-2 bg-gray-700/50 rounded-lg">
               <label className="text-[10px] text-gray-400 block mb-1">Масштаб: {Math.round(scale * 100)}%</label>
               <input
@@ -1522,7 +1425,6 @@ export default function App() {
                   </div>
                 </div>
                 
-                {/* Детализация по людям */}
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
                   <p className="text-[9px] font-semibold text-gray-300 mb-1">👥 Личный состав:</p>
                   <div className="space-y-0.5 text-[8px] text-gray-400">
@@ -1533,7 +1435,6 @@ export default function App() {
                   </div>
                 </div>
                 
-                {/* Список техники */}
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
                   <p className="text-[9px] font-semibold text-gray-300 mb-1">🚒 Техника:</p>
                   <div className="space-y-0.5 max-h-32 overflow-y-auto">
@@ -1573,7 +1474,6 @@ export default function App() {
               className="w-full h-full"
               onClick={handleSVGClick}
               onMouseDown={(e) => {
-                // Начать выделение прямоугольником в режиме selection
                 if (toolMode === 'selection') {
                   e.preventDefault();
                   const { x, y } = getSVGCoords(e);
@@ -1611,7 +1511,6 @@ export default function App() {
               <rect width="1000" height="600" fill="#1e2a1e" />
               <rect width="1000" height="600" fill="url(#grid)" />
 
-              {/* Railway tracks */}
               <g>
                 <rect x="55" y="294" width="890" height="12" fill="#3a3a3a" rx="2" />
                 <rect x="55" y="295" width="890" height="10" fill="#444" rx="1" />
@@ -1622,7 +1521,6 @@ export default function App() {
                 <line x1="60" y1="302" x2="940" y2="302" stroke="#aaa" strokeWidth="2" />
               </g>
 
-              {/* Wagons */}
               {wagons.map(wagon => {
                 const isOnFire = fireSource?.wagonId === wagon.id;
                 const isSelected = selectedWagonId === wagon.id;
@@ -1648,7 +1546,6 @@ export default function App() {
                 );
               })}
 
-              {/* Fire Trains */}
               {fireTrains.map(train => {
                 const isSelected = selectedFireTrainId === train.id;
                 return (
@@ -1679,24 +1576,20 @@ export default function App() {
                 );
               })}
 
-              {/* Fire Train PTW - 4 nozzles from fire train */}
               {fireSource && fireTrains.length > 0 && fireTrains.filter(train => fireTrainPTW[train.id]).map(train => {
                 const trainCenterX = train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2;
                 const trainCenterY = train.wagons[0].y + train.wagons[0].height / 2;
                 
-                // Two branch points: one above tracks, one below
-                const branchAbove = { x: trainCenterX, y: 268 }; // 10m above tracks
-                const branchBelow = { x: trainCenterX, y: 332 }; // 10m below tracks
+                const branchAbove = { x: trainCenterX, y: 268 };
+                const branchBelow = { x: trainCenterX, y: 332 };
                 
-                // Four nozzles: 2 from each branch
                 const nozzles = [
-                  { x: fireSource.x - 15, y: 275 }, // Above, left
-                  { x: fireSource.x + 15, y: 275 }, // Above, right
-                  { x: fireSource.x - 15, y: 325 }, // Below, left
-                  { x: fireSource.x + 15, y: 325 }, // Below, right
+                  { x: fireSource.x - 15, y: 275 },
+                  { x: fireSource.x + 15, y: 275 },
+                  { x: fireSource.x - 15, y: 325 },
+                  { x: fireSource.x + 15, y: 325 },
                 ];
                 
-                // Calculate hose connections every 20m (40 units)
                 const HOSE_SEGMENT_LENGTH = 40;
                 const calculateConnections = (x1: number, y1: number, x2: number, y2: number) => {
                   const dx = x2 - x1;
@@ -1724,11 +1617,9 @@ export default function App() {
                 
                 return (
                   <g key={`train-ptw-${train.id}`}>
-                    {/* Hoses from train to branches */}
                     <line x1={trainCenterX} y1={trainCenterY} x2={branchAbove.x} y2={branchAbove.y} stroke="#000" strokeWidth="3" />
                     <line x1={trainCenterX} y1={trainCenterY} x2={branchBelow.x} y2={branchBelow.y} stroke="#000" strokeWidth="3" />
                     
-                    {/* Connection points on hoses from train to branches */}
                     {trainToAboveConnections.map((conn, idx) => (
                       <g key={`train-above-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
@@ -1742,14 +1633,12 @@ export default function App() {
                       </g>
                     ))}
                     
-                    {/* Branch points */}
                     <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                     <text x={branchAbove.x} y={branchAbove.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                     
                     <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                     <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                     
-                    {/* Hoses from branches to nozzles */}
                     {nozzles.slice(0, 2).map((nozzle, idx) => (
                       <line key={`above-${idx}`} x1={branchAbove.x} y1={branchAbove.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
@@ -1757,7 +1646,6 @@ export default function App() {
                       <line key={`below-${idx}`} x1={branchBelow.x} y1={branchBelow.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
                     
-                    {/* Connection points on hoses from branches to nozzles */}
                     {nozzles.slice(0, 2).map((nozzle, idx) => {
                       const connections = calculateConnections(branchAbove.x, branchAbove.y, nozzle.x, nozzle.y);
                       return connections.map((conn, cidx) => (
@@ -1777,7 +1665,6 @@ export default function App() {
                       ));
                     })}
                     
-                    {/* Nozzles with firefighters */}
                     {nozzles.map((nozzle, idx) => {
                       const dx = fireSource.x - nozzle.x;
                       const dy = fireSource.y - nozzle.y;
@@ -1789,13 +1676,11 @@ export default function App() {
                       
                       return (
                         <g key={`nozzle-${idx}`}>
-                          {/* Water stream */}
                           <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
                             stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                             <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
                           </line>
                           
-                          {/* Spray cone */}
                           <path
                             d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * 8} ${sprayY + Math.cos(angle) * 8} L ${sprayX + Math.sin(angle) * 8} ${sprayY - Math.cos(angle) * 8} Z`}
                             fill="#4fc3f7"
@@ -1804,7 +1689,6 @@ export default function App() {
                             <animate attributeName="opacity" values="0.3;0.5;0.3" dur="0.8s" repeatCount="indefinite" />
                           </path>
                           
-                          {/* Firefighter */}
                           <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
                           <line
                             x1={nozzle.x}
@@ -1820,7 +1704,6 @@ export default function App() {
                       );
                     })}
                     
-                    {/* Personnel at branches */}
                     <circle cx={branchAbove.x} cy={branchAbove.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                     <text x={branchAbove.x} y={branchAbove.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
                     <circle cx={branchBelow.x} cy={branchBelow.y + 12} r="4" fill="#ffeb3b" opacity="0.6" />
@@ -1829,7 +1712,6 @@ export default function App() {
                 );
               })}
 
-              {/* Fire */}
               {fireSource && (
                 <g>
                   <circle cx={fireSource.x} cy={fireSource.y} r={fireSource.intensity === 'high' ? 35 : fireSource.intensity === 'medium' ? 25 : 18} fill="url(#fireRadial)" opacity="0.7">
@@ -1842,7 +1724,6 @@ export default function App() {
                 </g>
               )}
 
-              {/* Obstacles */}
               {obstacles.map(obs => (
                 <g key={obs.id} onMouseDown={e => handleMouseDown(e, 'obstacle', obs.id)} style={{ cursor: toolMode === 'select' ? 'move' : 'default' }}>
                   <rect x={obs.x} y={obs.y} width={obs.width} height={obs.height}
@@ -1853,7 +1734,6 @@ export default function App() {
                 </g>
               ))}
 
-              {/* Water Sources */}
               {waterSources.map(ws => (
                 <g key={ws.id}>
                   <circle cx={ws.x} cy={ws.y} r="15" fill="#0288d1" opacity="0.3">
@@ -1867,7 +1747,6 @@ export default function App() {
                 </g>
               ))}
 
-              {/* Hose lines for deployment units */}
               {fireSource && deployment?.units.filter(u => u.hoses > 0).map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
@@ -1880,14 +1759,13 @@ export default function App() {
                   customPumpPositions[unit.id]
                 );
                 
-                // Calculate connection points every 20m (40 units) along the path
                 const connectionPoints: Array<{ x: number; y: number }> = [];
                 let totalDist = 0;
                 for (let i = 0; i < routing.path.length - 1; i++) {
                   const p1 = routing.path[i];
                   const p2 = routing.path[i + 1];
                   const segLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
-                  if (segLen === 0) continue; // Skip zero-length segments
+                  if (segLen === 0) continue;
                   const segDx = (p2.x - p1.x) / segLen;
                   const segDy = (p2.y - p1.y) / segLen;
                   
@@ -1909,7 +1787,6 @@ export default function App() {
 
                 return (
                   <g key={`hose-${unit.id}`}>
-                    {/* Draggable pump position (start of hose) */}
                     <g
                       onMouseDown={e => {
                         e.stopPropagation();
@@ -1928,13 +1805,11 @@ export default function App() {
                       <circle cx={routing.path[0].x} cy={routing.path[0].y} r="2" fill="#fff" />
                     </g>
                     
-                    {/* Main hose path */}
                     {routing.path.slice(0, -1).map((point, idx) => (
                       <line key={idx} x1={point.x} y1={point.y} x2={routing.path[idx + 1].x} y2={routing.path[idx + 1].y}
                         stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
                     ))}
                     
-                    {/* Connection points every 20m */}
                     {connectionPoints.map((point, idx) => (
                       <g key={`conn-${idx}`}>
                         <circle cx={point.x} cy={point.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
@@ -1942,13 +1817,11 @@ export default function App() {
                       </g>
                     ))}
                     
-                    {/* Branch hoses to nozzles */}
                     {routing.nozzles.map((nozzle, idx) => (
                       <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
                         stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
                     ))}
                     
-                    {/* Branch connections (отсечки) every 20m after branch point */}
                     {routing.branchConnections.map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
@@ -1956,7 +1829,6 @@ export default function App() {
                       </g>
                     ))}
 
-                    {/* Branch point RT-80 - draggable */}
                     <g 
                       onMouseDown={e => handleMouseDown(e, 'branch', unit.id, unit.id)}
                       style={{ cursor: 'move' }}
@@ -1965,24 +1837,19 @@ export default function App() {
                       <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                     </g>
                     
-                    {/* Person at branch */}
                     <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                     <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
 
-                    {/* Nozzles with water streams - draggable */}
                     {routing.nozzles.map((nozzle, idx) => {
-                      // Calculate direction from nozzle to fire
                       const dx = fs.x - nozzle.x;
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
                       const dist = Math.sqrt(dx * dx + dy * dy);
                       
-                      // Check for NaN values
                       if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle) || isNaN(dist)) {
                         return null;
                       }
                       
-                      // Water spray cone (visual indication of stream direction)
                       const sprayLength = Math.min(dist * 0.3, 30);
                       const sprayWidth = 8;
                       const sprayX = nozzle.x + Math.cos(angle) * sprayLength;
@@ -1990,13 +1857,11 @@ export default function App() {
                       
                       return (
                         <g key={idx}>
-                          {/* Water stream line */}
                           <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
                             stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                             <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
                           </line>
                           
-                          {/* Water spray cone (direction indicator) */}
                           <path
                             d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * sprayWidth} ${sprayY + Math.cos(angle) * sprayWidth} L ${sprayX + Math.sin(angle) * sprayWidth} ${sprayY - Math.cos(angle) * sprayWidth} Z`}
                             fill="#4fc3f7"
@@ -2011,7 +1876,6 @@ export default function App() {
                 );
               })}
 
-              {/* Hose lines for manual units with PTW deployed */}
               {fireSource && manualUnits.filter(u => u.ptvDeployed).map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
@@ -2024,14 +1888,13 @@ export default function App() {
                   customPumpPositions[unit.id]
                 );
                 
-                // Calculate connection points every 20m (40 units) along the path
                 const connectionPoints: Array<{ x: number; y: number }> = [];
                 let totalDist = 0;
                 for (let i = 0; i < routing.path.length - 1; i++) {
                   const p1 = routing.path[i];
                   const p2 = routing.path[i + 1];
                   const segLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
-                  if (segLen === 0) continue; // Skip zero-length segments
+                  if (segLen === 0) continue;
                   const segDx = (p2.x - p1.x) / segLen;
                   const segDy = (p2.y - p1.y) / segLen;
                   
@@ -2053,7 +1916,6 @@ export default function App() {
 
                 return (
                   <g key={`hose-${unit.id}`}>
-                    {/* Draggable pump position (start of hose) */}
                     <g
                       onMouseDown={e => {
                         e.stopPropagation();
@@ -2077,7 +1939,6 @@ export default function App() {
                         stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
                     ))}
                     
-                    {/* Connection points every 20m */}
                     {connectionPoints.map((point, idx) => (
                       <g key={`conn-${idx}`}>
                         <circle cx={point.x} cy={point.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
@@ -2090,7 +1951,6 @@ export default function App() {
                         stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
                     ))}
                     
-                    {/* Branch connections (отсечки) every 20m after branch point */}
                     {routing.branchConnections.map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
@@ -2098,7 +1958,6 @@ export default function App() {
                       </g>
                     ))}
                     
-                    {/* Branch point RT-80 - draggable */}
                     <g 
                       onMouseDown={e => handleMouseDown(e, 'branch', unit.id, unit.id)}
                       style={{ cursor: 'move' }}
@@ -2111,13 +1970,11 @@ export default function App() {
                     <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
                     
                     {routing.nozzles.map((nozzle, idx) => {
-                      // Calculate direction from nozzle to fire
                       const dx = fs.x - nozzle.x;
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
                       const dist = Math.sqrt(dx * dx + dy * dy);
                       
-                      // Water spray cone (visual indication of stream direction)
                       const sprayLength = Math.min(dist * 0.3, 30);
                       const sprayWidth = 8;
                       const sprayX = nozzle.x + Math.cos(angle) * sprayLength;
@@ -2125,13 +1982,11 @@ export default function App() {
                       
                       return (
                         <g key={idx}>
-                          {/* Water stream line */}
                           <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
                             stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                             <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
                           </line>
                           
-                          {/* Water spray cone (direction indicator) */}
                           <path
                             d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * sprayWidth} ${sprayY + Math.cos(angle) * sprayWidth} L ${sprayX + Math.sin(angle) * sprayWidth} ${sprayY - Math.cos(angle) * sprayWidth} Z`}
                             fill="#4fc3f7"
@@ -2146,7 +2001,6 @@ export default function App() {
                 );
               })}
 
-              {/* Deployment units */}
               {deployment?.units.map(unit => {
                 const isSelected = selectedUnitId === unit.id;
                 const centerX = unit.x + 8;
@@ -2167,10 +2021,8 @@ export default function App() {
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
-                    {/* Тень */}
                     <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
                     
-                    {/* Основной пятиугольник автомобиля */}
                     <polygon 
                       points={getFireTruckPoints(centerX, centerY, unit.angle)} 
                       fill={truckColor}
@@ -2178,7 +2030,6 @@ export default function App() {
                       strokeWidth={isSelected ? 1.5 : 0.8}
                     />
                     
-                    {/* Насос (темный квадратик) - с противоположной стороны от кабины */}
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
@@ -2189,12 +2040,9 @@ export default function App() {
                       );
                     })()}
                     
-                    {/* Кабина (острый угол обозначен формой пятиугольника) */}
-                    
                     <text x={centerX} y={unit.y - 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
                     <text x={centerX} y={unit.y + 12} textAnchor="middle" fill="#aaa" fontSize="5" fontFamily="sans-serif">{unit.role}</text>
                     
-                    {/* Person near vehicle */}
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
@@ -2210,7 +2058,6 @@ export default function App() {
                 );
               })}
 
-              {/* Manual units */}
               {manualUnits.map(unit => {
                 const isSelected = selectedUnitId === unit.id;
                 const centerX = unit.x + 8;
@@ -2231,10 +2078,8 @@ export default function App() {
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
-                    {/* Тень */}
                     <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
                     
-                    {/* Основной пятиугольник автомобиля */}
                     <polygon 
                       points={getFireTruckPoints(centerX, centerY, unit.angle)} 
                       fill={truckColor}
@@ -2242,7 +2087,6 @@ export default function App() {
                       strokeWidth={isSelected ? 1.5 : 0.8}
                     />
                     
-                    {/* Насос (темный квадратик) - с противоположной стороны от кабины */}
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
@@ -2261,7 +2105,6 @@ export default function App() {
                       <text x={centerX} y={unit.y + 20} textAnchor="middle" fill="#ffeb3b" fontSize="5" fontFamily="sans-serif">Нажмите ПТВ</text>
                     )}
                     
-                    {/* Person near vehicle */}
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
@@ -2277,7 +2120,6 @@ export default function App() {
                 );
               })}
 
-              {/* Compass */}
               <g transform="translate(955, 40)">
                 <circle cx="0" cy="0" r="20" fill="rgba(0,0,0,0.6)" stroke="#555" strokeWidth="1" />
                 <polygon points="0,-14 -3,0 0,-4 3,0" fill="#ff4444" />
@@ -2285,7 +2127,6 @@ export default function App() {
                 <text x="0" y="-15" textAnchor="middle" fill="#ff6666" fontSize="6" fontWeight="bold">С</text>
               </g>
 
-              {/* Scale */}
               <g transform="translate(50, 565)">
                 <line x1="0" y1="0" x2="100" y2="0" stroke="#888" strokeWidth="2" />
                 <line x1="0" y1="-4" x2="0" y2="4" stroke="#888" strokeWidth="2" />
@@ -2293,7 +2134,6 @@ export default function App() {
                 <text x="50" y="13" textAnchor="middle" fill="#888" fontSize="7" fontFamily="sans-serif">≈ 50 м</text>
               </g>
 
-              {/* Selection box */}
               {selectionBox && isSelecting && (
                 <rect
                   x={Math.min(selectionBox.startX, selectionBox.endX)}
@@ -2307,7 +2147,6 @@ export default function App() {
                 />
               )}
 
-              {/* Selected elements highlights */}
               {selectedElements.map((elem, idx) => {
                 if (elem.type === 'unit') {
                   const allUnits = [...(deployment?.units || []), ...manualUnits];
@@ -2405,13 +2244,10 @@ export default function App() {
                 return null;
               })}
 
-              {/* Ruler measurement */}
               {toolMode === 'ruler' && rulerPoints.length >= 1 && (
                 <g>
-                  {/* Первая точка всегда видна */}
                   <circle cx={rulerPoints[0].x} cy={rulerPoints[0].y} r="4" fill="#ec4899" />
                   
-                  {/* Линия и вторая точка отображаются только когда есть две точки */}
                   {rulerPoints.length === 2 && (
                     <>
                       <line
@@ -2445,7 +2281,6 @@ export default function App() {
                 </g>
               )}
 
-              {/* Personnel positions */}
               {deployment?.personnelPositions && deployment.personnelPositions.map((pos, idx) => (
                 <g 
                   key={`personnel-${idx}`}
@@ -2468,7 +2303,6 @@ export default function App() {
                 </g>
               ))}
 
-              {/* Firefighters layer - always on top */}
               {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
@@ -2486,7 +2320,6 @@ export default function App() {
                   const dy = fs.y - nozzle.y;
                   const angle = Math.atan2(dy, dx);
 
-                  // Check for NaN values
                   if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle)) {
                     return null;
                   }
@@ -2497,13 +2330,10 @@ export default function App() {
                       onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
                       style={{ cursor: 'move' }}
                     >
-                      {/* Larger hit area for easier dragging */}
                       <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
                       
-                      {/* Firefighter circle */}
                       <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
                       
-                      {/* Direction indicator */}
                       <line
                         x1={nozzle.x}
                         y1={nozzle.y}
@@ -2514,10 +2344,8 @@ export default function App() {
                         strokeLinecap="round"
                       />
                       
-                      {/* Firefighter icon */}
                       <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
                       
-                      {/* Highlight ring when in select mode */}
                       {(toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && (
                         <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
                           <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
@@ -2550,7 +2378,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Selection info */}
             {selectedElements.length > 0 && (
               <div className="absolute top-2 right-2 bg-blue-600/90 backdrop-blur-sm rounded px-3 py-2 border border-blue-400">
                 <div className="text-xs text-white font-semibold mb-1">
@@ -2580,6 +2407,12 @@ export default function App() {
             )}
           </div>
         </main>
+
+        <aside className="w-[260px] bg-gray-800/95 border-l border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
+          <div className="p-3 overflow-y-auto flex-1">
+            <RecommendationPanel onApply={handleApplyRecommendations} />
+          </div>
+        </aside>
       </div>
 
       {showResources && (
