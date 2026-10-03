@@ -39,7 +39,7 @@ export async function checkServerHealth(): Promise<boolean> {
   }
 }
 
-export function predictStage(inputData: unknown, stage: number | string) {
+export function predictStage(inputData: Record<string, number>, stage: number) {
   return request('/predict', { input_data: inputData, stage });
 }
 
@@ -47,6 +47,16 @@ export function getMedianValues(filterParams: unknown) {
   return request('/median_values', filterParams);
 }
 
-export function sendFinalData(data: unknown) {
-  return request('/data', data);
+export async function sendFinalData(data: Record<string, number>) {
+  return request('/data', data, 1, 0);
+}
+
+export async function getDataStatus() {
+  try {
+    const response = await fetch(`${BASE_URL}/data/status`, { method: 'GET' });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
 }

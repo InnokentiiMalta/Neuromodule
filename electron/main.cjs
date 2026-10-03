@@ -29,7 +29,11 @@ function startPythonServer(port = 8000) {
 
   pythonProcess = spawn(serverPath, [], {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, PYTHON_SERVER_PORT: String(port) },
+    env: {
+      ...process.env,
+      PYTHON_SERVER_PORT: String(port),
+      USER_DATA_DIR: app.getPath('userData'),
+    },
     windowsHide: true
   });
 
