@@ -5,6 +5,7 @@ import html2canvas from 'html2canvas';
 import ServerStatus from './components/ServerStatus';
 import RecommendationPanel from './components/RecommendationPanel';
 import { APP_VERSION } from './version';
+import { Link } from 'react-router-dom';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
