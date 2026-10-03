@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { predictStage, sendFinalData, getDataStatus } from '../api/backend';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
 
 interface InitialParams {
   Время_следования_мин: number;
@@ -73,7 +74,7 @@ const PARAM_ORDER = [
 ];
 
 export default function PredictionPage() {
-  const [initialParams, setInitialParams] = useState<InitialParams>({
+  const [initialParams, setInitialParams] = useLocalStorageState<InitialParams>('prediction_initialParams', {
     Время_следования_мин: 8,
     Время_подачи_первого_ствола_мин: 1,
     Количество_основных_пожарных_автомобилей_ед: 2,
@@ -82,14 +83,14 @@ export default function PredictionPage() {
     Всего_подано_пожарных_стволов_ед: 1,
   });
 
-  const [additionalParams, setAdditionalParams] = useState<AdditionalParams>({
+  const [additionalParams, setAdditionalParams] = useLocalStorageState<AdditionalParams>('prediction_additionalParams', {
     Время_локализации_пожара_мин: 0,
     Время_ликвидации_открытого_горения_мин: 0,
     Время_ликвидации_последствий_пожара_мин: 0,
   });
 
-  const [currentStage, setCurrentStage] = useState(0);
-  const [stageResults, setStageResults] = useState<(Record<string, unknown> | null)[]>([null, null, null, null]);
+  const [currentStage, setCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
+  const [stageResults, setStageResults] = useLocalStorageState<(Record<string, unknown> | null)[]>('prediction_stageResults', [null, null, null, null]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [finalSubmitted, setFinalSubmitted] = useState(false);
