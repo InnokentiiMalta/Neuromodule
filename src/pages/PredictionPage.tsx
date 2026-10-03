@@ -33,7 +33,6 @@ const ADDITIONAL_FIELDS = [
   { key: 'Время_ликвидации_последствий_пожара_мин', label: 'Время ликвидации последствий (мин)' },
 ];
 
-// Ключи, которые модель рекомендует (силы и средства)
 const RECOMMENDED_KEYS = new Set([
   'Всего_подано_пожарных_стволов_ед',
   'Количество_основных_пожарных_автомобилей_ед',
@@ -41,7 +40,6 @@ const RECOMMENDED_KEYS = new Set([
   'Количество_пожарных_поездов_ед',
 ]);
 
-// Ключи, которые модель прогнозирует (время)
 const FORECAST_KEYS = new Set([
   'Время_локализации_пожара_мин',
   'Время_ликвидации_открытого_горения_мин',
@@ -49,7 +47,6 @@ const FORECAST_KEYS = new Set([
   'Время_тушения_мин',
 ]);
 
-// Красивые названия
 const PARAM_LABELS: Record<string, string> = {
   'Время_локализации_пожара_мин': 'Время локализации пожара',
   'Время_ликвидации_открытого_горения_мин': 'Время ликвидации открытого горения',
@@ -61,7 +58,6 @@ const PARAM_LABELS: Record<string, string> = {
   'Количество_пожарных_поездов_ед': 'Пожарных поездов',
 };
 
-// Порядок вывода
 const PARAM_ORDER = [
   'Время_локализации_пожара_мин',
   'Время_ликвидации_открытого_горения_мин',
@@ -212,24 +208,6 @@ export default function PredictionPage() {
 
         <h1 className="text-2xl font-bold mb-6">Поэтапное прогнозирование</h1>
 
-        {/* Начальные параметры */}
-        <div className="bg-gray-800 rounded-lg p-4 mb-3">
-          <h2 className="text-lg font-semibold mb-4">Начальные параметры</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {INITIAL_FIELDS.map(field => (
-              <div key={field.key}>
-                <label className="block text-sm text-gray-300 mb-1">{field.label}</label>
-                <input
-                  type="number"
-                  value={initialParams[field.key as keyof InitialParams]}
-                  onChange={(e) => handleInitialChange(field.key as keyof InitialParams, e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                  disabled={loading}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
         {/* Дата и время работ */}
         <div className="bg-gray-800 rounded-lg p-4 mb-3">
           <h2 className="text-lg font-semibold mb-3">🕐 Дата и время проведения работ</h2>
@@ -259,6 +237,26 @@ export default function PredictionPage() {
             Используется для определения сезона и необходимости АСО (автомобиля связи и освещения).
           </p>
         </div>
+
+        {/* Начальные параметры */}
+        <div className="bg-gray-800 rounded-lg p-4 mb-3">
+          <h2 className="text-lg font-semibold mb-4">Начальные параметры</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {INITIAL_FIELDS.map(field => (
+              <div key={field.key}>
+                <label className="block text-sm text-gray-300 mb-1">{field.label}</label>
+                <input
+                  type="number"
+                  value={initialParams[field.key as keyof InitialParams]}
+                  onChange={(e) => handleInitialChange(field.key as keyof InitialParams, e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                  disabled={loading}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Дополнительные параметры */}
         <div className="bg-gray-800 rounded-lg p-4 mb-3">
           <h2 className="text-lg font-semibold mb-4">Дополнительные параметры</h2>
@@ -437,17 +435,13 @@ export default function PredictionPage() {
 
             const stageLabel = idx === 3 ? 'Финальный этап' : `Этап ${idx + 1}`;
 
-            // Текущее фактическое значение стволов (то, что ввёл пользователь)
             const actualStvols = initialParams['Всего_подано_пожарных_стволов_ед'];
-
-            // Рекомендуемое значение стволов из прогноза модели
             const recommendedStvols = result['Всего_подано_пожарных_стволов_ед'];
 
             return (
               <div key={idx} className="bg-gray-800 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-3">{stageLabel}</h3>
 
-                {/* Плашка со сравнением стволов, если есть рекомендация */}
                 {idx < 3 && typeof recommendedStvols === 'number' && (
                   <div className={`mb-3 p-2 rounded border ${
                     recommendedStvols > actualStvols
@@ -480,7 +474,6 @@ export default function PredictionPage() {
                     const isForecast = FORECAST_KEYS.has(key);
                     const label = PARAM_LABELS[key] || key;
 
-                    // Плашка типа
                     let tag = null;
                     if (isForecast) {
                       tag = <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 ml-2">🔮 прогноз</span>;
