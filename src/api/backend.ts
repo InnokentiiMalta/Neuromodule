@@ -39,7 +39,7 @@ export async function checkServerHealth(): Promise<boolean> {
   }
 }
 
-export function predictStage(inputData: unknown, stage: number | string) {
+export function predictStage(inputData: Record<string, number>, stage: number) {
   return request('/predict', { input_data: inputData, stage });
 }
 
