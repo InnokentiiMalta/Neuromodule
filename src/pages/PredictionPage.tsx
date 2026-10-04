@@ -205,6 +205,15 @@ export default function PredictionPage() {
     setWorkTime('');
     setFinalSubmitted(false);
     setError(null);
+    // Сброс данных прогноза
+    ['prediction_initialParams', 'prediction_additionalParams', 'prediction_currentStage',
+     'prediction_stageResults', 'prediction_workDate', 'prediction_workTime',
+     'prediction_finalSubmitted'].forEach(k => localStorage.removeItem(k));
+    // Сброс обстановки карты
+    ['map_wagons', 'map_fireSource', 'map_obstacles', 'map_deployment',
+     'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
+     'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
+     'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
   };
 
   const formatValue = (v: unknown): string => {
