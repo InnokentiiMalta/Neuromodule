@@ -6,7 +6,6 @@ import ServerStatus from './components/ServerStatus';
 import RecommendationPanel from './components/RecommendationPanel';
 import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
-import { useLocalStorageState } from './hooks/useLocalStorageState';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -372,34 +371,34 @@ function routeHoseAlongCorridor(
 }
 
 export default function App() {
-  const [wagons, setWagons] = useLocalStorageState<Wagon[]>('map_wagons', generateDefaultWagons());
-  const [fireSource, setFireSource] = useLocalStorageState<FireSource | null>('map_fireSource', null);
-  const [obstacles, setObstacles] = useLocalStorageState<Obstacle[]>('map_obstacles', []);
+  const [wagons, setWagons] = useState<Wagon[]>(generateDefaultWagons());
+  const [fireSource, setFireSource] = useState<FireSource | null>(null);
+  const [obstacles, setObstacles] = useState<Obstacle[]>([]);
   const [toolMode, setToolMode] = useState<ToolMode>('none');
   const [obstacleType, setObstacleType] = useState<ObstacleType>('building');
   const [fireIntensity, setFireIntensity] = useState<'low' | 'medium' | 'high'>('medium');
   const [fireType, setFireType] = useState<'wagon_body' | 'tank' | 'undercarriage' | 'cargo'>('wagon_body');
-  const [deployment, setDeployment] = useLocalStorageState<Deployment | null>('map_deployment', null);
-  const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
+  const [deployment, setDeployment] = useState<Deployment | null>(null);
+  const [manualUnits, setManualUnits] = useState<ManualUnit[]>([]);
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
-  const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
+  const [fireTrains, setFireTrains] = useState<FireTrain[]>([]);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
-  const [fireTrainPTW, setFireTrainPTW] = useLocalStorageState<Record<string, boolean>>('map_fireTrainPTW', {});
+  const [fireTrainPTW, setFireTrainPTW] = useState<Record<string, boolean>>({});
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
-  const [customPumpPositions, setCustomPumpPositions] = useLocalStorageState<Record<string, { x: number; y: number }>>('map_customPumpPositions', {});
+  const [customPumpPositions, setCustomPumpPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [showHelp, setShowHelp] = useState(false);
   const [showResources, setShowResources] = useState(false);
-  const [resources, setResources] = useLocalStorageState<AvailableResources>('map_resources', DEFAULT_RESOURCES);
-  const [useCustomResources, setUseCustomResources] = useLocalStorageState<boolean>('map_useCustomResources', false);
-  const [customPositions, setCustomPositions] = useLocalStorageState<CustomPositions>('map_customPositions', {});
-  const [waterSources, setWaterSources] = useLocalStorageState<WaterSource[]>('map_waterSources', []);
+  const [resources, setResources] = useState<AvailableResources>(DEFAULT_RESOURCES);
+  const [useCustomResources, setUseCustomResources] = useState(false);
+  const [customPositions, setCustomPositions] = useState<CustomPositions>({});
+  const [waterSources, setWaterSources] = useState<WaterSource[]>([]);
   const [waterSourceType, setWaterSourceType] = useState<'pond' | 'river'>('pond');
   const [selectedElements, setSelectedElements] = useState<SelectedElement[]>([]);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
-  const [scale, setScale] = useLocalStorageState<number>('map_scale', 1);
+  const [scale, setScale] = useState(1);
   const [rulerPoints, setRulerPoints] = useState<Array<{ x: number; y: number }>>([]);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -1142,6 +1141,34 @@ export default function App() {
             <button onClick={handleDeploy} disabled={!fireSource} className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-red-700 disabled:from-gray-600 disabled:to-gray-700 rounded-lg font-semibold text-xs">🚀 Расставить</button>
             <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 rounded-lg text-xs">❓</button>
             <button onClick={handleReset} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 rounded-lg text-xs font-semibold">🗑 Сброс обстановки</button>
+            <button
+              onClick={() => {
+                if (!confirm('Начать новый пожар? Вся обстановка карты и данные прогноза будут очищены.')) return;
+                // Сброс карты к дефолтам
+                setWagons(generateDefaultWagons());
+                setFireSource(null);
+                setObstacles([]);
+                setDeployment(null);
+                setManualUnits([]);
+                setFireTrains([]);
+                setWaterSources([]);
+                setResources(DEFAULT_RESOURCES);
+                setUseCustomResources(false);
+                setCustomPositions({});
+                setCustomPumpPositions({});
+                setFireTrainPTW({});
+                setScale(1);
+                setToolMode('none');
+                // Сброс данных прогноза
+                ['prediction_initialParams', 'prediction_additionalParams', 'prediction_currentStage',
+                 'prediction_stageResults', 'prediction_workDate', 'prediction_workTime'].forEach(k =>
+                   localStorage.removeItem(k)
+                );
+              }}
+              className="px-3 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-xs font-semibold"
+            >
+              🔄 Новый пожар
+            </button>
             <button onClick={handleScreenshotScene} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">📷 Скриншот обстановки</button>
             <button onClick={handleScreenshotFullScreen} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">🖥 Скриншот экрана</button>
           </div>
