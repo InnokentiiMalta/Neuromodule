@@ -95,8 +95,8 @@ export function usePredictionSummary(): PredictionSummary {
       localStorage.getItem('prediction_additionalParams'),
       {}
     );
-    const rawDate = localStorage.getItem('prediction_workDate') || '';
-    const rawTime = localStorage.getItem('prediction_workTime') || '';
+    const rawDate = safeParse<string>(localStorage.getItem('prediction_workDate'), '');
+    const rawTime = safeParse<string>(localStorage.getItem('prediction_workTime'), '');
     const workDate = isValidDate(rawDate) ? rawDate : '';
     const workTime = isValidTime(rawTime) ? rawTime : '';
 
