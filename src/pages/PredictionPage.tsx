@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { predictStage, sendFinalData, getDataStatus } from '../api/backend';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
 
 interface InitialParams {
   Время_следования_мин: number;
@@ -32,7 +33,6 @@ const ADDITIONAL_FIELDS = [
   { key: 'Время_ликвидации_последствий_пожара_мин', label: 'Время ликвидации последствий (мин)' },
 ];
 
-// Ключи, которые модель рекомендует (силы и средства)
 const RECOMMENDED_KEYS = new Set([
   'Всего_подано_пожарных_стволов_ед',
   'Количество_основных_пожарных_автомобилей_ед',
@@ -40,7 +40,6 @@ const RECOMMENDED_KEYS = new Set([
   'Количество_пожарных_поездов_ед',
 ]);
 
-// Ключи, которые модель прогнозирует (время)
 const FORECAST_KEYS = new Set([
   'Время_локализации_пожара_мин',
   'Время_ликвидации_открытого_горения_мин',
@@ -48,7 +47,6 @@ const FORECAST_KEYS = new Set([
   'Время_тушения_мин',
 ]);
 
-// Красивые названия
 const PARAM_LABELS: Record<string, string> = {
   'Время_локализации_пожара_мин': 'Время локализации пожара',
   'Время_ликвидации_открытого_горения_мин': 'Время ликвидации открытого горения',
@@ -60,7 +58,6 @@ const PARAM_LABELS: Record<string, string> = {
   'Количество_пожарных_поездов_ед': 'Пожарных поездов',
 };
 
-// Порядок вывода
 const PARAM_ORDER = [
   'Время_локализации_пожара_мин',
   'Время_ликвидации_открытого_горения_мин',
@@ -73,7 +70,7 @@ const PARAM_ORDER = [
 ];
 
 export default function PredictionPage() {
-  const [initialParams, setInitialParams] = useState<InitialParams>({
+  const [initialParams, setInitialParams] = useLocalStorageState<InitialParams>('prediction_initialParams', {
     Время_следования_мин: 8,
     Время_подачи_первого_ствола_мин: 1,
     Количество_основных_пожарных_автомобилей_ед: 2,
@@ -82,14 +79,16 @@ export default function PredictionPage() {
     Всего_подано_пожарных_стволов_ед: 1,
   });
 
-  const [additionalParams, setAdditionalParams] = useState<AdditionalParams>({
+  const [additionalParams, setAdditionalParams] = useLocalStorageState<AdditionalParams>('prediction_additionalParams', {
     Время_локализации_пожара_мин: 0,
     Время_ликвидации_открытого_горения_мин: 0,
     Время_ликвидации_последствий_пожара_мин: 0,
   });
 
-  const [currentStage, setCurrentStage] = useState(0);
-  const [stageResults, setStageResults] = useState<(Record<string, unknown> | null)[]>([null, null, null, null]);
+  const [currentStage, setCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
+  const [stageResults, setStageResults] = useLocalStorageState<(Record<string, unknown> | null)[]>('prediction_stageResults', [null, null, null, null]);
+  const [workDate, setWorkDate] = useLocalStorageState<string>('prediction_workDate', '');
+  const [workTime, setWorkTime] = useLocalStorageState<string>('prediction_workTime', '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [finalSubmitted, setFinalSubmitted] = useState(false);
@@ -170,6 +169,29 @@ export default function PredictionPage() {
     }
   };
 
+  const handleNewFire = () => {
+    if (!confirm('Начать новый пожар? Все введённые данные будут удалены.')) return;
+    setInitialParams({
+      Время_следования_мин: 8,
+      Время_подачи_первого_ствола_мин: 1,
+      Количество_основных_пожарных_автомобилей_ед: 2,
+      Количество_специальных_пожарных_автомобилей_ед: 0,
+      Количество_пожарных_поездов_ед: 0,
+      Всего_подано_пожарных_стволов_ед: 1,
+    });
+    setAdditionalParams({
+      Время_локализации_пожара_мин: 0,
+      Время_ликвидации_открытого_горения_мин: 0,
+      Время_ликвидации_последствий_пожара_мин: 0,
+    });
+    setCurrentStage(0);
+    setStageResults([null, null, null, null]);
+    setWorkDate('');
+    setWorkTime('');
+    setFinalSubmitted(false);
+    setError(null);
+  };
+
   const formatValue = (v: unknown): string => {
     if (typeof v === 'number') {
       return v.toFixed(2);
@@ -185,6 +207,36 @@ export default function PredictionPage() {
         </Link>
 
         <h1 className="text-2xl font-bold mb-6">Поэтапное прогнозирование</h1>
+
+        {/* Дата и время работ */}
+        <div className="bg-gray-800 rounded-lg p-4 mb-3">
+          <h2 className="text-lg font-semibold mb-3">🕐 Дата и время проведения работ</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Дата начала работ</label>
+              <input
+                type="date"
+                value={workDate}
+                onChange={(e) => setWorkDate(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Время начала работ</label>
+              <input
+                type="time"
+                value={workTime}
+                onChange={(e) => setWorkTime(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Используется для определения сезона и необходимости АСО (автомобиля связи и освещения).
+          </p>
+        </div>
 
         {/* Начальные параметры */}
         <div className="bg-gray-800 rounded-lg p-4 mb-3">
@@ -281,7 +333,7 @@ export default function PredictionPage() {
               Финальный этап
             </button>
           </div>
-          
+
           <button
             onClick={handleSubmitFinal}
             disabled={currentStage < 4 || loading || finalSubmitted}
@@ -335,7 +387,16 @@ export default function PredictionPage() {
               </div>
             </div>
           )}
-          
+
+          {currentStage >= 4 && (
+            <button
+              onClick={handleNewFire}
+              className="mt-2 w-full py-2 bg-orange-700 hover:bg-orange-600 rounded font-semibold text-sm"
+            >
+              🔄 Новый пожар
+            </button>
+          )}
+
           <p className="text-xs text-gray-400 mt-3">
             🔮 <span className="text-purple-300">Прогноз</span> — предсказание модели (время).
             ⭐ <span className="text-emerald-300">Рекомендация</span> — совет по силам (стволы, техника).
@@ -374,17 +435,13 @@ export default function PredictionPage() {
 
             const stageLabel = idx === 3 ? 'Финальный этап' : `Этап ${idx + 1}`;
 
-            // Текущее фактическое значение стволов (то, что ввёл пользователь)
             const actualStvols = initialParams['Всего_подано_пожарных_стволов_ед'];
-
-            // Рекомендуемое значение стволов из прогноза модели
             const recommendedStvols = result['Всего_подано_пожарных_стволов_ед'];
 
             return (
               <div key={idx} className="bg-gray-800 rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-3">{stageLabel}</h3>
 
-                {/* Плашка со сравнением стволов, если есть рекомендация */}
                 {idx < 3 && typeof recommendedStvols === 'number' && (
                   <div className={`mb-3 p-2 rounded border ${
                     recommendedStvols > actualStvols
@@ -410,6 +467,30 @@ export default function PredictionPage() {
                   </div>
                 )}
 
+                {/* Рекомендуемые силы на этот этап */}
+                {typeof recommendedStvols === 'number' && recommendedStvols > 0 && (
+                  <div className="mb-3 p-2 rounded border border-orange-500/30 bg-orange-900/20">
+                    <div className="text-[10px] text-orange-400 font-semibold mb-1">🚒 Рекомендуемые силы на этап</div>
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 text-[9px]">Стволов РСК-50</span>
+                        <span className="font-mono font-bold text-orange-200">{recommendedStvols}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 text-[9px]">АЦ-40 ≈</span>
+                        <span className="font-mono font-bold text-orange-200">{Math.ceil(recommendedStvols / 2)}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 text-[9px]">Л/с ≈</span>
+                        <span className="font-mono font-bold text-orange-200">{recommendedStvols * 3 + 3}</span>
+                      </div>
+                    </div>
+                    <div className="text-[9px] text-orange-300/60 mt-1">
+                      Расчёт по боевому уставу: 2 ствола на АЦ-40, 3 чел./ствол + резерв
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   {PARAM_ORDER.filter(key => key in result).map((key) => {
                     const value = result[key];
@@ -417,7 +498,6 @@ export default function PredictionPage() {
                     const isForecast = FORECAST_KEYS.has(key);
                     const label = PARAM_LABELS[key] || key;
 
-                    // Плашка типа
                     let tag = null;
                     if (isForecast) {
                       tag = <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 ml-2">🔮 прогноз</span>;

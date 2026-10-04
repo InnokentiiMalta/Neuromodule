@@ -3,6 +3,7 @@ import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, Availa
 import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
 import html2canvas from 'html2canvas';
 import ServerStatus from './components/ServerStatus';
+import RecommendationPanel from './components/RecommendationPanel';
 import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
 
@@ -962,6 +963,25 @@ export default function App() {
     setDeployment(result);
   }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
 
+  const handleApplyRecommendations = useCallback(
+    (rec: { ac: number; al: number; asr: number; personnel: number }) => {
+      setResources({ ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel });
+      setUseCustomResources(true);
+
+      if (fireSource) {
+        const newDeployment = calculateDeployment(
+          wagons,
+          fireSource,
+          obstacles,
+          { ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel },
+          waterSources
+        );
+        setDeployment(newDeployment);
+      }
+    },
+    [fireSource, wagons, obstacles, waterSources]
+  );
+
   const handleReset = useCallback(() => {
     setFireSource(null);
     setObstacles([]);
@@ -1562,6 +1582,11 @@ export default function App() {
                 )}
               </div>
             )}
+
+            {/* Рекомендации модели */}
+            <div className="border-t border-gray-700/50">
+              <RecommendationPanel onApply={handleApplyRecommendations} />
+            </div>
           </div>
         </aside>
 
