@@ -6,6 +6,7 @@ import ServerStatus from './components/ServerStatus';
 import RecommendationPanel from './components/RecommendationPanel';
 import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
+import { useLocalStorageState } from './hooks/useLocalStorageState';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -371,34 +372,34 @@ function routeHoseAlongCorridor(
 }
 
 export default function App() {
-  const [wagons, setWagons] = useState<Wagon[]>(generateDefaultWagons());
-  const [fireSource, setFireSource] = useState<FireSource | null>(null);
-  const [obstacles, setObstacles] = useState<Obstacle[]>([]);
+  const [wagons, setWagons] = useLocalStorageState<Wagon[]>('map_wagons', generateDefaultWagons());
+  const [fireSource, setFireSource] = useLocalStorageState<FireSource | null>('map_fireSource', null);
+  const [obstacles, setObstacles] = useLocalStorageState<Obstacle[]>('map_obstacles', []);
   const [toolMode, setToolMode] = useState<ToolMode>('none');
   const [obstacleType, setObstacleType] = useState<ObstacleType>('building');
   const [fireIntensity, setFireIntensity] = useState<'low' | 'medium' | 'high'>('medium');
   const [fireType, setFireType] = useState<'wagon_body' | 'tank' | 'undercarriage' | 'cargo'>('wagon_body');
-  const [deployment, setDeployment] = useState<Deployment | null>(null);
-  const [manualUnits, setManualUnits] = useState<ManualUnit[]>([]);
+  const [deployment, setDeployment] = useLocalStorageState<Deployment | null>('map_deployment', null);
+  const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
-  const [fireTrains, setFireTrains] = useState<FireTrain[]>([]);
+  const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
-  const [fireTrainPTW, setFireTrainPTW] = useState<Record<string, boolean>>({});
+  const [fireTrainPTW, setFireTrainPTW] = useLocalStorageState<Record<string, boolean>>('map_fireTrainPTW', {});
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
-  const [customPumpPositions, setCustomPumpPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [customPumpPositions, setCustomPumpPositions] = useLocalStorageState<Record<string, { x: number; y: number }>>('map_customPumpPositions', {});
   const [showHelp, setShowHelp] = useState(false);
   const [showResources, setShowResources] = useState(false);
-  const [resources, setResources] = useState<AvailableResources>(DEFAULT_RESOURCES);
-  const [useCustomResources, setUseCustomResources] = useState(false);
-  const [customPositions, setCustomPositions] = useState<CustomPositions>({});
-  const [waterSources, setWaterSources] = useState<WaterSource[]>([]);
+  const [resources, setResources] = useLocalStorageState<AvailableResources>('map_resources', DEFAULT_RESOURCES);
+  const [useCustomResources, setUseCustomResources] = useLocalStorageState<boolean>('map_useCustomResources', false);
+  const [customPositions, setCustomPositions] = useLocalStorageState<CustomPositions>('map_customPositions', {});
+  const [waterSources, setWaterSources] = useLocalStorageState<WaterSource[]>('map_waterSources', []);
   const [waterSourceType, setWaterSourceType] = useState<'pond' | 'river'>('pond');
   const [selectedElements, setSelectedElements] = useState<SelectedElement[]>([]);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useLocalStorageState<number>('map_scale', 1);
   const [rulerPoints, setRulerPoints] = useState<Array<{ x: number; y: number }>>([]);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -1144,7 +1145,6 @@ export default function App() {
             <button
               onClick={() => {
                 if (!confirm('Начать новый пожар? Вся обстановка карты и данные прогноза будут очищены.')) return;
-                // Сброс карты к дефолтам
                 setWagons(generateDefaultWagons());
                 setFireSource(null);
                 setObstacles([]);
@@ -1159,11 +1159,13 @@ export default function App() {
                 setFireTrainPTW({});
                 setScale(1);
                 setToolMode('none');
-                // Сброс данных прогноза
                 ['prediction_initialParams', 'prediction_additionalParams', 'prediction_currentStage',
-                 'prediction_stageResults', 'prediction_workDate', 'prediction_workTime'].forEach(k =>
-                   localStorage.removeItem(k)
-                );
+                 'prediction_stageResults', 'prediction_workDate', 'prediction_workTime',
+                 'prediction_finalSubmitted',
+                 'map_wagons', 'map_fireSource', 'map_obstacles', 'map_deployment',
+                 'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
+                 'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
+                 'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
               }}
               className="px-3 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-xs font-semibold"
             >
