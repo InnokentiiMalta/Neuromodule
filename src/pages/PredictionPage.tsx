@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { predictStage, sendFinalData, getDataStatus } from '../api/backend';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
@@ -93,6 +93,7 @@ export default function PredictionPage() {
   const [error, setError] = useState<string | null>(null);
   const [finalSubmitted, setFinalSubmitted] = useLocalStorageState<boolean>('prediction_finalSubmitted', false);
   const [dataStatus, setDataStatus] = useState<{ total_rows: number; new_rows: number; threshold: number } | null>(null);
+  const paramsHashRef = useRef<string>('');
 
   useEffect(() => {
     const loadStatus = async () => {
@@ -101,6 +102,20 @@ export default function PredictionPage() {
     };
     loadStatus();
   }, [finalSubmitted]);
+
+  useEffect(() => {
+    const currentHash = JSON.stringify({ i: initialParams, a: additionalParams });
+    if (paramsHashRef.current === '') {
+      paramsHashRef.current = currentHash;
+      return;
+    }
+    if (paramsHashRef.current !== currentHash) {
+      paramsHashRef.current = currentHash;
+      if (finalSubmitted) {
+        setFinalSubmitted(false);
+      }
+    }
+  }, [initialParams, additionalParams, finalSubmitted, setFinalSubmitted]);
 
   const handleInitialChange = (key: keyof InitialParams, value: string) => {
     setInitialParams(prev => ({ ...prev, [key]: Number(value) || 0 }));
