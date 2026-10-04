@@ -1142,6 +1142,35 @@ export default function App() {
             <button onClick={handleDeploy} disabled={!fireSource} className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-red-700 disabled:from-gray-600 disabled:to-gray-700 rounded-lg font-semibold text-xs">🚀 Расставить</button>
             <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 rounded-lg text-xs">❓</button>
             <button onClick={handleReset} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 rounded-lg text-xs font-semibold">🗑 Сброс обстановки</button>
+            <button
+              onClick={() => {
+                if (!confirm('Начать новый пожар? Вся обстановка карты и данные прогноза будут очищены.')) return;
+                setWagons(generateDefaultWagons());
+                setFireSource(null);
+                setObstacles([]);
+                setDeployment(null);
+                setManualUnits([]);
+                setFireTrains([]);
+                setWaterSources([]);
+                setResources(DEFAULT_RESOURCES);
+                setUseCustomResources(false);
+                setCustomPositions({});
+                setCustomPumpPositions({});
+                setFireTrainPTW({});
+                setScale(1);
+                setToolMode('none');
+                ['prediction_initialParams', 'prediction_additionalParams', 'prediction_currentStage',
+                 'prediction_stageResults', 'prediction_workDate', 'prediction_workTime',
+                 'prediction_finalSubmitted',
+                 'map_wagons', 'map_fireSource', 'map_obstacles', 'map_deployment',
+                 'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
+                 'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
+                 'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
+              }}
+              className="px-3 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-xs font-semibold"
+            >
+              🔄 Новый пожар
+            </button>
             <button onClick={handleScreenshotScene} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">📷 Скриншот обстановки</button>
             <button onClick={handleScreenshotFullScreen} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">🖥 Скриншот экрана</button>
           </div>
