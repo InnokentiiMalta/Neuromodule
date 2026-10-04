@@ -9,9 +9,9 @@ import { Link } from 'react-router-dom';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
-const HOSE_SEGMENT_LENGTH = 40; // 20m
-const NOZZLE_DISTANCE_FROM_WAGON = 11; // 5-6m from wagon contour
-const MIN_NOZZLE_DISTANCE_FROM_FIRE = 6; // 3m from fire
+const HOSE_SEGMENT_LENGTH = 40;
+const NOZZLE_DISTANCE_FROM_WAGON = 11;
+const MIN_NOZZLE_DISTANCE_FROM_FIRE = 6;
 
 const OBSTACLE_DEFAULTS: Record<ObstacleType, { width: number; height: number; label: string; icon: string }> = {
   building: { width: 80, height: 60, label: 'Здание', icon: '🏢' },
@@ -67,28 +67,23 @@ interface SelectionBox {
   endY: number;
 }
 
-// Find shortest path avoiding obstacles and wagons
 function findShortestPath(
   fromX: number, fromY: number, toX: number, toY: number,
   wagons: Wagon[], obstacles: Obstacle[]
 ): Array<{ x: number; y: number }> {
-  // Check if direct line is clear
   const directClear = !lineCrossesBlockingObstacle(fromX, fromY, toX, toY, obstacles, wagons, 3);
   if (directClear) {
     return [{ x: fromX, y: fromY }, { x: toX, y: toY }];
   }
 
-  // Need to find waypoints around obstacles
   const dx = toX - fromX;
   const dy = toY - fromY;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len === 0) return [{ x: fromX, y: fromY }];
 
-  // Perpendicular direction
   const perpX = -dy / len;
   const perpY = dx / len;
 
-  // Try different offset distances and directions
   for (let offset = 30; offset <= 200; offset += 15) {
     for (const sign of [1, -1]) {
       const midX = (fromX + toX) / 2 + perpX * offset * sign;
@@ -104,11 +99,9 @@ function findShortestPath(
     }
   }
 
-  // Fallback: direct path
   return [{ x: fromX, y: fromY }, { x: toX, y: toY }];
 }
 
-// Check if line crosses obstacles
 function lineCrossesBlockingObstacle(
   x1: number, y1: number, x2: number, y2: number,
   obstacles: Obstacle[], wagons: Wagon[], margin: number = 0
@@ -136,12 +129,12 @@ function lineIntersectsRect(
   const expandedRy = ry - margin;
   const expandedRw = rw + margin * 2;
   const expandedRh = rh + margin * 2;
-  
+
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
     const px = x1 + (x2 - x1) * t;
     const py = y1 + (y2 - y1) * t;
-    if (px >= expandedRx && px <= expandedRx + expandedRw && 
+    if (px >= expandedRx && px <= expandedRx + expandedRw &&
         py >= expandedRy && py <= expandedRy + expandedRh) {
       return true;
     }
@@ -164,76 +157,51 @@ function isPointInBlockingObstacle(x: number, y: number, obstacles: Obstacle[], 
   return false;
 }
 
-// Hose routing - shortest path from unit to fire
-// Функция для генерации точек пятиугольника автомобиля (кабина + кузов + насос)
-// Согласно боевому уставу: темный квадратик - насос, острый угол - кабина
 function getFireTruckPoints(x: number, y: number, angle: number): string {
-  // Автомобиль в масштабе: длина ~16 единиц (8м), ширина ~5 единиц (2.5м)
   const truckLength = 16;
   const truckWidth = 5;
-  
-  // Определяем направление кабины в зависимости от угла
-  // Угол 0° - автомобиль смотрит вправо, кабина справа
-  // Угол 90° - смотрит вниз
-  // Угол 180° - смотрит влево, кабина слева
-  // Угол 270° - смотрит вверх
-  
-  // Нормализуем угол
+
   const normalizedAngle = ((angle % 360) + 360) % 360;
-  
-  // Определяем, с какой стороны кабина (острый угол)
   const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
-  
+
   let points: Array<{x: number, y: number}>;
-  
+
   if (isCabinRight) {
-    // Кабина справа (острый угол справа)
     points = [
-      { x: x - truckLength/2, y: y - truckWidth/2 }, // верхний левый (насос)
-      { x: x - truckLength/2, y: y + truckWidth/2 }, // нижний левый (насос)
-      { x: x + truckLength/2 - 2, y: y + truckWidth/2 }, // нижний правый
-      { x: x + truckLength/2 + 2, y: y }, // острый угол кабины (справа)
-      { x: x + truckLength/2 - 2, y: y - truckWidth/2 }, // верхний правый
+      { x: x - truckLength/2, y: y - truckWidth/2 },
+      { x: x - truckLength/2, y: y + truckWidth/2 },
+      { x: x + truckLength/2 - 2, y: y + truckWidth/2 },
+      { x: x + truckLength/2 + 2, y: y },
+      { x: x + truckLength/2 - 2, y: y - truckWidth/2 },
     ];
   } else {
-    // Кабина слева (острый угол слева)
     points = [
-      { x: x - truckLength/2 - 2, y: y }, // острый угол кабины (слева)
-      { x: x - truckLength/2 + 2, y: y + truckWidth/2 }, // нижний левый
-      { x: x + truckLength/2, y: y + truckWidth/2 }, // нижний правый (насос)
-      { x: x + truckLength/2, y: y - truckWidth/2 }, // верхний правый (насос)
-      { x: x - truckLength/2 + 2, y: y - truckWidth/2 }, // верхний левый
+      { x: x - truckLength/2 - 2, y: y },
+      { x: x - truckLength/2 + 2, y: y + truckWidth/2 },
+      { x: x + truckLength/2, y: y + truckWidth/2 },
+      { x: x + truckLength/2, y: y - truckWidth/2 },
+      { x: x - truckLength/2 + 2, y: y - truckWidth/2 },
     ];
   }
-  
+
   return points.map(p => `${p.x},${p.y}`).join(' ');
 }
 
-// Функция для получения координат насоса автомобиля (внутри контура автомобиля)
 function getPumpPosition(unitX: number, unitY: number, unitWidth: number, unitHeight: number, angle: number): { x: number; y: number } {
-  // Реальные размеры автомобиля (как в getFireTruckPoints)
   const truckLength = 16;
-  
-  // Центр автомобиля (unitX, unitY - это верхний левый угол bounding box)
+
   const centerX = unitX + unitWidth / 2;
   const centerY = unitY + unitHeight / 2;
-  
-  // Нормализуем угол (угол указывает направление от автомобиля к пожару)
+
   const normalizedAngle = ((angle % 360) + 360) % 360;
-  
-  // Насос находится с той стороны автомобиля, которая обращена к пожару
-  // Это обеспечивает, что рукав начинается непосредственно у автомобиля
+
   if (normalizedAngle >= 315 || normalizedAngle < 45) {
-    // Пожар справа - насос справа
     return { x: centerX + truckLength / 2 - 1, y: centerY };
   } else if (normalizedAngle >= 45 && normalizedAngle < 135) {
-    // Пожар снизу - насос снизу
     return { x: centerX, y: centerY + 2 };
   } else if (normalizedAngle >= 135 && normalizedAngle < 225) {
-    // Пожар слева - насос слева
     return { x: centerX - truckLength / 2 + 1, y: centerY };
   } else {
-    // Пожар сверху - насос сверху
     return { x: centerX, y: centerY - 2 };
   }
 }
@@ -249,47 +217,39 @@ function routeHoseAlongCorridor(
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
-  
-  // Получаем координаты насоса (пользовательские или расчётные)
+
   const pumpPos = customPumpPos || (unitAngle !== undefined ? getPumpPosition(unitX, unitY, unitWidth, unitHeight, unitAngle) : { x: unitCenterX, y: unitCenterY });
-  
+
   const angleToFire = Math.atan2(fireY - pumpPos.y, fireX - pumpPos.x);
   const distToFire = Math.sqrt((pumpPos.x - fireX) ** 2 + (pumpPos.y - fireY) ** 2);
-  // Branch point: must be at least 30m (60 units) from tracks, max 40m (80 units) from unit
-  const TRACK_TOP = 298; // 1.6m = 3.2 units gap between rails
+  const TRACK_TOP = 298;
   const TRACK_BOTTOM = 302;
-  const MIN_BRANCH_DISTANCE_FROM_TRACKS = 60; // 30m = 60 SVG units
-  const MAX_BRANCH_DISTANCE_FROM_UNIT = 80; // 40m = 80 SVG units
-  
+  const MIN_BRANCH_DISTANCE_FROM_TRACKS = 60;
+  const MAX_BRANCH_DISTANCE_FROM_UNIT = 80;
+
   let branchX: number, branchY: number;
   if (customBranchPoint) {
     branchX = customBranchPoint.x;
     branchY = customBranchPoint.y;
   } else {
-    // Calculate initial branch position
     const branchDist = Math.min(distToFire * 0.7, MAX_BRANCH_DISTANCE_FROM_UNIT);
     branchX = pumpPos.x + Math.cos(angleToFire) * branchDist;
     branchY = pumpPos.y + Math.sin(angleToFire) * branchDist;
-    
-    // Determine which side of tracks the unit is on
+
     const unitAboveTracks = unitCenterY < TRACK_TOP;
-    
-    // Ensure branch is on same side as unit and at least 30m from tracks
+
     if (unitAboveTracks) {
-      // Branch must be above tracks
       const minY = TRACK_TOP - MIN_BRANCH_DISTANCE_FROM_TRACKS;
       if (branchY > minY) {
         branchY = minY;
       }
     } else {
-      // Branch must be below tracks
       const maxY = TRACK_BOTTOM + MIN_BRANCH_DISTANCE_FROM_TRACKS;
       if (branchY < maxY) {
         branchY = maxY;
       }
     }
-    
-    // Ensure branch is not too far from pump (max 40m)
+
     const distToPump = Math.sqrt((branchX - pumpPos.x) ** 2 + (branchY - pumpPos.y) ** 2);
     if (distToPump > MAX_BRANCH_DISTANCE_FROM_UNIT) {
       const scale = MAX_BRANCH_DISTANCE_FROM_UNIT / distToPump;
@@ -298,46 +258,36 @@ function routeHoseAlongCorridor(
     }
   }
 
-  // Find shortest path from pump to branch point
   const path = findShortestPath(pumpPos.x, pumpPos.y, branchX, branchY, wagons, obstacles);
-  
-  // Nozzles: 5-6m from fire wagon, at least 3m (6 units) from tracks on unit's side
-  const nozzles: Array<{ x: number; y: number }> = [];  
-  // Determine which side of tracks the unit is on
-  const MIN_DISTANCE_FROM_TRACKS = 6; // 3m = 6 SVG units
+
+  const nozzles: Array<{ x: number; y: number }> = [];
+  const MIN_DISTANCE_FROM_TRACKS = 6;
   const unitAboveTracks = unitCenterY < TRACK_TOP;
-  
-  // Calculate default nozzle positions - both on same side as unit, at least 3m from tracks
+
   const defaultNozzles: Array<{ x: number; y: number }> = [];
-  
-  // Base positions near fire (20m = 40 units apart to ensure minimum 8m/16 units after adjustments)
+
   const baseNozzle1X = fireX - 20;
   const baseNozzle2X = fireX + 20;
   let baseNozzle1Y = fireY;
   let baseNozzle2Y = fireY;
-  
-  // Ensure minimum distance from tracks
+
   if (unitAboveTracks) {
-    // Both nozzles above tracks
     const minY = TRACK_TOP - MIN_DISTANCE_FROM_TRACKS;
     baseNozzle1Y = Math.min(baseNozzle1Y, minY);
     baseNozzle2Y = Math.min(baseNozzle2Y, minY);
   } else {
-    // Both nozzles below tracks
     const maxY = TRACK_BOTTOM + MIN_DISTANCE_FROM_TRACKS;
     baseNozzle1Y = Math.max(baseNozzle1Y, maxY);
     baseNozzle2Y = Math.max(baseNozzle2Y, maxY);
   }
-  
+
   defaultNozzles.push({ x: baseNozzle1X, y: baseNozzle1Y });
   defaultNozzles.push({ x: baseNozzle2X, y: baseNozzle2Y });
 
-  // Adjust nozzle positions to ensure minimum distance from wagon contour
   for (let i = 0; i < defaultNozzles.length; i++) {
     let nozzleX = defaultNozzles[i].x;
     let nozzleY = defaultNozzles[i].y;
 
-    // Ensure minimum distance from fire
     const distToFireCheck = Math.sqrt((nozzleX - fireX) ** 2 + (nozzleY - fireY) ** 2);
     if (distToFireCheck < MIN_NOZZLE_DISTANCE_FROM_FIRE) {
       const angle = Math.atan2(nozzleY - fireY, nozzleX - fireX);
@@ -345,7 +295,6 @@ function routeHoseAlongCorridor(
       nozzleY = fireY + Math.sin(angle) * (MIN_NOZZLE_DISTANCE_FROM_FIRE + 2);
     }
 
-    // Ensure distance from wagon contour
     for (let attempt = 0; attempt < 10; attempt++) {
       let tooClose = false;
       for (const wagon of wagons) {
@@ -365,11 +314,9 @@ function routeHoseAlongCorridor(
     defaultNozzles[i] = { x: nozzleX, y: nozzleY };
   }
 
-  // Use custom positions if valid, otherwise use defaults
   if (customNozzles && customNozzles.length > 0) {
     for (let i = 0; i < defaultNozzles.length; i++) {
       const custom = customNozzles[i];
-      // Check if custom position is valid (not zero/undefined)
       if (custom && (custom.x !== 0 || custom.y !== 0)) {
         nozzles.push({ x: custom.x, y: custom.y });
       } else {
@@ -380,18 +327,15 @@ function routeHoseAlongCorridor(
     nozzles.push(...defaultNozzles);
   }
 
-  // Ensure minimum distance between nozzles (4m = 8 units) - STRICT RULE
   const MIN_DISTANCE_BETWEEN_NOZZLES = 8;
   if (nozzles.length >= 2) {
-    // Repeat check multiple times to ensure compliance after all adjustments
     for (let iteration = 0; iteration < 5; iteration++) {
       for (let i = 0; i < nozzles.length; i++) {
         for (let j = i + 1; j < nozzles.length; j++) {
           const dist = Math.sqrt((nozzles[i].x - nozzles[j].x) ** 2 + (nozzles[i].y - nozzles[j].y) ** 2);
           if (dist < MIN_DISTANCE_BETWEEN_NOZZLES) {
-            // Move nozzles apart
             const angle = Math.atan2(nozzles[j].y - nozzles[i].y, nozzles[j].x - nozzles[i].x);
-            const moveDist = (MIN_DISTANCE_BETWEEN_NOZZLES - dist) / 2 + 1; // Add 1 unit buffer
+            const moveDist = (MIN_DISTANCE_BETWEEN_NOZZLES - dist) / 2 + 1;
             nozzles[i].x -= Math.cos(angle) * moveDist;
             nozzles[i].y -= Math.sin(angle) * moveDist;
             nozzles[j].x += Math.cos(angle) * moveDist;
@@ -402,22 +346,19 @@ function routeHoseAlongCorridor(
     }
   }
 
-  // Calculate branch connections (отсечки) for hoses after branch point
-  // Each hose segment is 20m (40 SVG units)
   const branchConnections: Array<{ x: number; y: number }> = [];
-  const HOSE_SEGMENT_LENGTH = 40; // 20m = 40 SVG units
-  
+  const HOSE_SEGMENT_LENGTH = 40;
+
   for (const nozzle of nozzles) {
     const dx = nozzle.x - branchX;
     const dy = nozzle.y - branchY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    
-    // If distance is more than 20m, add connection points
+
     if (dist > HOSE_SEGMENT_LENGTH) {
       const numSegments = Math.floor(dist / HOSE_SEGMENT_LENGTH);
       const segDx = dx / dist;
       const segDy = dy / dist;
-      
+
       for (let i = 1; i <= numSegments; i++) {
         const connX = branchX + segDx * (i * HOSE_SEGMENT_LENGTH);
         const connY = branchY + segDy * (i * HOSE_SEGMENT_LENGTH);
@@ -467,9 +408,7 @@ export default function App() {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
-    // Получаем текущий viewBox
     const viewBox = svg.viewBox.baseVal;
-    // Преобразуем координаты мыши в координаты SVG
     const x = viewBox.x + ((e.clientX - rect.left) / rect.width) * viewBox.width;
     const y = viewBox.y + ((e.clientY - rect.top) / rect.height) * viewBox.height;
     return { x, y };
@@ -534,10 +473,8 @@ export default function App() {
       setDeployment(null);
       setToolMode('none');
     } else if (toolMode === 'ruler') {
-      // Добавляем точку для измерения
       setRulerPoints(prev => {
         const newPoints = [...prev, { x, y }];
-        // Оставляем только последние 2 точки
         if (newPoints.length > 2) {
           return newPoints.slice(-2);
         }
@@ -545,13 +482,11 @@ export default function App() {
       });
       return;
     } else {
-      // Check wagon click for type change
       const clickedWagon = wagons.find(w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height);
       if (clickedWagon) {
         setSelectedWagonId(clickedWagon.id);
         setSelectedUnitId(null);
       } else {
-        // Check unit click
         const allUnits = [...(deployment?.units || []), ...manualUnits];
         const clickedUnit = allUnits.find(u => {
           const w = u.type === 'asa' ? 55 : 44;
@@ -569,8 +504,6 @@ export default function App() {
   }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
-    // Allow dragging in select mode for all types
-    // Allow dragging firefighters and branches in any mode (including 'none')
     if (toolMode !== 'select' && toolMode !== 'none') {
       if (type !== 'firefighter' && type !== 'branch') return;
     }
@@ -589,15 +522,13 @@ export default function App() {
         setDragState({ type, id, offsetX: x - unit.x, offsetY: y - unit.y });
       }
     } else if (type === 'branch' || type === 'firefighter') {
-      // For branch points and firefighters, we need to track their position in customPositions
       setDragState({ type, id, unitId, offsetX: x, offsetY: y });
     }
   }, [toolMode, obstacles, getSVGCoords, deployment, manualUnits, selectedElements, fireSource, customPositions, wagons]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const { x, y } = getSVGCoords(e);
-    
-    // Рисование прямоугольника выделения
+
     if (isSelecting && selectionBox) {
       setSelectionBox({
         ...selectionBox,
@@ -606,17 +537,15 @@ export default function App() {
       });
       return;
     }
-    
-    // Групповое перемещение выделенных элементов
+
     if (dragState && selectedElements.length > 1) {
       const deltaX = x - dragState.offsetX;
       const deltaY = y - dragState.offsetY;
-      
+
       selectedElements.forEach(elem => {
         let moveX = elem.startX + deltaX;
         let moveY = elem.startY + deltaY;
-        
-        // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
+
         if (fireSource) {
           const distFromFire = Math.sqrt((moveX - fireSource.x) ** 2 + (moveY - fireSource.y) ** 2);
           if (distFromFire > 700) {
@@ -625,24 +554,20 @@ export default function App() {
             moveY = fireSource.y + Math.sin(angle) * 700;
           }
         }
-        
-        // Ограничение границами карты
+
         moveX = Math.max(10, Math.min(990, moveX));
         moveY = Math.max(10, Math.min(590, moveY));
-        
+
         if (elem.type === 'unit') {
-          // Проверяем, в каком массиве находится техника
           const isManualUnit = manualUnits.some(u => u.id === elem.id);
           const isDeploymentUnit = deployment?.units.some(u => u.id === elem.id);
-          
-          // Update manualUnits
+
           if (isManualUnit) {
             setManualUnits(prev => prev.map(u =>
               u.id === elem.id ? { ...u, x: moveX, y: moveY } : u
             ));
           }
-          
-          // Update deployment units
+
           if (isDeploymentUnit && deployment) {
             setDeployment({
               ...deployment,
@@ -684,25 +609,23 @@ export default function App() {
       });
       return;
     }
-    
+
     if (!dragState) return;
 
     if (dragState.type === 'obstacle') {
       let newX = x - dragState.offsetX;
       let newY = y - dragState.offsetY;
-      
-      // Ограничение границами карты
+
       newX = Math.max(10, Math.min(990, newX));
       newY = Math.max(10, Math.min(590, newY));
-      
+
       setObstacles(prev => prev.map(o =>
         o.id === dragState.id ? { ...o, x: newX, y: newY } : o
       ));
     } else if (dragState.type === 'unit') {
       let newX = x - dragState.offsetX;
       let newY = y - dragState.offsetY;
-      
-      // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
+
       if (fireSource) {
         const distFromFire = Math.sqrt((newX - fireSource.x) ** 2 + (newY - fireSource.y) ** 2);
         if (distFromFire > 700) {
@@ -711,23 +634,19 @@ export default function App() {
           newY = fireSource.y + Math.sin(angle) * 700;
         }
       }
-      
-      // Ограничение границами карты
+
       newX = Math.max(10, Math.min(990, newX));
       newY = Math.max(10, Math.min(590, newY));
-      
-      // Проверяем, в каком массиве находится техника
+
       const isManualUnit = manualUnits.some(u => u.id === dragState.id);
       const isDeploymentUnit = deployment?.units.some(u => u.id === dragState.id);
-      
-      // Update manualUnits
+
       if (isManualUnit) {
         setManualUnits(prev => prev.map(u =>
           u.id === dragState.id ? { ...u, x: newX, y: newY } : u
         ));
       }
-      
-      // Update deployment units
+
       if (isDeploymentUnit && deployment) {
         setDeployment({
           ...deployment,
@@ -737,11 +656,9 @@ export default function App() {
         });
       }
     } else if (dragState.type === 'branch' && dragState.unitId) {
-      // Update branch point position
       let branchX = x;
       let branchY = y;
-      
-      // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
+
       if (fireSource) {
         const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
         if (distFromFire > 700) {
@@ -750,11 +667,10 @@ export default function App() {
           branchY = fireSource.y + Math.sin(angle) * 700;
         }
       }
-      
-      // Ограничение границами карты
+
       branchX = Math.max(10, Math.min(990, branchX));
       branchY = Math.max(10, Math.min(590, branchY));
-      
+
       setCustomPositions(prev => ({
         ...prev,
         [dragState.unitId!]: {
@@ -763,27 +679,23 @@ export default function App() {
         }
       }));
     } else if (dragState.type === 'firefighter' && dragState.unitId) {
-      // Update nozzle position (firefighter/nozzle)
       const nozzleIndex = parseInt(dragState.id.split('-').pop() || '0');
-      
+
       setCustomPositions(prev => {
         const positions = prev[dragState.unitId!] || {};
         const nozzles = positions.nozzles || [];
         const newNozzles = [...nozzles];
-        
-        // If this is the first drag for this unit, initialize all nozzle positions
+
         if (newNozzles.length === 0) {
-          // Get the unit to calculate initial positions
           const allUnits = [...(deployment?.units || []), ...manualUnits];
           const unit = allUnits.find(u => u.id === dragState.unitId);
-          
+
           if (unit && fireSource) {
             const unitWidth = unit.type === 'asa' ? 55 : 44;
             const unitCenterX = unit.x + unitWidth / 2;
             const unitCenterY = unit.y + 10;
             const angleToFire = Math.atan2(fireSource.y - unitCenterY, fireSource.x - unitCenterX);
-            
-            // Initialize both nozzle positions (for 2 nozzles per unit)
+
             const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
             for (const angle of nozzleAngles) {
               const nozzleX = fireSource.x + Math.cos(angle) * 12;
@@ -791,17 +703,14 @@ export default function App() {
               newNozzles.push({ x: nozzleX, y: nozzleY });
             }
           } else {
-            // Не добавляем позиции, если не можем их корректно рассчитать
             return prev;
           }
         }
-        
-        // Update only the dragged nozzle
+
         if (nozzleIndex < newNozzles.length) {
           let nozzleX = x;
           let nozzleY = y;
-          
-          // Ограничение перемещения: не дальше 2 км (400 единиц) от очага
+
           if (fireSource) {
             const distFromFire = Math.sqrt((nozzleX - fireSource.x) ** 2 + (nozzleY - fireSource.y) ** 2);
             if (distFromFire > 700) {
@@ -810,14 +719,13 @@ export default function App() {
               nozzleY = fireSource.y + Math.sin(angle) * 700;
             }
           }
-          
-          // Ограничение границами карты
+
           nozzleX = Math.max(10, Math.min(990, nozzleX));
           nozzleY = Math.max(10, Math.min(590, nozzleY));
-          
+
           newNozzles[nozzleIndex] = { x: nozzleX, y: nozzleY };
         }
-        
+
         return {
           ...prev,
           [dragState.unitId!]: {
@@ -827,12 +735,10 @@ export default function App() {
         };
       });
     } else if (dragState.type === 'personnel') {
-      // Update personnel position
       const personnelIndex = parseInt(dragState.id.split('-')[1]);
       let newX = x - dragState.offsetX;
       let newY = y - dragState.offsetY;
-      
-      // Ограничение перемещения: не дальше 100 м (200 единиц) от очага
+
       if (fireSource) {
         const distFromFire = Math.sqrt((newX - fireSource.x) ** 2 + (newY - fireSource.y) ** 2);
         if (distFromFire > 200) {
@@ -841,11 +747,10 @@ export default function App() {
           newY = fireSource.y + Math.sin(angle) * 200;
         }
       }
-      
-      // Ограничение границами карты
+
       newX = Math.max(10, Math.min(990, newX));
       newY = Math.max(10, Math.min(590, newY));
-      
+
       if (deployment) {
         const newPersonnelPositions = [...(deployment.personnelPositions || [])];
         if (personnelIndex < newPersonnelPositions.length) {
@@ -857,14 +762,12 @@ export default function App() {
         }
       }
     } else if (dragState.type === 'pump' && dragState.unitId) {
-      // Update pump position (start of hose)
       let newX = x - dragState.offsetX;
       let newY = y - dragState.offsetY;
-      
-      // Ограничение границами карты
+
       newX = Math.max(10, Math.min(990, newX));
       newY = Math.max(10, Math.min(590, newY));
-      
+
       setCustomPumpPositions(prev => ({
         ...prev,
         [dragState.unitId!]: { x: newX, y: newY }
@@ -874,17 +777,15 @@ export default function App() {
 
   const handleMouseUp = useCallback(() => {
     setDragState(null);
-    
-    // Завершить выделение прямоугольником
+
     if (isSelecting && selectionBox) {
       const minX = Math.min(selectionBox.startX, selectionBox.endX);
       const maxX = Math.max(selectionBox.startX, selectionBox.endX);
       const minY = Math.min(selectionBox.startY, selectionBox.endY);
       const maxY = Math.max(selectionBox.startY, selectionBox.endY);
-      
+
       const newSelected: SelectedElement[] = [];
-      
-      // Проверить технику
+
       const allUnits = [...(deployment?.units || []), ...manualUnits];
       allUnits.forEach(unit => {
         const unitWidth = unit.type === 'asa' ? 55 : 44;
@@ -898,8 +799,7 @@ export default function App() {
           });
         }
       });
-      
-      // Проверить препятствия
+
       obstacles.forEach(obs => {
         if (obs.x >= minX && obs.x + obs.width <= maxX &&
             obs.y >= minY && obs.y + obs.height <= maxY) {
@@ -911,8 +811,7 @@ export default function App() {
           });
         }
       });
-      
-      // Проверить ствольщиков
+
       if (fireSource) {
         allUnits.filter(u => u.type !== 'aso' && (u.hoses > 0 || (u as any).ptvDeployed)).forEach(unit => {
           const unitWidth = unit.type === 'asa' ? 55 : 44;
@@ -924,7 +823,7 @@ export default function App() {
             unit.angle,
             customPumpPositions[unit.id]
           );
-          
+
           routing.nozzles.forEach((nozzle, idx) => {
             if (nozzle.x >= minX && nozzle.x <= maxX &&
                 nozzle.y >= minY && nozzle.y <= maxY) {
@@ -937,8 +836,7 @@ export default function App() {
               });
             }
           });
-          
-          // Проверить разветвления
+
           if (routing.branchPoint.x >= minX && routing.branchPoint.x <= maxX &&
               routing.branchPoint.y >= minY && routing.branchPoint.y <= maxY) {
             newSelected.push({
@@ -951,7 +849,7 @@ export default function App() {
           }
         });
       }
-      
+
       setSelectedElements(newSelected);
       setIsSelecting(false);
       setSelectionBox(null);
@@ -1001,46 +899,37 @@ export default function App() {
       alert('Не удалось найти элемент карты');
       return;
     }
-    
+
     try {
-      // Клонируем SVG для модификации
       const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
 
-      // Устанавливаем размеры
       svgClone.setAttribute('width', '1000');
       svgClone.setAttribute('height', '600');
-      
-      // Сериализуем SVG в строку
+
       const serializer = new XMLSerializer();
       const svgString = serializer.serializeToString(svgClone);
-      
-      // Создаём Data URL
+
       const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(svgBlob);
-      
-      // Создаём изображение
+
       const img = new Image();
       img.onload = () => {
-        // Создаём canvas
         const canvas = document.createElement('canvas');
-        canvas.width = 2000; // 2x для высокого качества
+        canvas.width = 2000;
         canvas.height = 1200;
         const ctx = canvas.getContext('2d');
-        
+
         if (!ctx) {
           alert('Не удалось создать контекст canvas');
           URL.revokeObjectURL(url);
           return;
         }
-        
-        // Рисуем фон
+
         ctx.fillStyle = '#1e2a1e';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Рисуем SVG
+
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        // Копируем в буфер обмена
+
         canvas.toBlob((blob) => {
           if (blob && navigator.clipboard && navigator.clipboard.write) {
             navigator.clipboard.write([
@@ -1049,7 +938,6 @@ export default function App() {
               alert('Скриншот обстановки скопирован в буфер обмена');
             }).catch((err) => {
               console.error('Ошибка копирования в буфер:', err);
-              // Fallback: скачиваем файл
               const link = document.createElement('a');
               link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
               link.href = canvas.toDataURL('image/png');
@@ -1057,7 +945,6 @@ export default function App() {
               alert('Скриншот сохранён в файл');
             });
           } else {
-            // Fallback: скачиваем файл
             const link = document.createElement('a');
             link.download = `пожарная-обстановка-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
             link.href = canvas.toDataURL('image/png');
@@ -1067,12 +954,12 @@ export default function App() {
           URL.revokeObjectURL(url);
         }, 'image/png');
       };
-      
+
       img.onerror = () => {
         alert('Ошибка загрузки SVG изображения');
         URL.revokeObjectURL(url);
       };
-      
+
       img.src = url;
     } catch (error) {
       console.error('Ошибка при создании скриншота:', error);
@@ -1086,7 +973,7 @@ export default function App() {
       alert('Не удалось найти элемент приложения');
       return;
     }
-    
+
     try {
       const canvas = await html2canvas(appElement, {
         backgroundColor: '#111827',
@@ -1095,15 +982,13 @@ export default function App() {
         allowTaint: true,
         logging: false,
         onclone: (clonedDoc) => {
-          // Убеждаемся, что все стили скопированы
           const clonedElement = clonedDoc.querySelector('.min-h-screen') as HTMLElement;
           if (clonedElement) {
             clonedElement.style.overflow = 'visible';
           }
         }
       });
-      
-      // Копируем в буфер обмена
+
       canvas.toBlob((blob) => {
         if (blob && navigator.clipboard && navigator.clipboard.write) {
           navigator.clipboard.write([
@@ -1112,7 +997,6 @@ export default function App() {
             alert('Скриншот экрана скопирован в буфер обмена');
           }).catch((err) => {
             console.error('Ошибка копирования в буфер:', err);
-            // Fallback: скачиваем файл
             const link = document.createElement('a');
             link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
             link.href = canvas.toDataURL('image/png');
@@ -1120,7 +1004,6 @@ export default function App() {
             alert('Скриншот сохранён в файл');
           });
         } else {
-          // Fallback: скачиваем файл
           const link = document.createElement('a');
           link.download = `полный-экран-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
           link.href = canvas.toDataURL('image/png');
@@ -1137,15 +1020,14 @@ export default function App() {
   const changeWagonType = useCallback((wagonId: number, newType: WagonType) => {
     const newWagons = wagons.map(w => {
       if (w.id === wagonId) {
-        const height = 7; // 3.5m = 7 SVG units (wagon width)
+        const height = 7;
         return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
       }
       return w;
     });
     setWagons(newWagons);
     setSelectedWagonId(null);
-    
-    // Автоматический пересчёт расстановки после изменения типа вагона
+
     if (fireSource) {
       const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
       setDeployment(newDeployment);
@@ -1156,12 +1038,11 @@ export default function App() {
 
   const changeAllWagonsType = useCallback((newType: WagonType) => {
     const newWagons = wagons.map(w => {
-      const height = 7; // 3.5m = 7 SVG units (wagon width)
+      const height = 7;
       return { ...w, type: newType, height, y: TRACK_Y - height / 2, label: `${WAGON_TYPE_INFO[newType].label} №${w.id}` };
     });
     setWagons(newWagons);
-    
-    // Автоматический пересчёт расстановки после изменения типа всех вагонов
+
     if (fireSource) {
       const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
       setDeployment(newDeployment);
@@ -1173,12 +1054,11 @@ export default function App() {
   const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
     const newName = newType === 'asa' ? 'АСА' : newType === 'aso' ? 'АСО' : 'АЦ-40';
     const newPersonnel = newType === 'asa' ? 5 : newType === 'aso' ? 3 : 7;
-    
+
     setManualUnits(prev => prev.map(u =>
       u.id === unitId ? { ...u, type: newType, name: newName, personnel: newPersonnel } : u
     ));
-    
-    // Автоматический пересчёт расстановки после изменения типа техники
+
     if (fireSource) {
       const newDeployment = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
       setDeployment(newDeployment);
@@ -1231,29 +1111,24 @@ export default function App() {
               <button onClick={() => setPlacingUnit('asa')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'asa' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСА</button>
               <button onClick={() => setPlacingUnit('aso')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'aso' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСО</button>
               <button onClick={() => {
-                // Добавление пожарного поезда
                 const trainId = `train-${Date.now()}`;
-                
-                // Рассчитываем позицию для пожарного поезда
-                // Находим правую границу основного поезда
+
                 const mainTrainRightEdge = Math.max(...wagons.map(w => w.x + w.width));
-                
-                // Позиция пожарного поезда: 50 метров (100 единиц) от основного поезда
+
                 const startX = mainTrainRightEdge + 100;
-                
-                // Проверяем, помещается ли поезд на карте
+
                 if (startX + 3 * 56 > 990) {
                   alert('Недостаточно места для пожарного поезда');
                   return;
                 }
-                
+
                 const trainWagons: Wagon[] = [];
                 for (let i = 0; i < 3; i++) {
-                  const isTank = i === 1; // 1 цистерна в середине
+                  const isTank = i === 1;
                   trainWagons.push({
                     id: i + 1,
                     x: startX + i * 56,
-                    y: TRACK_Y - 3.5, // На тех же путях
+                    y: TRACK_Y - 3.5,
                     width: 50,
                     height: 7,
                     type: isTank ? 'tank' : 'freight',
@@ -1291,7 +1166,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Масштабирование */}
             <div className="p-2 bg-gray-700/50 rounded-lg">
               <label className="text-[10px] text-gray-400 block mb-1">Масштаб: {Math.round(scale * 100)}%</label>
               <input
@@ -1470,7 +1344,7 @@ export default function App() {
                     const isPTWDeployed = fireTrainPTW[selectedFireTrainId];
                     if (!isPTWDeployed && fireSource) {
                       return (
-                        <button 
+                        <button
                           onClick={() => {
                             setFireTrainPTW(prev => ({ ...prev, [selectedFireTrainId]: true }));
                           }}
@@ -1481,7 +1355,7 @@ export default function App() {
                       );
                     } else if (isPTWDeployed) {
                       return (
-                        <button 
+                        <button
                           onClick={() => {
                             setFireTrainPTW(prev => ({ ...prev, [selectedFireTrainId]: false }));
                           }}
@@ -1541,8 +1415,7 @@ export default function App() {
                     <div className="text-[8px] text-gray-400">Стволов</div>
                   </div>
                 </div>
-                
-                {/* Детализация по людям */}
+
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
                   <p className="text-[9px] font-semibold text-gray-300 mb-1">👥 Личный состав:</p>
                   <div className="space-y-0.5 text-[8px] text-gray-400">
@@ -1552,8 +1425,7 @@ export default function App() {
                     <p>• Свободные: {deployment.personnelPositions?.length || 0} чел.</p>
                   </div>
                 </div>
-                
-                {/* Список техники */}
+
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
                   <p className="text-[9px] font-semibold text-gray-300 mb-1">🚒 Техника:</p>
                   <div className="space-y-0.5 max-h-32 overflow-y-auto">
@@ -1571,7 +1443,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                
+
                 <p className="text-[9px] text-gray-400">{deployment.strategy}</p>
                 {deployment.warnings.length > 0 && (
                   <div className="mt-2 space-y-0.5">
@@ -1582,11 +1454,6 @@ export default function App() {
                 )}
               </div>
             )}
-
-            {/* Рекомендации модели */}
-            <div className="border-t border-gray-700/50">
-              <RecommendationPanel onApply={handleApplyRecommendations} />
-            </div>
           </div>
         </aside>
 
@@ -1598,7 +1465,6 @@ export default function App() {
               className="w-full h-full"
               onClick={handleSVGClick}
               onMouseDown={(e) => {
-                // Начать выделение прямоугольником в режиме selection
                 if (toolMode === 'selection') {
                   e.preventDefault();
                   const { x, y } = getSVGCoords(e);
@@ -1636,7 +1502,6 @@ export default function App() {
               <rect width="1000" height="600" fill="#1e2a1e" />
               <rect width="1000" height="600" fill="url(#grid)" />
 
-              {/* Railway tracks */}
               <g>
                 <rect x="55" y="294" width="890" height="12" fill="#3a3a3a" rx="2" />
                 <rect x="55" y="295" width="890" height="10" fill="#444" rx="1" />
@@ -1647,7 +1512,6 @@ export default function App() {
                 <line x1="60" y1="302" x2="940" y2="302" stroke="#aaa" strokeWidth="2" />
               </g>
 
-              {/* Wagons */}
               {wagons.map(wagon => {
                 const isOnFire = fireSource?.wagonId === wagon.id;
                 const isSelected = selectedWagonId === wagon.id;
@@ -1659,7 +1523,7 @@ export default function App() {
                       stroke={isOnFire ? '#ff4500' : isSelected ? '#a855f7' : '#666'}
                       strokeWidth={isOnFire ? 2.5 : isSelected ? 2 : 1} rx="3" />
                     {wagon.type === 'tank' && (
-                      <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 4} fill="none" stroke="#5a7a55" strokeWidth="1.5" />
+                      <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={Math.max(0.5, wagon.height / 2 - 4)} fill="none" stroke="#5a7a55" strokeWidth="1.5" />
                     )}
                     {wagon.type === 'passenger' && (
                       <>
@@ -1673,11 +1537,10 @@ export default function App() {
                 );
               })}
 
-              {/* Fire Trains */}
               {fireTrains.map(train => {
                 const isSelected = selectedFireTrainId === train.id;
                 return (
-                  <g 
+                  <g
                     key={train.id}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1694,7 +1557,7 @@ export default function App() {
                           stroke={isSelected ? "#4fc3f7" : "#8b0000"}
                           strokeWidth={isSelected ? 2 : 1} rx="3" />
                         {wagon.type === 'tank' && (
-                          <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={wagon.height / 2 - 2} fill="none" stroke="#8b0000" strokeWidth="1" />
+                          <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={Math.max(0.5, wagon.height / 2 - 2)} fill="none" stroke="#8b0000" strokeWidth="1" />
                         )}
                         <text x={wagon.x + wagon.width / 2} y={wagon.y - 8} textAnchor="middle" fill="#ff6666" fontSize="4" fontFamily="sans-serif" fontWeight="bold">{wagon.label}</text>
                       </g>
@@ -1704,49 +1567,50 @@ export default function App() {
                 );
               })}
 
-              {/* Fire Train PTW - 4 nozzles from fire train */}
               {fireSource && fireTrains.length > 0 && fireTrains.filter(train => fireTrainPTW[train.id]).map(train => {
                 const trainCenterX = train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2;
                 const trainCenterY = train.wagons[0].y + train.wagons[0].height / 2;
+
                 const branchAbove = { x: trainCenterX, y: 268 };
                 const branchBelow = { x: trainCenterX, y: 332 };
+
                 const nozzles = [
                   { x: fireSource.x - 15, y: 275 },
                   { x: fireSource.x + 15, y: 275 },
                   { x: fireSource.x - 15, y: 325 },
                   { x: fireSource.x + 15, y: 325 },
                 ];
-                
-                const HOSE_SEGMENT_LENGTH_TRAIN = 40;
+
+                const HOSE_SEGMENT_LENGTH = 40;
                 const calculateConnections = (x1: number, y1: number, x2: number, y2: number) => {
                   const dx = x2 - x1;
                   const dy = y2 - y1;
                   const dist = Math.sqrt(dx * dx + dy * dy);
                   const connections: Array<{ x: number; y: number }> = [];
-                  
-                  if (dist > HOSE_SEGMENT_LENGTH_TRAIN) {
-                    const numSegments = Math.floor(dist / HOSE_SEGMENT_LENGTH_TRAIN);
+
+                  if (dist > HOSE_SEGMENT_LENGTH) {
+                    const numSegments = Math.floor(dist / HOSE_SEGMENT_LENGTH);
                     const segDx = dx / dist;
                     const segDy = dy / dist;
-                    
+
                     for (let i = 1; i <= numSegments; i++) {
                       connections.push({
-                        x: x1 + segDx * (i * HOSE_SEGMENT_LENGTH_TRAIN),
-                        y: y1 + segDy * (i * HOSE_SEGMENT_LENGTH_TRAIN)
+                        x: x1 + segDx * (i * HOSE_SEGMENT_LENGTH),
+                        y: y1 + segDy * (i * HOSE_SEGMENT_LENGTH)
                       });
                     }
                   }
                   return connections;
                 };
-                
+
                 const trainToAboveConnections = calculateConnections(trainCenterX, trainCenterY, branchAbove.x, branchAbove.y);
                 const trainToBelowConnections = calculateConnections(trainCenterX, trainCenterY, branchBelow.x, branchBelow.y);
-                
+
                 return (
                   <g key={`train-ptw-${train.id}`}>
                     <line x1={trainCenterX} y1={trainCenterY} x2={branchAbove.x} y2={branchAbove.y} stroke="#000" strokeWidth="3" />
                     <line x1={trainCenterX} y1={trainCenterY} x2={branchBelow.x} y2={branchBelow.y} stroke="#000" strokeWidth="3" />
-                    
+
                     {trainToAboveConnections.map((conn, idx) => (
                       <g key={`train-above-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
@@ -1759,20 +1623,20 @@ export default function App() {
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
                       </g>
                     ))}
-                    
+
                     <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                     <text x={branchAbove.x} y={branchAbove.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-                    
+
                     <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                     <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-                    
+
                     {nozzles.slice(0, 2).map((nozzle, idx) => (
                       <line key={`above-${idx}`} x1={branchAbove.x} y1={branchAbove.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
                     {nozzles.slice(2, 4).map((nozzle, idx) => (
                       <line key={`below-${idx}`} x1={branchBelow.x} y1={branchBelow.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
-                    
+
                     {nozzles.slice(0, 2).map((nozzle, idx) => {
                       const connections = calculateConnections(branchAbove.x, branchAbove.y, nozzle.x, nozzle.y);
                       return connections.map((conn, cidx) => (
@@ -1791,7 +1655,7 @@ export default function App() {
                         </g>
                       ));
                     })}
-                    
+
                     {nozzles.map((nozzle, idx) => {
                       const dx = fireSource.x - nozzle.x;
                       const dy = fireSource.y - nozzle.y;
@@ -1800,14 +1664,14 @@ export default function App() {
                       const sprayLength = Math.min(dist * 0.3, 30);
                       const sprayX = nozzle.x + Math.cos(angle) * sprayLength;
                       const sprayY = nozzle.y + Math.sin(angle) * sprayLength;
-                      
+
                       return (
                         <g key={`nozzle-${idx}`}>
                           <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
                             stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                             <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
                           </line>
-                          
+
                           <path
                             d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * 8} ${sprayY + Math.cos(angle) * 8} L ${sprayX + Math.sin(angle) * 8} ${sprayY - Math.cos(angle) * 8} Z`}
                             fill="#4fc3f7"
@@ -1815,7 +1679,7 @@ export default function App() {
                           >
                             <animate attributeName="opacity" values="0.3;0.5;0.3" dur="0.8s" repeatCount="indefinite" />
                           </path>
-                          
+
                           <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
                           <line
                             x1={nozzle.x}
@@ -1830,7 +1694,7 @@ export default function App() {
                         </g>
                       );
                     })}
-                    
+
                     <circle cx={branchAbove.x} cy={branchAbove.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                     <text x={branchAbove.x} y={branchAbove.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
                     <circle cx={branchBelow.x} cy={branchBelow.y + 12} r="4" fill="#ffeb3b" opacity="0.6" />
@@ -1839,7 +1703,6 @@ export default function App() {
                 );
               })}
 
-              {/* Fire */}
               {fireSource && (
                 <g>
                   <circle cx={fireSource.x} cy={fireSource.y} r={fireSource.intensity === 'high' ? 35 : fireSource.intensity === 'medium' ? 25 : 18} fill="url(#fireRadial)" opacity="0.7">
@@ -1852,7 +1715,6 @@ export default function App() {
                 </g>
               )}
 
-              {/* Obstacles */}
               {obstacles.map(obs => (
                 <g key={obs.id} onMouseDown={e => handleMouseDown(e, 'obstacle', obs.id)} style={{ cursor: toolMode === 'select' ? 'move' : 'default' }}>
                   <rect x={obs.x} y={obs.y} width={obs.width} height={obs.height}
@@ -1863,7 +1725,6 @@ export default function App() {
                 </g>
               ))}
 
-              {/* Water Sources */}
               {waterSources.map(ws => (
                 <g key={ws.id}>
                   <circle cx={ws.x} cy={ws.y} r="15" fill="#0288d1" opacity="0.3">
@@ -1877,7 +1738,6 @@ export default function App() {
                 </g>
               ))}
 
-              {/* Hose lines for deployment units */}
               {fireSource && deployment?.units.filter(u => u.hoses > 0).map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
@@ -1889,7 +1749,7 @@ export default function App() {
                   unit.angle,
                   customPumpPositions[unit.id]
                 );
-                
+
                 const connectionPoints: Array<{ x: number; y: number }> = [];
                 let totalDist = 0;
                 for (let i = 0; i < routing.path.length - 1; i++) {
@@ -1899,7 +1759,7 @@ export default function App() {
                   if (segLen === 0) continue;
                   const segDx = (p2.x - p1.x) / segLen;
                   const segDy = (p2.y - p1.y) / segLen;
-                  
+
                   let segDist = 0;
                   while (segDist < segLen) {
                     const nextConnDist = Math.ceil((totalDist + segDist) / 40) * 40;
@@ -1935,24 +1795,24 @@ export default function App() {
                       <circle cx={routing.path[0].x} cy={routing.path[0].y} r="5" fill="#ff6b00" stroke="#fff" strokeWidth="1.5" opacity="0.9" />
                       <circle cx={routing.path[0].x} cy={routing.path[0].y} r="2" fill="#fff" />
                     </g>
-                    
+
                     {routing.path.slice(0, -1).map((point, idx) => (
                       <line key={idx} x1={point.x} y1={point.y} x2={routing.path[idx + 1].x} y2={routing.path[idx + 1].y}
                         stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
                     ))}
-                    
+
                     {connectionPoints.map((point, idx) => (
                       <g key={`conn-${idx}`}>
                         <circle cx={point.x} cy={point.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={point.x} cy={point.y} r="1.5" fill="#888" />
                       </g>
                     ))}
-                    
+
                     {routing.nozzles.map((nozzle, idx) => (
                       <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
                         stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
                     ))}
-                    
+
                     {routing.branchConnections.map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
@@ -1960,14 +1820,14 @@ export default function App() {
                       </g>
                     ))}
 
-                    <g 
+                    <g
                       onMouseDown={e => handleMouseDown(e, 'branch', unit.id, unit.id)}
                       style={{ cursor: 'move' }}
                     >
                       <rect x={routing.branchPoint.x - 8} y={routing.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                       <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                     </g>
-                    
+
                     <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                     <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
 
@@ -1976,23 +1836,23 @@ export default function App() {
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
                       const dist = Math.sqrt(dx * dx + dy * dy);
-                      
+
                       if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle) || isNaN(dist)) {
                         return null;
                       }
-                      
+
                       const sprayLength = Math.min(dist * 0.3, 30);
                       const sprayWidth = 8;
                       const sprayX = nozzle.x + Math.cos(angle) * sprayLength;
                       const sprayY = nozzle.y + Math.sin(angle) * sprayLength;
-                      
+
                       return (
                         <g key={idx}>
                           <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
                             stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                             <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
                           </line>
-                          
+
                           <path
                             d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * sprayWidth} ${sprayY + Math.cos(angle) * sprayWidth} L ${sprayX + Math.sin(angle) * sprayWidth} ${sprayY - Math.cos(angle) * sprayWidth} Z`}
                             fill="#4fc3f7"
@@ -2007,7 +1867,6 @@ export default function App() {
                 );
               })}
 
-              {/* Hose lines for manual units with PTW deployed */}
               {fireSource && manualUnits.filter(u => u.ptvDeployed).map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
@@ -2019,7 +1878,7 @@ export default function App() {
                   unit.angle,
                   customPumpPositions[unit.id]
                 );
-                
+
                 const connectionPoints: Array<{ x: number; y: number }> = [];
                 let totalDist = 0;
                 for (let i = 0; i < routing.path.length - 1; i++) {
@@ -2029,7 +1888,7 @@ export default function App() {
                   if (segLen === 0) continue;
                   const segDx = (p2.x - p1.x) / segLen;
                   const segDy = (p2.y - p1.y) / segLen;
-                  
+
                   let segDist = 0;
                   while (segDist < segLen) {
                     const nextConnDist = Math.ceil((totalDist + segDist) / 40) * 40;
@@ -2065,39 +1924,39 @@ export default function App() {
                       <circle cx={routing.path[0].x} cy={routing.path[0].y} r="5" fill="#ff6b00" stroke="#fff" strokeWidth="1.5" opacity="0.9" />
                       <circle cx={routing.path[0].x} cy={routing.path[0].y} r="2" fill="#fff" />
                     </g>
-                    
+
                     {routing.path.slice(0, -1).map((point, idx) => (
                       <line key={idx} x1={point.x} y1={point.y} x2={routing.path[idx + 1].x} y2={routing.path[idx + 1].y}
                         stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
                     ))}
-                    
+
                     {connectionPoints.map((point, idx) => (
                       <g key={`conn-${idx}`}>
                         <circle cx={point.x} cy={point.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={point.x} cy={point.y} r="1.5" fill="#888" />
                       </g>
                     ))}
-                    
+
                     {routing.nozzles.map((nozzle, idx) => (
                       <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
                         stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
                     ))}
-                    
+
                     {routing.branchConnections.map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
                       </g>
                     ))}
-                    
-                    <g 
+
+                    <g
                       onMouseDown={e => handleMouseDown(e, 'branch', unit.id, unit.id)}
                       style={{ cursor: 'move' }}
                     >
                       <rect x={routing.branchPoint.x - 8} y={routing.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                       <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                     </g>
-                    
+
                     <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                     <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
 
@@ -2106,23 +1965,19 @@ export default function App() {
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
                       const dist = Math.sqrt(dx * dx + dy * dy);
-                      
-                      if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle) || isNaN(dist)) {
-                        return null;
-                      }
-                      
+
                       const sprayLength = Math.min(dist * 0.3, 30);
                       const sprayWidth = 8;
                       const sprayX = nozzle.x + Math.cos(angle) * sprayLength;
                       const sprayY = nozzle.y + Math.sin(angle) * sprayLength;
-                      
+
                       return (
                         <g key={idx}>
                           <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
                             stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                             <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
                           </line>
-                          
+
                           <path
                             d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * sprayWidth} ${sprayY + Math.cos(angle) * sprayWidth} L ${sprayX + Math.sin(angle) * sprayWidth} ${sprayY - Math.cos(angle) * sprayWidth} Z`}
                             fill="#4fc3f7"
@@ -2130,19 +1985,6 @@ export default function App() {
                           >
                             <animate attributeName="opacity" values="0.3;0.5;0.3" dur="0.8s" repeatCount="indefinite" />
                           </path>
-                          
-                          {/* Firefighter */}
-                          <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
-                          <line
-                            x1={nozzle.x}
-                            y1={nozzle.y}
-                            x2={nozzle.x + Math.cos(angle) * 8}
-                            y2={nozzle.y + Math.sin(angle) * 8}
-                            stroke="#1565c0"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                          />
-                          <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
                         </g>
                       );
                     })}
@@ -2150,16 +1992,15 @@ export default function App() {
                 );
               })}
 
-              {/* Deployment units */}
               {deployment?.units.map(unit => {
                 const isSelected = selectedUnitId === unit.id;
                 const centerX = unit.x + 8;
                 const centerY = unit.y + 2.5;
                 const truckColor = unit.type === 'ac' ? '#b71c1c' : unit.type === 'asa' ? '#d32f2f' : '#4a148c';
-                
+
                 return (
-                  <g 
-                    key={unit.id} 
+                  <g
+                    key={unit.id}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedUnitId(isSelected ? null : unit.id);
@@ -2171,18 +2012,15 @@ export default function App() {
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
-                    {/* Тень */}
                     <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
-                    
-                    {/* Основной пятиугольник автомобиля */}
-                    <polygon 
-                      points={getFireTruckPoints(centerX, centerY, unit.angle)} 
+
+                    <polygon
+                      points={getFireTruckPoints(centerX, centerY, unit.angle)}
                       fill={truckColor}
-                      stroke={isSelected ? '#4fc3f7' : '#fff'} 
+                      stroke={isSelected ? '#4fc3f7' : '#fff'}
                       strokeWidth={isSelected ? 1.5 : 0.8}
                     />
-                    
-                    {/* Насос (темный квадратик) - с противоположной стороны от кабины */}
+
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
@@ -2192,13 +2030,10 @@ export default function App() {
                         <rect x={centerX + 4} y={centerY - 1.5} width="3" height="3" fill="#333" />
                       );
                     })()}
-                    
-                    {/* Кабина (острый угол обозначен формой пятиугольника) */}
-                    
+
                     <text x={centerX} y={unit.y - 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
                     <text x={centerX} y={unit.y + 12} textAnchor="middle" fill="#aaa" fontSize="5" fontFamily="sans-serif">{unit.role}</text>
-                    
-                    {/* Person near vehicle */}
+
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
@@ -2214,16 +2049,15 @@ export default function App() {
                 );
               })}
 
-              {/* Manual units */}
               {manualUnits.map(unit => {
                 const isSelected = selectedUnitId === unit.id;
                 const centerX = unit.x + 8;
                 const centerY = unit.y + 2.5;
                 const truckColor = unit.type === 'ac' ? '#b71c1c' : unit.type === 'asa' ? '#d32f2f' : '#4a148c';
-                
+
                 return (
-                  <g 
-                    key={unit.id} 
+                  <g
+                    key={unit.id}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedUnitId(isSelected ? null : unit.id);
@@ -2235,18 +2069,15 @@ export default function App() {
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
-                    {/* Тень */}
                     <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
-                    
-                    {/* Основной пятиугольник автомобиля */}
-                    <polygon 
-                      points={getFireTruckPoints(centerX, centerY, unit.angle)} 
+
+                    <polygon
+                      points={getFireTruckPoints(centerX, centerY, unit.angle)}
                       fill={truckColor}
-                      stroke={isSelected ? '#4fc3f7' : '#fff'} 
+                      stroke={isSelected ? '#4fc3f7' : '#fff'}
                       strokeWidth={isSelected ? 1.5 : 0.8}
                     />
-                    
-                    {/* Насос (темный квадратик) - с противоположной стороны от кабины */}
+
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
@@ -2256,7 +2087,7 @@ export default function App() {
                         <rect x={centerX + 4} y={centerY - 1.5} width="3" height="3" fill="#333" />
                       );
                     })()}
-                    
+
                     <text x={centerX} y={unit.y - 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
                     {unit.division && (
                       <text x={centerX} y={unit.y + 12} textAnchor="middle" fill="#81d4fa" fontSize="5" fontFamily="sans-serif">{unit.division}</text>
@@ -2264,8 +2095,7 @@ export default function App() {
                     {!unit.ptvDeployed && (
                       <text x={centerX} y={unit.y + 20} textAnchor="middle" fill="#ffeb3b" fontSize="5" fontFamily="sans-serif">Нажмите ПТВ</text>
                     )}
-                    
-                    {/* Person near vehicle */}
+
                     {(() => {
                       const normalizedAngle = ((unit.angle % 360) + 360) % 360;
                       const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
@@ -2281,7 +2111,6 @@ export default function App() {
                 );
               })}
 
-              {/* Compass */}
               <g transform="translate(955, 40)">
                 <circle cx="0" cy="0" r="20" fill="rgba(0,0,0,0.6)" stroke="#555" strokeWidth="1" />
                 <polygon points="0,-14 -3,0 0,-4 3,0" fill="#ff4444" />
@@ -2289,7 +2118,6 @@ export default function App() {
                 <text x="0" y="-15" textAnchor="middle" fill="#ff6666" fontSize="6" fontWeight="bold">С</text>
               </g>
 
-              {/* Scale */}
               <g transform="translate(50, 565)">
                 <line x1="0" y1="0" x2="100" y2="0" stroke="#888" strokeWidth="2" />
                 <line x1="0" y1="-4" x2="0" y2="4" stroke="#888" strokeWidth="2" />
@@ -2297,7 +2125,6 @@ export default function App() {
                 <text x="50" y="13" textAnchor="middle" fill="#888" fontSize="7" fontFamily="sans-serif">≈ 50 м</text>
               </g>
 
-              {/* Selection box */}
               {selectionBox && isSelecting && (
                 <rect
                   x={Math.min(selectionBox.startX, selectionBox.endX)}
@@ -2311,7 +2138,6 @@ export default function App() {
                 />
               )}
 
-              {/* Selected elements highlights */}
               {selectedElements.map((elem, idx) => {
                 if (elem.type === 'unit') {
                   const allUnits = [...(deployment?.units || []), ...manualUnits];
@@ -2409,13 +2235,10 @@ export default function App() {
                 return null;
               })}
 
-              {/* Ruler measurement */}
               {toolMode === 'ruler' && rulerPoints.length >= 1 && (
                 <g>
-                  {/* Первая точка всегда видна */}
                   <circle cx={rulerPoints[0].x} cy={rulerPoints[0].y} r="4" fill="#ec4899" />
-                  
-                  {/* Линия и вторая точка отображаются только когда есть две точки */}
+
                   {rulerPoints.length === 2 && (
                     <>
                       <line
@@ -2449,9 +2272,8 @@ export default function App() {
                 </g>
               )}
 
-              {/* Personnel positions */}
               {deployment?.personnelPositions && deployment.personnelPositions.map((pos, idx) => (
-                <g 
+                <g
                   key={`personnel-${idx}`}
                   onMouseDown={e => {
                     if (toolMode === 'select' || toolMode === 'none') {
@@ -2472,7 +2294,6 @@ export default function App() {
                 </g>
               ))}
 
-              {/* Firefighters layer - always on top */}
               {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
@@ -2490,7 +2311,6 @@ export default function App() {
                   const dy = fs.y - nozzle.y;
                   const angle = Math.atan2(dy, dx);
 
-                  // Check for NaN values
                   if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle)) {
                     return null;
                   }
@@ -2501,13 +2321,10 @@ export default function App() {
                       onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
                       style={{ cursor: 'move' }}
                     >
-                      {/* Larger hit area for easier dragging */}
                       <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
-                      
-                      {/* Firefighter circle */}
+
                       <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
-                      
-                      {/* Direction indicator */}
+
                       <line
                         x1={nozzle.x}
                         y1={nozzle.y}
@@ -2517,11 +2334,9 @@ export default function App() {
                         strokeWidth="2"
                         strokeLinecap="round"
                       />
-                      
-                      {/* Firefighter icon */}
+
                       <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
-                      
-                      {/* Highlight ring when in select mode */}
+
                       {(toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && (
                         <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
                           <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
@@ -2538,14 +2353,14 @@ export default function App() {
                 <span className="text-xs text-white font-semibold">👆 Кликните на карту для размещения {placingUnit === 'asa' ? 'аварийно-спасательного (АСА)' : placingUnit === 'aso' ? 'машины связи и освещения (АСО)' : 'автоцистерны (АЦ)'}</span>
               </div>
             )}
-            
+
             {!placingUnit && (
               <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded px-2 py-1 border border-gray-600/50">
                 <span className="text-[10px] text-gray-200 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                  {toolMode === 'none' ? 'Просмотр (клик на объект для выбора)' : 
-                   toolMode === 'fire' ? 'Установка очага пожара' : 
-                   toolMode === 'obstacle' ? 'Размещение препятствий' : 
+                  {toolMode === 'none' ? 'Просмотр (клик на объект для выбора)' :
+                   toolMode === 'fire' ? 'Установка очага пожара' :
+                   toolMode === 'obstacle' ? 'Размещение препятствий' :
                    toolMode === 'water' ? 'Размещение водоисточника' :
                    toolMode === 'selection' ? '⬚ Выделение области' :
                    toolMode === 'ruler' ? '📏 Линейка (кликните 2 точки)' :
@@ -2554,7 +2369,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Selection info */}
             {selectedElements.length > 0 && (
               <div className="absolute top-2 right-2 bg-blue-600/90 backdrop-blur-sm rounded px-3 py-2 border border-blue-400">
                 <div className="text-xs text-white font-semibold mb-1">
@@ -2584,15 +2398,21 @@ export default function App() {
             )}
           </div>
         </main>
+
+        <aside className="w-[260px] bg-gray-800/95 border-l border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
+          <div className="p-3 overflow-y-auto flex-1">
+            <RecommendationPanel onApply={handleApplyRecommendations} />
+          </div>
+        </aside>
       </div>
 
       {showResources && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowResources(false)}>
           <div className="bg-gray-800 rounded-xl p-5 w-[400px] border border-gray-600" onClick={e => e.stopPropagation()}>
             <h2 className="text-base font-bold mb-3">📋 Задать количество сил</h2>
-            {idealResources && (
-              <p className="text-[10px] text-yellow-300 mb-3">💡 Рекомендуется: АЦ×{idealResources.ac}, АСА×{idealResources.al}, АСО×{idealResources.asr}, л/с {idealResources.personnel}ч.</p>
-            )}
+            <p className="text-[10px] text-gray-400 mb-3">
+              💡 Рекомендации модели — в панели справа на карте.
+            </p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="text-[11px] text-gray-300 block mb-1">🚒 АЦ</label>
