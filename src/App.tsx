@@ -2124,10 +2124,501 @@ export default function App() {
                   </g>
                 );
               })}
+
+              {/* Deployment units */}
+              {deployment?.units.map(unit => {
+                const isSelected = selectedUnitId === unit.id;
+                const centerX = unit.x + 8;
+                const centerY = unit.y + 2.5;
+                const truckColor = unit.type === 'ac' ? '#b71c1c' : unit.type === 'asa' ? '#d32f2f' : '#4a148c';
+                
+                return (
+                  <g 
+                    key={unit.id} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedUnitId(isSelected ? null : unit.id);
+                    }}
+                    onMouseDown={e => {
+                      if (isSelected) {
+                        handleMouseDown(e, 'unit', unit.id);
+                      }
+                    }}
+                    style={{ cursor: isSelected ? 'move' : 'pointer' }}
+                  >
+                    {/* Тень */}
+                    <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
+                    
+                    {/* Основной пятиугольник автомобиля */}
+                    <polygon 
+                      points={getFireTruckPoints(centerX, centerY, unit.angle)} 
+                      fill={truckColor}
+                      stroke={isSelected ? '#4fc3f7' : '#fff'} 
+                      strokeWidth={isSelected ? 1.5 : 0.8}
+                    />
+                    
+                    {/* Насос (темный квадратик) - с противоположной стороны от кабины */}
+                    {(() => {
+                      const normalizedAngle = ((unit.angle % 360) + 360) % 360;
+                      const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
+                      return isCabinRight ? (
+                        <rect x={centerX - 7} y={centerY - 1.5} width="3" height="3" fill="#333" />
+                      ) : (
+                        <rect x={centerX + 4} y={centerY - 1.5} width="3" height="3" fill="#333" />
+                      );
+                    })()}
+                    
+                    {/* Кабина (острый угол обозначен формой пятиугольника) */}
+                    
+                    <text x={centerX} y={unit.y - 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
+                    <text x={centerX} y={unit.y + 12} textAnchor="middle" fill="#aaa" fontSize="5" fontFamily="sans-serif">{unit.role}</text>
+                    
+                    {/* Person near vehicle */}
+                    {(() => {
+                      const normalizedAngle = ((unit.angle % 360) + 360) % 360;
+                      const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
+                      const personX = isCabinRight ? centerX - 10 : centerX + 10;
+                      return (
+                        <>
+                          <circle cx={personX} cy={centerY + 4} r="2" fill="#ffeb3b" opacity="0.6" />
+                          <text x={personX} y={centerY + 5} textAnchor="middle" fontSize="3">🧑‍🚒</text>
+                        </>
+                      );
+                    })()}
+                  </g>
+                );
+              })}
+
+              {/* Manual units */}
+              {manualUnits.map(unit => {
+                const isSelected = selectedUnitId === unit.id;
+                const centerX = unit.x + 8;
+                const centerY = unit.y + 2.5;
+                const truckColor = unit.type === 'ac' ? '#b71c1c' : unit.type === 'asa' ? '#d32f2f' : '#4a148c';
+                
+                return (
+                  <g 
+                    key={unit.id} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedUnitId(isSelected ? null : unit.id);
+                    }}
+                    onMouseDown={e => {
+                      if (isSelected) {
+                        handleMouseDown(e, 'unit', unit.id);
+                      }
+                    }}
+                    style={{ cursor: isSelected ? 'move' : 'pointer' }}
+                  >
+                    {/* Тень */}
+                    <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
+                    
+                    {/* Основной пятиугольник автомобиля */}
+                    <polygon 
+                      points={getFireTruckPoints(centerX, centerY, unit.angle)} 
+                      fill={truckColor}
+                      stroke={isSelected ? '#4fc3f7' : '#fff'} 
+                      strokeWidth={isSelected ? 1.5 : 0.8}
+                    />
+                    
+                    {/* Насос (темный квадратик) - с противоположной стороны от кабины */}
+                    {(() => {
+                      const normalizedAngle = ((unit.angle % 360) + 360) % 360;
+                      const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
+                      return isCabinRight ? (
+                        <rect x={centerX - 7} y={centerY - 1.5} width="3" height="3" fill="#333" />
+                      ) : (
+                        <rect x={centerX + 4} y={centerY - 1.5} width="3" height="3" fill="#333" />
+                      );
+                    })()}
+                    
+                    <text x={centerX} y={unit.y - 3} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold" fontFamily="sans-serif">{unit.name}</text>
+                    {unit.division && (
+                      <text x={centerX} y={unit.y + 12} textAnchor="middle" fill="#81d4fa" fontSize="5" fontFamily="sans-serif">{unit.division}</text>
+                    )}
+                    {!unit.ptvDeployed && (
+                      <text x={centerX} y={unit.y + 20} textAnchor="middle" fill="#ffeb3b" fontSize="5" fontFamily="sans-serif">Нажмите ПТВ</text>
+                    )}
+                    
+                    {/* Person near vehicle */}
+                    {(() => {
+                      const normalizedAngle = ((unit.angle % 360) + 360) % 360;
+                      const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
+                      const personX = isCabinRight ? centerX - 10 : centerX + 10;
+                      return (
+                        <>
+                          <circle cx={personX} cy={centerY + 4} r="2" fill="#ffeb3b" opacity="0.6" />
+                          <text x={personX} y={centerY + 5} textAnchor="middle" fontSize="3">🧑‍🚒</text>
+                        </>
+                      );
+                    })()}
+                  </g>
+                );
+              })}
+
+              {/* Compass */}
+              <g transform="translate(955, 40)">
+                <circle cx="0" cy="0" r="20" fill="rgba(0,0,0,0.6)" stroke="#555" strokeWidth="1" />
+                <polygon points="0,-14 -3,0 0,-4 3,0" fill="#ff4444" />
+                <polygon points="0,14 -3,0 0,4 3,0" fill="#ccc" />
+                <text x="0" y="-15" textAnchor="middle" fill="#ff6666" fontSize="6" fontWeight="bold">С</text>
+              </g>
+
+              {/* Scale */}
+              <g transform="translate(50, 565)">
+                <line x1="0" y1="0" x2="100" y2="0" stroke="#888" strokeWidth="2" />
+                <line x1="0" y1="-4" x2="0" y2="4" stroke="#888" strokeWidth="2" />
+                <line x1="100" y1="-4" x2="100" y2="4" stroke="#888" strokeWidth="2" />
+                <text x="50" y="13" textAnchor="middle" fill="#888" fontSize="7" fontFamily="sans-serif">≈ 50 м</text>
+              </g>
+
+              {/* Selection box */}
+              {selectionBox && isSelecting && (
+                <rect
+                  x={Math.min(selectionBox.startX, selectionBox.endX)}
+                  y={Math.min(selectionBox.startY, selectionBox.endY)}
+                  width={Math.abs(selectionBox.endX - selectionBox.startX)}
+                  height={Math.abs(selectionBox.endY - selectionBox.startY)}
+                  fill="rgba(59, 130, 246, 0.2)"
+                  stroke="#3b82f6"
+                  strokeWidth="1"
+                  strokeDasharray="4,4"
+                />
+              )}
+
+              {/* Selected elements highlights */}
+              {selectedElements.map((elem, idx) => {
+                if (elem.type === 'unit') {
+                  const allUnits = [...(deployment?.units || []), ...manualUnits];
+                  const unit = allUnits.find(u => u.id === elem.id);
+                  if (unit) {
+                    const unitWidth = unit.type === 'asa' ? 55 : 44;
+                    return (
+                      <rect
+                        key={`sel-${idx}`}
+                        x={unit.x - 3}
+                        y={unit.y - 3}
+                        width={unitWidth + 6}
+                        height={26}
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="2"
+                        strokeDasharray="4,2"
+                      />
+                    );
+                  }
+                } else if (elem.type === 'obstacle') {
+                  const obs = obstacles.find(o => o.id === elem.id);
+                  if (obs) {
+                    return (
+                      <rect
+                        key={`sel-${idx}`}
+                        x={obs.x - 3}
+                        y={obs.y - 3}
+                        width={obs.width + 6}
+                        height={obs.height + 6}
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="2"
+                        strokeDasharray="4,2"
+                      />
+                    );
+                  }
+                } else if (elem.type === 'firefighter' && elem.unitId) {
+                  const nozzleIndex = parseInt(elem.id.split('-').pop() || '0');
+                  const allUnits = [...(deployment?.units || []), ...manualUnits];
+                  const unit = allUnits.find(u => u.id === elem.unitId);
+                  if (unit && fireSource) {
+                    const unitWidth = unit.type === 'asa' ? 55 : 44;
+                    const customPos = customPositions[unit.id];
+                    const routing = routeHoseAlongCorridor(
+                      unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
+                      customPos?.branchPoint,
+                      customPos?.nozzles,
+                      unit.angle,
+                      customPumpPositions[unit.id]
+                    );
+                    if (routing.nozzles[nozzleIndex]) {
+                      return (
+                        <circle
+                          key={`sel-${idx}`}
+                          cx={routing.nozzles[nozzleIndex].x}
+                          cy={routing.nozzles[nozzleIndex].y}
+                          r="14"
+                          fill="none"
+                          stroke="#3b82f6"
+                          strokeWidth="2"
+                          strokeDasharray="4,2"
+                        />
+                      );
+                    }
+                  }
+                } else if (elem.type === 'branch' && elem.unitId) {
+                  const allUnits = [...(deployment?.units || []), ...manualUnits];
+                  const unit = allUnits.find(u => u.id === elem.unitId);
+                  if (unit && fireSource) {
+                    const unitWidth = unit.type === 'asa' ? 55 : 44;
+                    const customPos = customPositions[unit.id];
+                    const routing = routeHoseAlongCorridor(
+                      unit.x, unit.y, unitWidth, 20, fireSource.x, fireSource.y, wagons, obstacles,
+                      customPos?.branchPoint,
+                      customPos?.nozzles,
+                      unit.angle,
+                      customPumpPositions[unit.id]
+                    );
+                    return (
+                      <rect
+                        key={`sel-${idx}`}
+                        x={routing.branchPoint.x - 11}
+                        y={routing.branchPoint.y - 9}
+                        width={22}
+                        height={18}
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="2"
+                        strokeDasharray="4,2"
+                      />
+                    );
+                  }
+                }
+                return null;
+              })}
+
+              {/* Ruler measurement */}
+              {toolMode === 'ruler' && rulerPoints.length >= 1 && (
+                <g>
+                  {/* Первая точка всегда видна */}
+                  <circle cx={rulerPoints[0].x} cy={rulerPoints[0].y} r="4" fill="#ec4899" />
+                  
+                  {/* Линия и вторая точка отображаются только когда есть две точки */}
+                  {rulerPoints.length === 2 && (
+                    <>
+                      <line
+                        x1={rulerPoints[0].x}
+                        y1={rulerPoints[0].y}
+                        x2={rulerPoints[1].x}
+                        y2={rulerPoints[1].y}
+                        stroke="#ec4899"
+                        strokeWidth="2"
+                        strokeDasharray="5,5"
+                      />
+                      <circle cx={rulerPoints[1].x} cy={rulerPoints[1].y} r="4" fill="#ec4899" />
+                      <text
+                        x={(rulerPoints[0].x + rulerPoints[1].x) / 2}
+                        y={(rulerPoints[0].y + rulerPoints[1].y) / 2 - 10}
+                        textAnchor="middle"
+                        fill="#ec4899"
+                        fontSize="12"
+                        fontWeight="bold"
+                      >
+                        {(() => {
+                          const dx = rulerPoints[1].x - rulerPoints[0].x;
+                          const dy = rulerPoints[1].y - rulerPoints[0].y;
+                          const distance = Math.sqrt(dx * dx + dy * dy);
+                          const meters = (distance * 0.5).toFixed(1);
+                          return `${meters} м`;
+                        })()}
+                      </text>
+                    </>
+                  )}
+                </g>
+              )}
+
+              {/* Personnel positions */}
+              {deployment?.personnelPositions && deployment.personnelPositions.map((pos, idx) => (
+                <g 
+                  key={`personnel-${idx}`}
+                  onMouseDown={e => {
+                    if (toolMode === 'select' || toolMode === 'none') {
+                      e.stopPropagation();
+                      const { x, y } = getSVGCoords(e);
+                      setDragState({
+                        type: 'personnel',
+                        id: `personnel-${idx}`,
+                        offsetX: x - pos.x,
+                        offsetY: y - pos.y
+                      });
+                    }
+                  }}
+                  style={{ cursor: toolMode === 'select' || toolMode === 'none' ? 'move' : 'default' }}
+                >
+                  <circle cx={pos.x} cy={pos.y} r="3" fill="#ff9800" opacity="0.8" />
+                  <text x={pos.x} y={pos.y + 1.5} textAnchor="middle" fontSize="4">🧑</text>
+                </g>
+              ))}
+
+              {/* Firefighters layer - always on top */}
+              {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
+                const unitWidth = unit.type === 'asa' ? 55 : 44;
+                const fs = fireSource!;
+                const customPos = customPositions[unit.id];
+                const routing = routeHoseAlongCorridor(
+                  unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
+                  customPos?.branchPoint,
+                  customPos?.nozzles,
+                  unit.angle,
+                  customPumpPositions[unit.id]
+                );
+
+                return routing.nozzles.map((nozzle, idx) => {
+                  const dx = fs.x - nozzle.x;
+                  const dy = fs.y - nozzle.y;
+                  const angle = Math.atan2(dy, dx);
+
+                  // Check for NaN values
+                  if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle)) {
+                    return null;
+                  }
+
+                  return (
+                    <g
+                      key={`firefighter-top-${unit.id}-${idx}`}
+                      onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
+                      style={{ cursor: 'move' }}
+                    >
+                      {/* Larger hit area for easier dragging */}
+                      <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
+                      
+                      {/* Firefighter circle */}
+                      <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
+                      
+                      {/* Direction indicator */}
+                      <line
+                        x1={nozzle.x}
+                        y1={nozzle.y}
+                        x2={nozzle.x + Math.cos(angle) * 8}
+                        y2={nozzle.y + Math.sin(angle) * 8}
+                        stroke="#1565c0"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                      
+                      {/* Firefighter icon */}
+                      <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
+                      
+                      {/* Highlight ring when in select mode */}
+                      {(toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && (
+                        <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
+                          <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
+                        </circle>
+                      )}
+                    </g>
+                  );
+                });
+              })}
             </svg>
+
+            {placingUnit && (
+              <div className="absolute top-2 left-2 bg-red-600/90 backdrop-blur-sm rounded px-3 py-2 border border-red-400">
+                <span className="text-xs text-white font-semibold">👆 Кликните на карту для размещения {placingUnit === 'asa' ? 'аварийно-спасательного (АСА)' : placingUnit === 'aso' ? 'машины связи и освещения (АСО)' : 'автоцистерны (АЦ)'}</span>
+              </div>
+            )}
+            
+            {!placingUnit && (
+              <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded px-2 py-1 border border-gray-600/50">
+                <span className="text-[10px] text-gray-200 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                  {toolMode === 'none' ? 'Просмотр (клик на объект для выбора)' : 
+                   toolMode === 'fire' ? 'Установка очага пожара' : 
+                   toolMode === 'obstacle' ? 'Размещение препятствий' : 
+                   toolMode === 'water' ? 'Размещение водоисточника' :
+                   toolMode === 'selection' ? '⬚ Выделение области' :
+                   toolMode === 'ruler' ? '📏 Линейка (кликните 2 точки)' :
+                   'Перемещение объектов'}
+                </span>
+              </div>
+            )}
+
+            {/* Selection info */}
+            {selectedElements.length > 0 && (
+              <div className="absolute top-2 right-2 bg-blue-600/90 backdrop-blur-sm rounded px-3 py-2 border border-blue-400">
+                <div className="text-xs text-white font-semibold mb-1">
+                  Выделено: {selectedElements.length}
+                </div>
+                <div className="text-[10px] text-blue-100 space-y-0.5">
+                  {selectedElements.filter(e => e.type === 'unit').length > 0 && (
+                    <div>🚒 Техника: {selectedElements.filter(e => e.type === 'unit').length}</div>
+                  )}
+                  {selectedElements.filter(e => e.type === 'obstacle').length > 0 && (
+                    <div>🧱 Препятствия: {selectedElements.filter(e => e.type === 'obstacle').length}</div>
+                  )}
+                  {selectedElements.filter(e => e.type === 'firefighter').length > 0 && (
+                    <div>🧑‍🚒 Ствольщики: {selectedElements.filter(e => e.type === 'firefighter').length}</div>
+                  )}
+                  {selectedElements.filter(e => e.type === 'branch').length > 0 && (
+                    <div>⚙️ Разветвления: {selectedElements.filter(e => e.type === 'branch').length}</div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedElements([])}
+                  className="mt-1 text-[10px] text-blue-200 hover:text-white underline"
+                >
+                  Снять выделение
+                </button>
+              </div>
+            )}
           </div>
         </main>
       </div>
+
+      {showResources && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowResources(false)}>
+          <div className="bg-gray-800 rounded-xl p-5 w-[400px] border border-gray-600" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-bold mb-3">📋 Задать количество сил</h2>
+            {idealResources && (
+              <p className="text-[10px] text-yellow-300 mb-3">💡 Рекомендуется: АЦ×{idealResources.ac}, АСА×{idealResources.al}, АСО×{idealResources.asr}, л/с {idealResources.personnel}ч.</p>
+            )}
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="text-[11px] text-gray-300 block mb-1">🚒 АЦ</label>
+                <input type="number" min="0" max="20" value={resources.ac} onChange={e => setResources(prev => ({ ...prev, ac: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-300 block mb-1">🚑 АСА</label>
+                <input type="number" min="0" max="10" value={resources.al} onChange={e => setResources(prev => ({ ...prev, al: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-300 block mb-1">📡 АСО</label>
+                <input type="number" min="0" max="5" value={resources.asr} onChange={e => setResources(prev => ({ ...prev, asr: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-300 block mb-1">👨‍🚒 Л/с (чел.)</label>
+                <input type="number" min="0" max="200" value={resources.personnel} onChange={e => setResources(prev => ({ ...prev, personnel: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-1.5 bg-gray-700 rounded text-sm border border-gray-600" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setUseCustomResources(true); if (fireSource) setDeployment(calculateDeployment(wagons, fireSource, obstacles, resources, waterSources)); setShowResources(false); }} className="flex-1 py-2 bg-indigo-600 rounded-lg text-sm font-semibold">✅ Применить</button>
+              <button onClick={() => setShowResources(false)} className="px-4 py-2 bg-gray-700 rounded-lg text-sm">Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHelp && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowHelp(false)}>
+          <div className="bg-gray-800 rounded-xl p-5 max-w-lg border border-gray-600" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-bold mb-3">📖 Справка</h2>
+            <div className="space-y-2 text-[12px] text-gray-300">
+              <p><strong className="text-purple-400">Типы вагонов:</strong> Клик на вагон для смены типа. Кнопки "Тип поезда" для изменения всех вагонов сразу.</p>
+              <p><strong className="text-red-400">+АЦ/+АСА/+АСО:</strong> Ручное добавление пожарной техники. Выберите тип и кликните на карту. АСО не имеет воды и ПТВ.</p>
+              <p><strong className="text-red-400">+Пожарный поезд:</strong> Добавление пожарного поезда (3 вагона, 1 цистерна). Размещается на тех же путях на расстоянии 50 м от основного поезда.</p>
+              <p><strong className="text-green-400">Расставить ПТВ:</strong> Выберите добавленную машину и нажмите кнопку для автоматической прокладки рукавной линии к очагу пожара.</p>
+              <p><strong className="text-cyan-400">Перемещение:</strong> Режим "Перемещение" позволяет двигать технику, разветвления РТ-80, ствольщиков и препятствия. Ствольщиков и разветвления можно перемещать в любом режиме. Рукава и струи пересчитываются автоматически.</p>
+              <p><strong className="text-blue-400">Выделение:</strong> В режиме "Перемещение" или "Просмотр" можно выделить несколько элементов прямоугольной областью (кликните на пустое место и тяните). Все выделенные элементы можно перемещать одновременно.</p>
+              <p><strong className="text-yellow-400">Подразделение:</strong> Выберите машину и укажите принадлежность к подразделению (например, "ПЧ-12").</p>
+              <p><strong className="text-blue-400">Смена типа техники:</strong> Кликните на размещённую машину для изменения её типа (АЦ/АСА/АСО).</p>
+              <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
+                <p>🔗 <strong>Рукавные линии:</strong> прокладываются вдоль вагонов на расстоянии 5м снаружи по кратчайшему пути.</p>
+                <p>🧑‍🚒 <strong>Личный состав:</strong> отображается у каждой машины (1 чел.) и у каждого разветвления РТ-80.</p>
+                <p>🎯 <strong>Ствольщики:</strong> размещаются на расстоянии 5-6м от вагона с очагом пожара с противоположных сторон.</p>
+                <p>🛡 <strong>Безопасность:</strong> техника располагается не ближе 100м от очага пожара.</p>
+                <p>⚙️ <strong>Рукава:</strong> каждый рукав длиной 20м, соединения отмечены кружками на схеме. Рукава прокладываются по кратчайшему пути от машины к очагу.</p>
+              </div>
+            </div>
+            <button onClick={() => setShowHelp(false)} className="mt-4 w-full py-2 bg-gray-700 rounded-lg text-sm">Понятно</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
