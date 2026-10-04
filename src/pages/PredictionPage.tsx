@@ -91,7 +91,7 @@ export default function PredictionPage() {
   const [workTime, setWorkTime] = useLocalStorageState<string>('prediction_workTime', '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [finalSubmitted, setFinalSubmitted] = useState(false);
+  const [finalSubmitted, setFinalSubmitted] = useLocalStorageState<boolean>('prediction_finalSubmitted', false);
   const [dataStatus, setDataStatus] = useState<{ total_rows: number; new_rows: number; threshold: number } | null>(null);
 
   useEffect(() => {
