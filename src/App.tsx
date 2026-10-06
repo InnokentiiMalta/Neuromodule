@@ -213,7 +213,8 @@ function routeHoseAlongCorridor(
   customBranchPoint?: { x: number; y: number },
   customNozzles?: Array<{ x: number; y: number }>,
   unitAngle?: number,
-  customPumpPos?: { x: number; y: number }
+  customPumpPos?: { x: number; y: number },
+  sideInfo?: { sideIndex: number; sideTotal: number }
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
@@ -266,8 +267,13 @@ function routeHoseAlongCorridor(
 
   const defaultNozzles: Array<{ x: number; y: number }> = [];
 
-  const baseNozzle1X = fireX - 20;
-  const baseNozzle2X = fireX + 20;
+  const SPACING = 20;
+  const sideIndex = sideInfo?.sideIndex ?? 0;
+  const sideTotal = sideInfo?.sideTotal ?? 1;
+  const totalPositions = sideTotal * 2;
+  const startOffset = -((totalPositions - 1) * SPACING) / 2;
+  const baseNozzle1X = fireX + startOffset + (sideIndex * 2) * SPACING;
+  const baseNozzle2X = fireX + startOffset + (sideIndex * 2 + 1) * SPACING;
   let baseNozzle1Y = fireY;
   let baseNozzle2Y = fireY;
 
