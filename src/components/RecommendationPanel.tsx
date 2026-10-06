@@ -28,7 +28,7 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
   // По боевому уставу: ~2 ствола РСК-50 на один АЦ-40
   const recommendedAc = stvols > 0 ? Math.ceil(stvols / 2) : 0;
 
-  // Личный состав: 1 человек на ствол РСК-50
+  // Личный состав: 3 чел. на ствол (ствольщик + подствольщик + на разветвлении) + резерв
   const recommendedPersonnel = stvols;
 
   // Фактические данные (что ввёл пользователь)
