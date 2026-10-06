@@ -6,7 +6,6 @@ import ServerStatus from './components/ServerStatus';
 import RecommendationPanel from './components/RecommendationPanel';
 import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
-import { useLocalStorageState } from './hooks/useLocalStorageState';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -214,7 +213,8 @@ function routeHoseAlongCorridor(
   customBranchPoint?: { x: number; y: number },
   customNozzles?: Array<{ x: number; y: number }>,
   unitAngle?: number,
-  customPumpPos?: { x: number; y: number }
+  customPumpPos?: { x: number; y: number },
+  sideInfo?: { sideIndex: number; sideTotal: number }
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
@@ -267,8 +267,13 @@ function routeHoseAlongCorridor(
 
   const defaultNozzles: Array<{ x: number; y: number }> = [];
 
-  const baseNozzle1X = fireX - 20;
-  const baseNozzle2X = fireX + 20;
+  const SPACING = 20;
+  const sideIndex = sideInfo?.sideIndex ?? 0;
+  const sideTotal = sideInfo?.sideTotal ?? 1;
+  const totalPositions = sideTotal * 2;
+  const startOffset = -((totalPositions - 1) * SPACING) / 2;
+  const baseNozzle1X = fireX + startOffset + (sideIndex * 2) * SPACING;
+  const baseNozzle2X = fireX + startOffset + (sideIndex * 2 + 1) * SPACING;
   let baseNozzle1Y = fireY;
   let baseNozzle2Y = fireY;
 
@@ -372,38 +377,54 @@ function routeHoseAlongCorridor(
 }
 
 export default function App() {
-  const [wagons, setWagons] = useLocalStorageState<Wagon[]>('map_wagons', generateDefaultWagons());
-  const [fireSource, setFireSource] = useLocalStorageState<FireSource | null>('map_fireSource', null);
-  const [obstacles, setObstacles] = useLocalStorageState<Obstacle[]>('map_obstacles', []);
+  const [wagons, setWagons] = useState<Wagon[]>(generateDefaultWagons());
+  const [fireSource, setFireSource] = useState<FireSource | null>(null);
+  const [obstacles, setObstacles] = useState<Obstacle[]>([]);
   const [toolMode, setToolMode] = useState<ToolMode>('none');
   const [obstacleType, setObstacleType] = useState<ObstacleType>('building');
   const [fireIntensity, setFireIntensity] = useState<'low' | 'medium' | 'high'>('medium');
   const [fireType, setFireType] = useState<'wagon_body' | 'tank' | 'undercarriage' | 'cargo'>('wagon_body');
-  const [deployment, setDeployment] = useLocalStorageState<Deployment | null>('map_deployment', null);
-  const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
+  const [deployment, setDeployment] = useState<Deployment | null>(null);
+  const [manualUnits, setManualUnits] = useState<ManualUnit[]>([]);
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
-  const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
+  const [fireTrains, setFireTrains] = useState<FireTrain[]>([]);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
-  const [fireTrainPTW, setFireTrainPTW] = useLocalStorageState<Record<string, boolean>>('map_fireTrainPTW', {});
+  const [fireTrainPTW, setFireTrainPTW] = useState<Record<string, boolean>>({});
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
-  const [customPumpPositions, setCustomPumpPositions] = useLocalStorageState<Record<string, { x: number; y: number }>>('map_customPumpPositions', {});
+  const [customPumpPositions, setCustomPumpPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [showHelp, setShowHelp] = useState(false);
   const [showResources, setShowResources] = useState(false);
-  const [resources, setResources] = useLocalStorageState<AvailableResources>('map_resources', DEFAULT_RESOURCES);
-  const [useCustomResources, setUseCustomResources] = useLocalStorageState<boolean>('map_useCustomResources', false);
-  const [customPositions, setCustomPositions] = useLocalStorageState<CustomPositions>('map_customPositions', {});
-  const [waterSources, setWaterSources] = useLocalStorageState<WaterSource[]>('map_waterSources', []);
+  const [resources, setResources] = useState<AvailableResources>(DEFAULT_RESOURCES);
+  const [useCustomResources, setUseCustomResources] = useState(false);
+  const [customPositions, setCustomPositions] = useState<CustomPositions>({});
+  const [waterSources, setWaterSources] = useState<WaterSource[]>([]);
   const [waterSourceType, setWaterSourceType] = useState<'pond' | 'river'>('pond');
   const [selectedElements, setSelectedElements] = useState<SelectedElement[]>([]);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
-  const [scale, setScale] = useLocalStorageState<number>('map_scale', 1);
+  const [scale, setScale] = useState(1);
   const [rulerPoints, setRulerPoints] = useState<Array<{ x: number; y: number }>>([]);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
+
+  const unitSideInfo = useMemo(() => {
+    const allUnits = [...(deployment?.units || []), ...manualUnits];
+    const activeUnits = allUnits.filter(u => u.hoses > 0 || (u as any).ptvDeployed);
+    const above: string[] = [];
+    const below: string[] = [];
+    activeUnits.forEach(u => {
+      const centerY = u.y + 10;
+      if (centerY < 300) above.push(u.id);
+      else below.push(u.id);
+    });
+    const info: Record<string, { sideIndex: number; sideTotal: number }> = {};
+    above.forEach((id, idx) => { info[id] = { sideIndex: idx, sideTotal: above.length }; });
+    below.forEach((id, idx) => { info[id] = { sideIndex: idx, sideTotal: below.length }; });
+    return info;
+  }, [deployment, manualUnits]);
 
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
     const svg = svgRef.current;
@@ -822,7 +843,8 @@ export default function App() {
             customPos?.branchPoint,
             customPos?.nozzles,
             unit.angle,
-            customPumpPositions[unit.id]
+            customPumpPositions[unit.id],
+            unitSideInfo[unit.id]
           );
 
           routing.nozzles.forEach((nozzle, idx) => {
@@ -1142,35 +1164,6 @@ export default function App() {
             <button onClick={handleDeploy} disabled={!fireSource} className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-red-700 disabled:from-gray-600 disabled:to-gray-700 rounded-lg font-semibold text-xs">🚀 Расставить</button>
             <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 rounded-lg text-xs">❓</button>
             <button onClick={handleReset} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 rounded-lg text-xs font-semibold">🗑 Сброс обстановки</button>
-            <button
-              onClick={() => {
-                if (!confirm('Начать новый пожар? Вся обстановка карты и данные прогноза будут очищены.')) return;
-                setWagons(generateDefaultWagons());
-                setFireSource(null);
-                setObstacles([]);
-                setDeployment(null);
-                setManualUnits([]);
-                setFireTrains([]);
-                setWaterSources([]);
-                setResources(DEFAULT_RESOURCES);
-                setUseCustomResources(false);
-                setCustomPositions({});
-                setCustomPumpPositions({});
-                setFireTrainPTW({});
-                setScale(1);
-                setToolMode('none');
-                ['prediction_initialParams', 'prediction_additionalParams', 'prediction_currentStage',
-                 'prediction_stageResults', 'prediction_workDate', 'prediction_workTime',
-                 'prediction_finalSubmitted',
-                 'map_wagons', 'map_fireSource', 'map_obstacles', 'map_deployment',
-                 'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
-                 'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
-                 'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
-              }}
-              className="px-3 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-xs font-semibold"
-            >
-              🔄 Новый пожар
-            </button>
             <button onClick={handleScreenshotScene} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">📷 Скриншот обстановки</button>
             <button onClick={handleScreenshotFullScreen} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">🖥 Скриншот экрана</button>
           </div>
@@ -1777,7 +1770,8 @@ export default function App() {
                   customPos?.branchPoint,
                   customPos?.nozzles,
                   unit.angle,
-                  customPumpPositions[unit.id]
+                  customPumpPositions[unit.id],
+                  unitSideInfo[unit.id]
                 );
 
                 const connectionPoints: Array<{ x: number; y: number }> = [];
@@ -2217,7 +2211,8 @@ export default function App() {
                       customPos?.branchPoint,
                       customPos?.nozzles,
                       unit.angle,
-                      customPumpPositions[unit.id]
+                      customPumpPositions[unit.id],
+                      unitSideInfo[unit.id]
                     );
                     if (routing.nozzles[nozzleIndex]) {
                       return (
@@ -2245,7 +2240,8 @@ export default function App() {
                       customPos?.branchPoint,
                       customPos?.nozzles,
                       unit.angle,
-                      customPumpPositions[unit.id]
+                      customPumpPositions[unit.id],
+                      unitSideInfo[unit.id]
                     );
                     return (
                       <rect
@@ -2333,7 +2329,8 @@ export default function App() {
                   customPos?.branchPoint,
                   customPos?.nozzles,
                   unit.angle,
-                  customPumpPositions[unit.id]
+                  customPumpPositions[unit.id],
+                  unitSideInfo[unit.id]
                 );
 
                 return routing.nozzles.map((nozzle, idx) => {
