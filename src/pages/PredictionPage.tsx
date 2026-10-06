@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { predictStage, sendFinalData, getDataStatus } from '../api/backend';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
@@ -91,8 +91,9 @@ export default function PredictionPage() {
   const [workTime, setWorkTime] = useLocalStorageState<string>('prediction_workTime', '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [finalSubmitted, setFinalSubmitted] = useState(false);
+  const [finalSubmitted, setFinalSubmitted] = useLocalStorageState<boolean>('prediction_finalSubmitted', false);
   const [dataStatus, setDataStatus] = useState<{ total_rows: number; new_rows: number; threshold: number } | null>(null);
+  const paramsHashRef = useRef<string>('');
 
   useEffect(() => {
     const loadStatus = async () => {
@@ -101,6 +102,20 @@ export default function PredictionPage() {
     };
     loadStatus();
   }, [finalSubmitted]);
+
+  useEffect(() => {
+    const currentHash = JSON.stringify({ i: initialParams, a: additionalParams });
+    if (paramsHashRef.current === '') {
+      paramsHashRef.current = currentHash;
+      return;
+    }
+    if (paramsHashRef.current !== currentHash) {
+      paramsHashRef.current = currentHash;
+      if (finalSubmitted) {
+        setFinalSubmitted(false);
+      }
+    }
+  }, [initialParams, additionalParams, finalSubmitted, setFinalSubmitted]);
 
   const handleInitialChange = (key: keyof InitialParams, value: string) => {
     setInitialParams(prev => ({ ...prev, [key]: Number(value) || 0 }));
@@ -190,6 +205,15 @@ export default function PredictionPage() {
     setWorkTime('');
     setFinalSubmitted(false);
     setError(null);
+    // Сброс данных прогноза
+    ['prediction_initialParams', 'prediction_additionalParams', 'prediction_currentStage',
+     'prediction_stageResults', 'prediction_workDate', 'prediction_workTime',
+     'prediction_finalSubmitted'].forEach(k => localStorage.removeItem(k));
+    // Сброс обстановки карты
+    ['map_wagons', 'map_fireSource', 'map_obstacles', 'map_deployment',
+     'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
+     'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
+     'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
   };
 
   const formatValue = (v: unknown): string => {
