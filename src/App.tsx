@@ -843,7 +843,8 @@ export default function App() {
             customPos?.branchPoint,
             customPos?.nozzles,
             unit.angle,
-            customPumpPositions[unit.id]
+            customPumpPositions[unit.id],
+            unitSideInfo[unit.id]
           );
 
           routing.nozzles.forEach((nozzle, idx) => {
@@ -1769,7 +1770,8 @@ export default function App() {
                   customPos?.branchPoint,
                   customPos?.nozzles,
                   unit.angle,
-                  customPumpPositions[unit.id]
+                  customPumpPositions[unit.id],
+                  unitSideInfo[unit.id]
                 );
 
                 const connectionPoints: Array<{ x: number; y: number }> = [];
@@ -2209,7 +2211,8 @@ export default function App() {
                       customPos?.branchPoint,
                       customPos?.nozzles,
                       unit.angle,
-                      customPumpPositions[unit.id]
+                      customPumpPositions[unit.id],
+                      unitSideInfo[unit.id]
                     );
                     if (routing.nozzles[nozzleIndex]) {
                       return (
@@ -2237,7 +2240,8 @@ export default function App() {
                       customPos?.branchPoint,
                       customPos?.nozzles,
                       unit.angle,
-                      customPumpPositions[unit.id]
+                      customPumpPositions[unit.id],
+                      unitSideInfo[unit.id]
                     );
                     return (
                       <rect
@@ -2325,7 +2329,8 @@ export default function App() {
                   customPos?.branchPoint,
                   customPos?.nozzles,
                   unit.angle,
-                  customPumpPositions[unit.id]
+                  customPumpPositions[unit.id],
+                  unitSideInfo[unit.id]
                 );
 
                 return routing.nozzles.map((nozzle, idx) => {
