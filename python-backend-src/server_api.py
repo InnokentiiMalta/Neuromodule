@@ -15,6 +15,13 @@ import shutil
 import json
 import threading
 from datetime import datetime
+import copy
+import time
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, accuracy_score, f1_score
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import DataLoader, TensorDataset
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
 # --- User-data директория ---
@@ -48,6 +55,23 @@ def get_writable_key_path():
         bundled = resource_path("encryption_key.key")
         shutil.copy(bundled, user_path)
     return user_path
+
+
+def get_writable_model_path(filename: str) -> str:
+    """Путь к user-data версии модели. Если нет — копирует bundled."""
+    user_path = os.path.join(get_user_data_dir(), filename)
+    if not os.path.exists(user_path):
+        bundled = resource_path(filename)
+        shutil.copy(bundled, user_path)
+    return user_path
+
+
+def get_active_model_path(filename: str) -> str:
+    """Путь к модели для загрузки: user-data приоритет, иначе bundled."""
+    user_path = os.path.join(get_user_data_dir(), filename)
+    if os.path.exists(user_path):
+        return user_path
+    return resource_path(filename)
 
 
 # --- Счётчик строк в CSV ---
@@ -131,6 +155,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- Итерация 8: состояние дообучения ---
+_retrain_status = {
+    "running": False,
+    "progress": 0,
+    "stage": 0,
+    "total_stages": 4,
+    "epoch": 0,
+    "total_epochs": 0,
+    "message": "Ожидание",
+    "error": None,
+    "last_result": None,  # {"val_loss": ..., "mae": ..., "accuracy": ..., "f1": ...}
+}
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     tb = traceback.format_exc()
@@ -190,13 +227,30 @@ class FirePredictionNN(torch.nn.Module):
 try:
     input_sizes = [5, 6, 7, 8]
     model = FirePredictionNN(input_sizes)
-    model.load_state_dict(torch.load(resource_path("fire_prediction_model.pth")))
+    model.load_state_dict(torch.load(get_active_model_path("fire_prediction_model.pth")))
     model.eval()
-    with open(resource_path("scalers.pkl"), "rb") as f:
+    with open(get_active_model_path("scalers.pkl"), "rb") as f:
         scaler_data = pickle.load(f)
         scalers = scaler_data["scalers"]
         y_scalers = scaler_data["y_scalers"]
     print("Модель и скалеры успешно загружены")
+
+
+def _reload_model_and_scalers():
+    """Перезагружает модель и скалеры из активных путей в глобальные переменные."""
+    global model, scalers, y_scalers
+    try:
+        model.load_state_dict(torch.load(get_active_model_path("fire_prediction_model.pth")))
+        model.eval()
+        with open(get_active_model_path("scalers.pkl"), "rb") as f:
+            data = pickle.load(f)
+            scalers = data["scalers"]
+            y_scalers = data["y_scalers"]
+        print("[RETRAIN] Модель и скалеры перезагружены", flush=True)
+        return True
+    except Exception as e:
+        print(f"[RETRAIN] Ошибка перезагрузки: {e}", flush=True)
+        return False
 except Exception as e:
     print(f"Ошибка загрузки модели или скалеров: {e}")
     raise
@@ -276,6 +330,291 @@ def predict_fire_parameters(model, scalers, y_scalers, input_data, stage):
                 input_data['Время_ликвидации_открытого_горения_мин']
             )
         return result
+
+# --- Итерация 8: фоновая функция дообучения ---
+def _retrain_worker():
+    """
+    Фоновое дообучение модели на накопленных данных.
+    Работает в отдельном потоке. Обновляет _retrain_status по ходу.
+    """
+    global model, scalers, y_scalers
+
+    try:
+        _retrain_status.update({
+            "running": True, "progress": 0, "stage": 0, "epoch": 0,
+            "message": "Подготовка данных...", "error": None, "last_result": None,
+        })
+
+        # Ограничиваем нагрузку на CPU
+        torch.set_num_threads(2)
+
+        # Загружаем CSV из user-data
+        csv_path = get_writable_csv_path()
+        key_path = get_writable_key_path()
+        with open(key_path, "rb") as kf:
+            key = kf.read()
+        fernet = Fernet(key)
+        with open(csv_path, "rb") as f:
+            encrypted = f.read()
+        decrypted = fernet.decrypt(encrypted)
+
+        column_names = [
+            'Время_следования_мин', 'Время_подачи_первого_ствола_мин',
+            'Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
+            'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин',
+            'Количество_основных_пожарных_автомобилей_ед',
+            'Количество_специальных_пожарных_автомобилей_ед',
+            'Количество_пожарных_поездов_ед', 'Всего_подано_пожарных_стволов_ед'
+        ]
+        df = pd.read_csv(BytesIO(decrypted), encoding='utf-8', header=None,
+                         names=column_names, skiprows=1)
+
+        _retrain_status["message"] = f"Загружено {len(df)} строк. Очистка..."
+
+        # Чистка выбросов (как в Tkinter)
+        for col in column_names:
+            if col in df.columns and df[col].dtype in [np.float64, np.int64]:
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                df = df[(df[col] >= lower_bound) & (df[col] <= upper_bound)]
+        df = df.dropna()
+
+        if len(df) < 20:
+            raise ValueError(f"Недостаточно данных для дообучения: {len(df)} строк")
+
+        # Фильтрация редких классов
+        class_counts = df['Всего_подано_пожарных_стволов_ед'].value_counts()
+        valid_classes = class_counts[class_counts >= 2].index
+        df = df[df['Всего_подано_пожарных_стволов_ед'].isin(valid_classes)]
+
+        if len(df) < 20:
+            raise ValueError(f"После фильтрации редких классов: {len(df)} строк")
+
+        _retrain_status["message"] = f"Обучаем на {len(df)} строках..."
+
+        # Архитектура и фичи (как в исходном Tkinter)
+        input_features = {
+            0: ['Время_следования_мин', 'Время_подачи_первого_ствола_мин',
+                'Количество_основных_пожарных_автомобилей_ед',
+                'Количество_специальных_пожарных_автомобилей_ед',
+                'Количество_пожарных_поездов_ед'],
+            1: ['Время_следования_мин', 'Время_подачи_первого_ствола_мин',
+                'Количество_основных_пожарных_автомобилей_ед',
+                'Количество_специальных_пожарных_автомобилей_ед',
+                'Количество_пожарных_поездов_ед', 'Время_локализации_пожара_мин'],
+            2: ['Время_следования_мин', 'Время_подачи_первого_ствола_мин',
+                'Количество_основных_пожарных_автомобилей_ед',
+                'Количество_специальных_пожарных_автомобилей_ед',
+                'Количество_пожарных_поездов_ед', 'Время_локализации_пожара_мин',
+                'Время_ликвидации_открытого_горения_мин'],
+            3: ['Время_следования_мин', 'Время_подачи_первого_ствола_мин',
+                'Количество_основных_пожарных_автомобилей_ед',
+                'Количество_специальных_пожарных_автомобилей_ед',
+                'Количество_пожарных_поездов_ед', 'Время_локализации_пожара_мин',
+                'Время_ликвидации_открытого_горения_мин',
+                'Время_ликвидации_последствий_пожара_мин']
+        }
+        output_features = {
+            0: ['Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
+                'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин',
+                'Всего_подано_пожарных_стволов_ед'],
+            1: ['Время_ликвидации_открытого_горения_мин',
+                'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин',
+                'Всего_подано_пожарных_стволов_ед'],
+            2: ['Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин',
+                'Всего_подано_пожарных_стволов_ед'],
+            3: ['Всего_подано_пожарных_стволов_ед']
+        }
+
+        # Копируем модель, чтобы не сломать работающую
+        training_model = copy.deepcopy(model)
+        new_scalers = {}
+        new_y_scalers = {}
+        class_weights = torch.tensor(
+            [max(class_counts.max() / count if count > 0 else 1.0, 1.0)
+             for count in class_counts],
+            dtype=torch.float32
+        )
+
+        last_metrics = {}
+
+        for stage in range(4):
+            _retrain_status.update({
+                "stage": stage + 1,
+                "message": f"Этап {stage + 1}/4: подготовка...",
+            })
+
+            X = df[input_features[stage]].values
+            if X.shape[0] < 10:
+                continue
+
+            y_cols = [c for c in output_features[stage] if c != 'Всего_подано_пожарных_стволов_ед']
+            y_cls = df['Всего_подано_пожарных_стволов_ед'].values - 1
+
+            if y_cols:
+                y_reg = df[y_cols].values
+                X_train, X_val, y_reg_train, y_reg_val, y_cls_train, y_cls_val = train_test_split(
+                    X, y_reg, y_cls, test_size=0.2, random_state=42, stratify=y_cls
+                )
+                y_reg_train = np.log1p(y_reg_train)
+                y_reg_val = np.log1p(y_reg_val)
+            else:
+                y_reg_train = None
+                X_train, X_val, y_cls_train, y_cls_val = train_test_split(
+                    X, y_cls, test_size=0.2, random_state=42, stratify=y_cls
+                )
+
+            new_scalers[f'stage{stage+1}'] = StandardScaler()
+            X_train_scaled = new_scalers[f'stage{stage+1}'].fit_transform(X_train)
+            X_val_scaled = new_scalers[f'stage{stage+1}'].transform(X_val)
+
+            for col in y_cols:
+                new_y_scalers[col] = StandardScaler()
+                new_y_scalers[col].fit(np.log1p(df[[col]]))
+
+            X_train_t = torch.tensor(X_train_scaled, dtype=torch.float32)
+            X_val_t = torch.tensor(X_val_scaled, dtype=torch.float32)
+            y_cls_train_t = torch.tensor(y_cls_train, dtype=torch.long)
+            y_cls_val_t = torch.tensor(y_cls_val, dtype=torch.long)
+            y_reg_train_t = torch.tensor(y_reg_train, dtype=torch.float32) if y_reg_train is not None else None
+            y_reg_val_t = torch.tensor(y_reg_val, dtype=torch.float32) if y_reg_val is not None else None
+
+            if y_reg_train_t is not None:
+                train_ds = TensorDataset(X_train_t, y_reg_train_t, y_cls_train_t)
+                val_ds = TensorDataset(X_val_t, y_reg_val_t, y_cls_val_t)
+            else:
+                train_ds = TensorDataset(X_train_t, y_cls_train_t)
+                val_ds = TensorDataset(X_val_t, y_cls_val_t)
+
+            train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
+            val_loader = DataLoader(val_ds, batch_size=64, shuffle=False)
+
+            optimizer = torch.optim.Adam(training_model.parameters(), lr=0.0005, weight_decay=1e-4)
+            scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
+            mse_loss = nn.MSELoss()
+            ce_loss = nn.CrossEntropyLoss(weight=class_weights)
+
+            best_val_loss = float('inf')
+            patience = 10
+            patience_counter = 0
+            max_epochs = 50
+            _retrain_status["total_epochs"] = max_epochs
+
+            for epoch in range(max_epochs):
+                training_model.train()
+                train_loss = 0.0
+                for batch in train_loader:
+                    optimizer.zero_grad()
+                    X_b = batch[0]
+                    y_reg_b = batch[1] if len(batch) > 2 else None
+                    y_cls_b = batch[-1]
+                    reg_pred, cls_pred = training_model(X_b, stage)
+                    loss = ce_loss(cls_pred, y_cls_b)
+                    if reg_pred is not None and y_reg_b is not None:
+                        loss = loss + 0.5 * mse_loss(reg_pred, y_reg_b)
+                    loss.backward()
+                    optimizer.step()
+                    train_loss += loss.item()
+
+                # Валидация
+                training_model.eval()
+                val_loss = 0.0
+                reg_preds_list, reg_targets_list = [], []
+                cls_preds_list, cls_targets_list = [], []
+                with torch.no_grad():
+                    for batch in val_loader:
+                        X_b = batch[0]
+                        y_reg_b = batch[1] if len(batch) > 2 else None
+                        y_cls_b = batch[-1]
+                        reg_pred, cls_pred = training_model(X_b, stage)
+                        loss = ce_loss(cls_pred, y_cls_b)
+                        if reg_pred is not None and y_reg_b is not None:
+                            loss = loss + 0.5 * mse_loss(reg_pred, y_reg_b)
+                        val_loss += loss.item()
+                        if reg_pred is not None:
+                            reg_preds_list.append(reg_pred.cpu().numpy())
+                            reg_targets_list.append(y_reg_b.cpu().numpy())
+                        cls_preds_list.append(torch.argmax(cls_pred, dim=1).cpu().numpy())
+                        cls_targets_list.append(y_cls_b.cpu().numpy())
+
+                val_loss = val_loss / max(len(val_loader), 1)
+                scheduler.step(val_loss)
+
+                if reg_preds_list:
+                    reg_preds_arr = np.concatenate(reg_preds_list)
+                    reg_targets_arr = np.concatenate(reg_targets_list)
+                    reg_preds_orig = np.expm1(new_y_scalers[y_cols[0]].inverse_transform(reg_preds_arr))
+                    reg_targets_orig = np.expm1(new_y_scalers[y_cols[0]].inverse_transform(reg_targets_arr))
+                    mae = mean_absolute_error(reg_targets_orig, reg_preds_orig)
+                else:
+                    mae = float('inf')
+                cls_preds_arr = np.concatenate(cls_preds_list)
+                cls_targets_arr = np.concatenate(cls_targets_list)
+                accuracy = accuracy_score(cls_targets_arr, cls_preds_arr)
+                f1 = f1_score(cls_targets_arr, cls_preds_arr, average='weighted', zero_division=0)
+
+                _retrain_status.update({
+                    "epoch": epoch + 1,
+                    "progress": int(((stage * max_epochs) + (epoch + 1)) / (4 * max_epochs) * 100),
+                    "message": f"Этап {stage+1}/4, эпоха {epoch+1}/{max_epochs}",
+                })
+
+                last_metrics = {
+                    "val_loss": float(val_loss),
+                    "mae": float(mae) if mae != float('inf') else None,
+                    "accuracy": float(accuracy),
+                    "f1": float(f1),
+                }
+
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                    if patience_counter >= patience:
+                        break
+
+        # Сохраняем дообученную модель в user-data
+        _retrain_status["message"] = "Сохранение модели..."
+        torch.save(training_model.state_dict(),
+                   os.path.join(get_user_data_dir(), "fire_prediction_model.pth"))
+        with open(os.path.join(get_user_data_dir(), "scalers.pkl"), "wb") as f:
+            pickle.dump({"scalers": new_scalers, "y_scalers": new_y_scalers}, f)
+
+        # Обновляем in-memory модель
+        model = training_model
+        scalers = new_scalers
+        y_scalers = new_y_scalers
+
+        # Обновляем состояние
+        state = _load_retrain_state()
+        state["rows_at_last_retrain"] = _count_csv_rows()
+        state["last_retrain_at"] = datetime.now().isoformat()
+        state["retrain_count"] = state.get("retrain_count", 0) + 1
+        _save_retrain_state(state)
+
+        _retrain_status.update({
+            "running": False,
+            "progress": 100,
+            "message": f"Готово. Обучено на {len(df)} строках.",
+            "last_result": last_metrics,
+        })
+        print(f"[RETRAIN] Завершено. Метрики: {last_metrics}", flush=True)
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"[RETRAIN ERROR] {tb}", flush=True)
+        _retrain_status.update({
+            "running": False,
+            "message": f"Ошибка: {e}",
+            "error": str(e),
+        })
+    finally:
+        torch.set_num_threads(torch.get_num_threads())  # восстановить
+
 
 @app.post("/predict")
 async def predict(data: dict):
