@@ -22,7 +22,7 @@ from sklearn.metrics import mean_absolute_error, accuracy_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-import threading as _threading
+import threading
 
 
 # --- User-data директория ---
@@ -633,7 +633,7 @@ async def start_retrain():
     if total < 20:
         raise HTTPException(status_code=400, detail=f"Недостаточно данных: {total} строк")
 
-    thread = _threading.Thread(target=_retrain_worker, daemon=True)
+    thread = threading.Thread(target=_retrain_worker, daemon=True)
     thread.start()
 
     print(f"[RETRAIN] Запущено дообучение. Всего={total}, новых={new_rows}", flush=True)
@@ -742,7 +742,15 @@ async def receive_data(data: dict):
             new_rows = total - state["rows_at_last_retrain"]
             threshold = state["threshold"]
 
-        auto_retrain_pending = new_rows >= threshold
+        auto_retrain_started = False
+
+        # Авто-триггер дообучения (итерация 8)
+        if new_rows >= threshold and not _retrain_status["running"]:
+            thread = threading.Thread(target=_retrain_worker, daemon=True)
+            thread.start()
+            auto_retrain_started = True
+            print(f"[AUTO-RETRAIN] Порог достигнут: {new_rows} >= {threshold}. Запуск.", flush=True)
+
         print(f"[DATA] Saved row. Total={total}, new={new_rows}/{threshold}", flush=True)
 
         return {
@@ -750,7 +758,7 @@ async def receive_data(data: dict):
             "total_rows": total,
             "new_rows": new_rows,
             "threshold": threshold,
-            "auto_retrain_pending": auto_retrain_pending,
+            "auto_retrain_started": auto_retrain_started,
         }
     except Exception as e:
         tb = traceback.format_exc()
