@@ -234,6 +234,9 @@ try:
         scalers = scaler_data["scalers"]
         y_scalers = scaler_data["y_scalers"]
     print("Модель и скалеры успешно загружены")
+except Exception as e:
+    print(f"Ошибка загрузки модели или скалеров: {e}")
+    raise
 
 
 def _reload_model_and_scalers():
@@ -251,9 +254,6 @@ def _reload_model_and_scalers():
     except Exception as e:
         print(f"[RETRAIN] Ошибка перезагрузки: {e}", flush=True)
         return False
-except Exception as e:
-    print(f"Ошибка загрузки модели или скалеров: {e}")
-    raise
 
 def predict_fire_parameters(model, scalers, y_scalers, input_data, stage):
     model.eval()
