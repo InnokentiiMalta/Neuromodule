@@ -747,8 +747,13 @@ async def predict(data: dict):
 @app.post("/data")
 async def receive_data(data: dict):
     try:
+        # Клипим число стволов до 4 (модель работает с 4 классами: 1, 2, 3, 4+)
+        data_clipped = dict(data)
+        raw_stvols = int(data_clipped.get('Всего_подано_пожарных_стволов_ед', 1))
+        data_clipped['Всего_подано_пожарных_стволов_ед'] = min(max(raw_stvols, 1), 4)
+
         with _state_lock:
-            _append_row_to_csv(data)
+            _append_row_to_csv(data_clipped)
             total = _count_csv_rows()
             state = _load_retrain_state()
             new_rows = total - state["rows_at_last_retrain"]
