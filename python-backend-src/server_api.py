@@ -385,13 +385,24 @@ def _retrain_worker():
         if len(df) < 20:
             raise ValueError(f"Недостаточно данных для дообучения: {len(df)} строк")
 
-        # Фильтрация редких классов
-        class_counts = df['Всего_подано_пожарных_стволов_ед'].value_counts()
-        valid_classes = class_counts[class_counts >= 2].index
-        df = df[df['Всего_подано_пожарных_стволов_ед'].isin(valid_classes)]
+        # Клипим число стволов до 4 классов (модель обучена на 4 выхода)
+        # Значения 1, 2, 3 остаются как есть, всё что >= 4 — считается как "4+"
+        df = df.copy()
+        df['class_idx'] = np.clip(
+            df['Всего_подано_пожарных_стволов_ед'].values - 1, 0, 3
+        ).astype(int)
+
+        class_counts_before = [int((df['class_idx'] == c).sum()) for c in range(4)]
+        print(f"[RETRAIN] Распределение классов (0-3) до фильтра: {class_counts_before}", flush=True)
+
+        valid_classes = [c for c in range(4) if class_counts_before[c] >= 2]
+        df = df[df['class_idx'].isin(valid_classes)]
 
         if len(df) < 20:
             raise ValueError(f"После фильтрации редких классов: {len(df)} строк")
+
+        class_counts_after = [int((df['class_idx'] == c).sum()) for c in range(4)]
+        print(f"[RETRAIN] Распределение классов (0-3) после фильтра: {class_counts_after}", flush=True)
 
         _retrain_status["message"] = f"Обучаем на {len(df)} строках..."
 
@@ -433,11 +444,13 @@ def _retrain_worker():
         training_model = copy.deepcopy(model)
         new_scalers = {}
         new_y_scalers = {}
+        # Веса для 4 классов (индексы 0-3). Если класс отсутствует — вес 1.0
+        max_count = max(class_counts_after) if max(class_counts_after) > 0 else 1
         class_weights = torch.tensor(
-            [max(class_counts.max() / count if count > 0 else 1.0, 1.0)
-             for count in class_counts],
+            [max_count / c if c > 0 else 1.0 for c in class_counts_after],
             dtype=torch.float32
         )
+        print(f"[RETRAIN] class_weights = {class_weights.tolist()}", flush=True)
 
         last_metrics = {}
 
@@ -452,7 +465,7 @@ def _retrain_worker():
                 continue
 
             y_cols = [c for c in output_features[stage] if c != 'Всего_подано_пожарных_стволов_ед']
-            y_cls = df['Всего_подано_пожарных_стволов_ед'].values - 1
+            y_cls = df['class_idx'].values
 
             if y_cols:
                 y_reg = df[y_cols].values
@@ -734,8 +747,13 @@ async def predict(data: dict):
 @app.post("/data")
 async def receive_data(data: dict):
     try:
+        # Клипим число стволов до 4 (модель работает с 4 классами: 1, 2, 3, 4+)
+        data_clipped = dict(data)
+        raw_stvols = int(data_clipped.get('Всего_подано_пожарных_стволов_ед', 1))
+        data_clipped['Всего_подано_пожарных_стволов_ед'] = min(max(raw_stvols, 1), 4)
+
         with _state_lock:
-            _append_row_to_csv(data)
+            _append_row_to_csv(data_clipped)
             total = _count_csv_rows()
             state = _load_retrain_state()
             new_rows = total - state["rows_at_last_retrain"]
