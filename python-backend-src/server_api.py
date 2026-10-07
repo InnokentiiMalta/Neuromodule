@@ -22,7 +22,6 @@ from sklearn.metrics import mean_absolute_error, accuracy_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-import threading
 
 
 # --- User-data директория ---
