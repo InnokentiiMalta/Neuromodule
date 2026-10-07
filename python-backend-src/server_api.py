@@ -22,6 +22,7 @@ from sklearn.metrics import mean_absolute_error, accuracy_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import threading as _threading
 
 
 # --- User-data директория ---
@@ -614,6 +615,106 @@ def _retrain_worker():
         })
     finally:
         torch.set_num_threads(torch.get_num_threads())  # восстановить
+
+
+# --- Итерация 8: эндпоинты дообучения ---
+
+@app.post("/retrain")
+async def start_retrain():
+    """Запускает дообучение в фоновом потоке. Возвращает 409, если уже идёт."""
+    if _retrain_status["running"]:
+        raise HTTPException(status_code=409, detail="Дообучение уже выполняется")
+
+    # Проверяем, что данных достаточно
+    total = _count_csv_rows()
+    state = _load_retrain_state()
+    new_rows = total - state["rows_at_last_retrain"]
+
+    if total < 20:
+        raise HTTPException(status_code=400, detail=f"Недостаточно данных: {total} строк")
+
+    thread = _threading.Thread(target=_retrain_worker, daemon=True)
+    thread.start()
+
+    print(f"[RETRAIN] Запущено дообучение. Всего={total}, новых={new_rows}", flush=True)
+
+    return {
+        "status": "started",
+        "total_rows": total,
+        "new_rows": new_rows,
+    }
+
+
+@app.get("/retrain/status")
+async def retrain_status():
+    """Возвращает текущий статус дообучения."""
+    return dict(_retrain_status)
+
+
+@app.post("/retrain/set-threshold")
+async def set_threshold(data: dict):
+    """Меняет порог авто-дообучения."""
+    try:
+        new_threshold = int(data.get("threshold", 25))
+        if new_threshold < 5:
+            raise HTTPException(status_code=400, detail="Порог должен быть не менее 5")
+        if new_threshold > 1000:
+            raise HTTPException(status_code=400, detail="Порог должен быть не более 1000")
+
+        state = _load_retrain_state()
+        state["threshold"] = new_threshold
+        _save_retrain_state(state)
+
+        return {"status": "ok", "threshold": new_threshold}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/retrain/reset")
+async def reset_model():
+    """Удаляет дообученную модель из user-data и загружает базовую."""
+    try:
+        # Удаляем дообученные файлы
+        removed = []
+        for filename in ["fire_prediction_model.pth", "scalers.pkl"]:
+            path = os.path.join(get_user_data_dir(), filename)
+            if os.path.exists(path):
+                os.remove(path)
+                removed.append(filename)
+
+        # Перезагружаем модель из bundled
+        success = _reload_model_and_scalers()
+
+        return {
+            "status": "reset" if success else "error",
+            "removed": removed,
+            "message": "Модель сброшена к базовой" if success else "Ошибка перезагрузки",
+        }
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"[RESET ERROR] {tb}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/model/info")
+async def model_info():
+    """Информация о текущей модели: базовая или дообученная."""
+    try:
+        user_model_path = os.path.join(get_user_data_dir(), "fire_prediction_model.pth")
+        is_user_model = os.path.exists(user_model_path)
+        state = _load_retrain_state()
+        return {
+            "source": "user" if is_user_model else "bundled",
+            "retrain_count": state.get("retrain_count", 0),
+            "last_retrain_at": state.get("last_retrain_at"),
+            "threshold": state.get("threshold", 25),
+            "total_rows": _count_csv_rows(),
+            "new_rows": _count_csv_rows() - state.get("rows_at_last_retrain", 0),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/predict")
