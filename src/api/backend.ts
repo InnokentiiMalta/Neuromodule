@@ -60,3 +60,87 @@ export async function getDataStatus() {
     return null;
   }
 }
+
+// --- Итерация 8: дообучение ---
+
+export interface RetrainStatus {
+  running: boolean;
+  progress: number;
+  stage: number;
+  total_stages: number;
+  epoch: number;
+  total_epochs: number;
+  message: string;
+  error: string | null;
+  last_result: {
+    val_loss: number;
+    mae: number | null;
+    accuracy: number;
+    f1: number;
+  } | null;
+}
+
+export interface ModelInfo {
+  source: 'bundled' | 'user';
+  retrain_count: number;
+  last_retrain_at: string | null;
+  threshold: number;
+  total_rows: number;
+  new_rows: number;
+}
+
+export async function startRetrain(): Promise<{ status: string; total_rows: number; new_rows: number }> {
+  const response = await fetch(`${BASE_URL}/retrain`, { method: 'POST' });
+  if (!response.ok) {
+    const rawText = await response.text();
+    let detail = rawText;
+    try {
+      const errJson = JSON.parse(rawText);
+      detail = errJson.detail || JSON.stringify(errJson);
+    } catch {}
+    throw new Error(`HTTP ${response.status}: ${detail}`);
+  }
+  return await response.json();
+}
+
+export async function getRetrainStatus(): Promise<RetrainStatus | null> {
+  try {
+    const response = await fetch(`${BASE_URL}/retrain/status`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function setRetrainThreshold(threshold: number): Promise<{ status: string; threshold: number }> {
+  const response = await fetch(`${BASE_URL}/retrain/set-threshold`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ threshold }),
+  });
+  if (!response.ok) {
+    const rawText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${rawText}`);
+  }
+  return await response.json();
+}
+
+export async function resetModel(): Promise<{ status: string; removed: string[]; message: string }> {
+  const response = await fetch(`${BASE_URL}/retrain/reset`, { method: 'POST' });
+  if (!response.ok) {
+    const rawText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${rawText}`);
+  }
+  return await response.json();
+}
+
+export async function getModelInfo(): Promise<ModelInfo | null> {
+  try {
+    const response = await fetch(`${BASE_URL}/model/info`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}

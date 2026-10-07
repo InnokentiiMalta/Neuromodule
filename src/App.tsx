@@ -4,6 +4,7 @@ import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrain
 import html2canvas from 'html2canvas';
 import ServerStatus from './components/ServerStatus';
 import RecommendationPanel from './components/RecommendationPanel';
+import RetrainPanel from './components/RetrainPanel';
 import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
@@ -2488,6 +2489,7 @@ export default function App() {
         <aside className="w-[260px] bg-gray-800/95 border-l border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
           <div className="p-3 overflow-y-auto flex-1">
             <RecommendationPanel onApply={handleApplyRecommendations} />
+            <RetrainPanel />
           </div>
         </aside>
       </div>
