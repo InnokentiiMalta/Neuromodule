@@ -2510,7 +2510,7 @@ export default function App() {
 
         <aside className="w-[clamp(380px,30vw,500px)] bg-gray-800/95 border-l border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
           <div className="p-3 overflow-y-auto flex-1 min-h-0">
-            <RecommendationPanel onApply={handleApplyRecommendations} />
+            <RecommendationPanel onApply={handleApplyRecommendations} resources={resources} />
             <RetrainPanel />
           </div>
         </aside>
