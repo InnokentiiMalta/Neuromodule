@@ -95,9 +95,34 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
         </div>
       )}
 
+      {/* Фактически на пожаре */}
+      <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-2.5">
+        <div className="text-[10px] text-emerald-400 font-semibold mb-1">🚒 Фактически на пожаре</div>
+        <div className="space-y-1 text-[11px]">
+          <div className="flex justify-between">
+            <span className="text-gray-300">Основных ПА (АЦ-40):</span>
+            <span className="font-mono text-emerald-200">{resources.ac}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-300">Специальных ПА (АСА):</span>
+            <span className="font-mono text-emerald-200">{resources.al}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-300">АСО:</span>
+            <span className="font-mono text-emerald-200">{resources.asr}</span>
+          </div>
+          <div className="flex justify-between border-t border-emerald-700/30 pt-1 mt-1">
+            <span className="text-gray-300">Л/с (чел.):</span>
+            <span className="font-mono text-emerald-200">{resources.personnel}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Необходимо на текущий момент */}
       {stvols > 0 && (
         <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-2.5">
-          <div className="text-[10px] text-orange-400 font-semibold mb-1">🎯 Силы и средства</div>
+          <div className="text-[10px] text-orange-400 font-semibold mb-1">🎯 Необходимо на текущий момент</div>
+          <div className="text-[9px] text-orange-300/70 mb-1">Рекомендация ML на этапе «{summary.stageLabel}»</div>
           <div className="space-y-1 text-[11px]">
             <div className="flex justify-between">
               <span className="text-gray-300">⭐ Стволов (РСК-50):</span>
@@ -107,17 +132,31 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
               <span>≈ расход воды:</span>
               <span className="font-mono">{totalFlow.toFixed(1)} л/с</span>
             </div>
-            <div className="border-t border-orange-700/30 mt-1 pt-1">
-              <div className="text-[9px] text-orange-300/70 mb-1">Расчёт по стволам:</div>
-              <div className="flex justify-between">
-                <span className="text-gray-300">АЦ-40:</span>
-                <span className="font-mono text-orange-200">≈ {recommendedAc}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-300">Л/с (расчёт):</span>
-                <span className="font-mono text-orange-200">≈ {recommendedPersonnel}</span>
-              </div>
+            <div className="flex justify-between">
+              <span className="text-gray-300">АЦ-40:</span>
+              <span className="font-mono text-orange-200">≈ {recommendedAc}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-gray-300">Л/с (расчёт):</span>
+              <span className="font-mono text-orange-200">≈ {recommendedPersonnel}</span>
+            </div>
+          </div>
+          <div className="mt-2 pt-2 border-t border-orange-700/30 text-[10px]">
+            {(() => {
+              const acShortage = recommendedAc - resources.ac;
+              const stvolsShortage = stvols - (resources.ac * 2);
+              const acSurplus = resources.ac - recommendedAc;
+              if (acShortage > 0 || stvolsShortage > 0) {
+                const parts: string[] = [];
+                if (acShortage > 0) parts.push(`АЦ-40: +${acShortage}`);
+                if (stvolsShortage > 0) parts.push(`стволов: +${stvolsShortage}`);
+                return <div className="text-amber-300">⚠️ Не хватает: {parts.join(', ')}</div>;
+              }
+              if (acSurplus > 0) {
+                return <div className="text-emerald-300">✅ Сил достаточно. {acSurplus} АЦ можно в резерв</div>;
+              }
+              return <div className="text-emerald-300">✅ Сил достаточно</div>;
+            })()}
           </div>
         </div>
       )}
