@@ -200,6 +200,41 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
         </div>
       )}
 
+      {(summary.forecastLocalization !== null ||
+        summary.forecastOpenFlame !== null ||
+        summary.forecastConsequences !== null ||
+        summary.forecastExtinguishTotal !== null) && (
+        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2.5">
+          <div className="text-[10px] text-purple-400 font-semibold mb-1">🔮 Прогноз времени</div>
+          <div className="space-y-1 text-[11px]">
+            {summary.forecastLocalization !== null && (
+              <div className="flex justify-between">
+                <span className="text-gray-300">Локализация:</span>
+                <span className="font-mono text-purple-200">{formatTime(summary.forecastLocalization)}</span>
+              </div>
+            )}
+            {summary.forecastOpenFlame !== null && (
+              <div className="flex justify-between">
+                <span className="text-gray-300">Ликв. горения:</span>
+                <span className="font-mono text-purple-200">{formatTime(summary.forecastOpenFlame)}</span>
+              </div>
+            )}
+            {summary.forecastConsequences !== null && (
+              <div className="flex justify-between">
+                <span className="text-gray-300">Ликв. последствий:</span>
+                <span className="font-mono text-purple-200">{formatTime(summary.forecastConsequences)}</span>
+              </div>
+            )}
+            {summary.forecastExtinguishTotal !== null && (
+              <div className="flex justify-between border-t border-purple-700/40 pt-1 mt-1">
+                <span className="text-purple-300 font-semibold">Итого тушение:</span>
+                <span className="font-mono font-bold text-purple-200">{formatTime(summary.forecastExtinguishTotal)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {(actualAc > 0 || actualSpecial > 0 || actualTrains > 0 || actualStvols > 0) && (
         <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-2.5">
           <div className="text-[10px] text-blue-400 font-semibold mb-1">📋 Заявлено РТП для прогноза параметров</div>
@@ -259,41 +294,6 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
               })()}
             </div>
           )}
-        </div>
-      )}
-
-      {(summary.forecastLocalization !== null ||
-        summary.forecastOpenFlame !== null ||
-        summary.forecastConsequences !== null ||
-        summary.forecastExtinguishTotal !== null) && (
-        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2.5">
-          <div className="text-[10px] text-purple-400 font-semibold mb-1">🔮 Прогноз времени</div>
-          <div className="space-y-1 text-[11px]">
-            {summary.forecastLocalization !== null && (
-              <div className="flex justify-between">
-                <span className="text-gray-300">Локализация:</span>
-                <span className="font-mono text-purple-200">{formatTime(summary.forecastLocalization)}</span>
-              </div>
-            )}
-            {summary.forecastOpenFlame !== null && (
-              <div className="flex justify-between">
-                <span className="text-gray-300">Ликв. горения:</span>
-                <span className="font-mono text-purple-200">{formatTime(summary.forecastOpenFlame)}</span>
-              </div>
-            )}
-            {summary.forecastConsequences !== null && (
-              <div className="flex justify-between">
-                <span className="text-gray-300">Ликв. последствий:</span>
-                <span className="font-mono text-purple-200">{formatTime(summary.forecastConsequences)}</span>
-              </div>
-            )}
-            {summary.forecastExtinguishTotal !== null && (
-              <div className="flex justify-between border-t border-purple-700/40 pt-1 mt-1">
-                <span className="text-purple-300 font-semibold">Итого тушение:</span>
-                <span className="font-mono font-bold text-purple-200">{formatTime(summary.forecastExtinguishTotal)}</span>
-              </div>
-            )}
-          </div>
         </div>
       )}
 
