@@ -35,6 +35,7 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
   const actualAc = summary.actualMainVehicles;
   const actualSpecial = summary.actualSpecialVehicles;
   const actualTrains = summary.actualFireTrains;
+  const actualStvols = summary.initialParams['Всего_подано_пожарных_стволов_ед'] ?? 0;
 
   // --- Итерация 7: АСО ---
   const asoRecommended = summary.needsAso ? 1 : 0;
@@ -120,19 +121,31 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
         </div>
       )}
 
-      {(actualAc > 0 || actualSpecial > 0 || actualTrains > 0) && (
+      {(actualAc > 0 || actualSpecial > 0 || actualTrains > 0 || actualStvols > 0) && (
         <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-2.5">
-          <div className="text-[10px] text-blue-400 font-semibold mb-1">📋 Заявлено РТП</div>
+          <div className="text-[10px] text-blue-400 font-semibold mb-1">📋 Заявлено РТП для прогноза параметров</div>
           <div className="space-y-1 text-[11px]">
+            {actualStvols > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-300">Стволов (РСК-50):</span>
+                <span className="font-mono text-blue-200">{actualStvols}</span>
+              </div>
+            )}
+            {actualStvols > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-300">Л/с (по стволам):</span>
+                <span className="font-mono text-blue-200">{actualStvols}</span>
+              </div>
+            )}
             {actualAc > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-300">АЦ:</span>
+                <span className="text-gray-300">Основных ПА (АЦ-40):</span>
                 <span className="font-mono text-blue-200">{actualAc}</span>
               </div>
             )}
             {actualSpecial > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-300">Спец. ПА (АСА/АСО):</span>
+                <span className="text-gray-300">Специальных ПА:</span>
                 <span className="font-mono text-blue-200">{actualSpecial}</span>
               </div>
             )}
@@ -143,6 +156,30 @@ export default function RecommendationPanel({ onApply }: RecommendationPanelProp
               </div>
             )}
           </div>
+
+          {/* Сравнение с рекомендацией ML */}
+          {stvols > 0 && (
+            <div className="mt-2 pt-2 border-t border-blue-700/40 space-y-0.5 text-[10px]">
+              {(() => {
+                const recAc = Math.ceil(stvols / 2);
+                const issues: string[] = [];
+                if (actualStvols < stvols) issues.push(`стволов: +${stvols - actualStvols}`);
+                if (actualAc < recAc) issues.push(`АЦ-40: +${recAc - actualAc}`);
+                if (issues.length === 0) {
+                  return (
+                    <div className="text-emerald-300 flex items-center gap-1">
+                      ✅ Сил и средств по прогнозу достаточно
+                    </div>
+                  );
+                }
+                return (
+                  <div className="text-amber-300">
+                    ⚠️ Не хватает: {issues.join(', ')}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       )}
 

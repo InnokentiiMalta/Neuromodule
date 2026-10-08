@@ -302,17 +302,14 @@ export function calculateDeployment(
   strategy += `Безопасное расстояние: ${(safeDist * 0.5).toFixed(0)} м.`;
 
   // Calculate total personnel from resources
+  // Фактический экипаж размещённой техники (водители + расчёты)
+  const deploymentPersonnel = units.reduce((s, u) => s + u.personnel, 0);
+
+  // Заявленное РТП общее количество людей
   const totalAvailablePersonnel = resources ? resources.personnel : 100;
-  
-  // Calculate occupied personnel (already displayed as icons)
-  const vehicleOperators = units.length;
-  const branchOperators = units.filter(u => u.hoses > 0).length;
-  const nozzleOperators = units.filter(u => u.hoses > 0).length * 2;
-  const occupiedPersonnel = vehicleOperators + branchOperators + nozzleOperators;
-  
-  // Calculate free personnel
-  const freePersonnel = Math.max(0, totalAvailablePersonnel - occupiedPersonnel);
-  
+
+  // Свободные = заявленное - фактически занятые в технике
+  const freePersonnel = Math.max(0, totalAvailablePersonnel - deploymentPersonnel);  
   // Generate FREE personnel positions only
   const personnelPositions = generatePersonnelPositions(
     fireX, fireY,
@@ -324,7 +321,7 @@ export function calculateDeployment(
 
   return {
     units,
-    totalPersonnel: totalAvailablePersonnel,
+    totalPersonnel: deploymentPersonnel,
     totalHoses: units.reduce((s, u) => s + u.hoses, 0),
     strategy,
     warnings,

@@ -398,6 +398,7 @@ export default function App() {
   const [customPumpPositions, setCustomPumpPositions] = useLocalStorageState<Record<string, { x: number; y: number }>>('map_customPumpPositions', {});
   const [showHelp, setShowHelp] = useState(false);
   const [showResources, setShowResources] = useState(false);
+  const [showAddTechMenu, setShowAddTechMenu] = useState(false);
   const [resources, setResources] = useLocalStorageState<AvailableResources>('map_resources', DEFAULT_RESOURCES);
   const [useCustomResources, setUseCustomResources] = useLocalStorageState<boolean>('map_useCustomResources', false);
   const [customPositions, setCustomPositions] = useLocalStorageState<CustomPositions>('map_customPositions', {});
@@ -1144,38 +1145,67 @@ export default function App() {
             >
               📊 Прогнозирование
             </Link>
-            <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Силы</button>
-            <div className="flex gap-1">
-              <button onClick={() => setPlacingUnit('ac')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'ac' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АЦ</button>
-              <button onClick={() => setPlacingUnit('asa')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'asa' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСА</button>
-              <button onClick={() => setPlacingUnit('aso')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'aso' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСО</button>
-              <button onClick={() => {
-                const trainId = `train-${Date.now()}`;
-
-                const mainTrainRightEdge = Math.max(...wagons.map(w => w.x + w.width));
-
-                const startX = mainTrainRightEdge + 100;
-
-                if (startX + 3 * 56 > 990) {
-                  alert('Недостаточно места для пожарного поезда');
-                  return;
-                }
-
-                const trainWagons: Wagon[] = [];
-                for (let i = 0; i < 3; i++) {
-                  const isTank = i === 1;
-                  trainWagons.push({
-                    id: i + 1,
-                    x: startX + i * 56,
-                    y: TRACK_Y - 3.5,
-                    width: 50,
-                    height: 7,
-                    type: isTank ? 'tank' : 'freight',
-                    label: isTank ? `Цистерна ПП ${i + 1}` : `Вагон ПП ${i + 1}`,
-                  });
-                }
-                setFireTrains(prev => [...prev, { id: trainId, wagons: trainWagons }]);
-              }} className="px-2 py-1.5 rounded text-xs bg-red-700 hover:bg-red-600">+Пожарный поезд</button>
+            <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Имеющиеся силы на пожаре</button>
+            <div className="relative">
+              <button
+                onClick={() => setShowAddTechMenu(v => !v)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${placingUnit ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+              >
+                {placingUnit
+                  ? `👉 Кликните: ${placingUnit === 'ac' ? 'АЦ-40' : placingUnit === 'asa' ? 'АСА' : 'АСО'}`
+                  : '+ Добавить технику ▾'}
+              </button>
+              {showAddTechMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 min-w-[180px]">
+                  <button
+                    onClick={() => { setPlacingUnit('ac'); setShowAddTechMenu(false); }}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-gray-700 rounded-t-lg"
+                  >
+                    🚒 АЦ-40 (автоцистерна)
+                  </button>
+                  <button
+                    onClick={() => { setPlacingUnit('asa'); setShowAddTechMenu(false); }}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-gray-700"
+                  >
+                    🚑 АСА (аварийно-спасательный)
+                  </button>
+                  <button
+                    onClick={() => { setPlacingUnit('aso'); setShowAddTechMenu(false); }}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-gray-700"
+                  >
+                    📡 АСО (связь и освещение)
+                  </button>
+                  <button
+                    onClick={() => {
+                      const trainId = `train-${Date.now()}`;
+                      const mainTrainRightEdge = Math.max(...wagons.map(w => w.x + w.width));
+                      const startX = mainTrainRightEdge + 100;
+                      if (startX + 3 * 56 > 990) {
+                        alert('Недостаточно места для пожарного поезда');
+                        return;
+                      }
+                      const trainWagons: Wagon[] = [];
+                      for (let i = 0; i < 3; i++) {
+                        const isTank = i === 1;
+                        trainWagons.push({
+                          id: i + 1,
+                          x: startX + i * 56,
+                          y: TRACK_Y - 3.5,
+                          width: 50,
+                          height: 7,
+                          type: isTank ? 'tank' : 'freight',
+                          label: isTank ? `Цистерна ПП ${i + 1}` : `Вагон ПП ${i + 1}`,
+                        });
+                      }
+                      setFireTrains(prev => [...prev, { id: trainId, wagons: trainWagons }]);
+                      setShowAddTechMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-gray-700 rounded-b-lg border-t border-gray-700"
+                  >
+                    🚂 Пожарный поезд
+                  </button>
+                </div>
+              )}
             </div>
             <button onClick={handleDeploy} disabled={!fireSource} className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-red-700 disabled:from-gray-600 disabled:to-gray-700 rounded-lg font-semibold text-xs">🚀 Расставить</button>
             <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 rounded-lg text-xs">❓</button>
@@ -1519,13 +1549,6 @@ export default function App() {
                 </div>
 
                 <p className="text-[9px] text-gray-400">{deployment.strategy}</p>
-                {deployment.warnings.length > 0 && (
-                  <div className="mt-2 space-y-0.5">
-                    {deployment.warnings.map((w, i) => (
-                      <div key={i} className="text-[9px] text-yellow-300 bg-yellow-900/30 rounded px-1.5 py-0.5">{w}</div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -1538,6 +1561,7 @@ export default function App() {
               viewBox={`${500 - 500/scale + panOffset.x} ${300 - 300/scale + panOffset.y} ${1000/scale} ${600/scale}`}
               className="w-full h-full"
               onClick={handleSVGClick}
+              onClickCapture={() => { if (showAddTechMenu) setShowAddTechMenu(false); }}
               onMouseDown={(e) => {
                 if (e.button === 1) {
                   e.preventDefault();
