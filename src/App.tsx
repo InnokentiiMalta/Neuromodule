@@ -407,6 +407,8 @@ export default function App() {
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [scale, setScale] = useLocalStorageState<number>('map_scale', 1);
+  const [panOffset, setPanOffset] = useLocalStorageState<{ x: number; y: number }>('map_panOffset', { x: 0, y: 0 });
+  const [panStart, setPanStart] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const [rulerPoints, setRulerPoints] = useState<Array<{ x: number; y: number }>>([]);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -551,6 +553,14 @@ export default function App() {
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const { x, y } = getSVGCoords(e);
+
+    if (panStart) {
+      setPanOffset({
+        x: panStart.panX - (x - panStart.x),
+        y: panStart.panY - (y - panStart.y)
+      });
+      return;
+    }
 
     if (isSelecting && selectionBox) {
       setSelectionBox({
@@ -799,6 +809,10 @@ export default function App() {
   }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements, customPumpPositions]);
 
   const handleMouseUp = useCallback(() => {
+    if (panStart) {
+      setPanStart(null);
+      return;
+    }
     setDragState(null);
 
     if (isSelecting && selectionBox) {
@@ -1264,6 +1278,12 @@ export default function App() {
                 <span>100%</span>
                 <span>200%</span>
               </div>
+              <button
+                onClick={() => { setScale(1); setPanOffset({ x: 0, y: 0 }); }}
+                className="w-full mt-2 px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-[10px] font-medium"
+              >
+                🔄 Сбросить вид
+              </button>
             </div>
 
             {toolMode === 'fire' && (
@@ -1543,10 +1563,16 @@ export default function App() {
           <div className="flex-1 bg-gray-800 rounded-xl border border-gray-700 overflow-hidden relative">
             <svg
               ref={svgRef}
-              viewBox={`${500 - 500/scale} ${300 - 300/scale} ${1000/scale} ${600/scale}`}
+              viewBox={`${500 - 500/scale + panOffset.x} ${300 - 300/scale + panOffset.y} ${1000/scale} ${600/scale}`}
               className="w-full h-full"
               onClick={handleSVGClick}
               onMouseDown={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault();
+                  const { x, y } = getSVGCoords(e);
+                  setPanStart({ x, y, panX: panOffset.x, panY: panOffset.y });
+                  return;
+                }
                 if (toolMode === 'selection') {
                   e.preventDefault();
                   const { x, y } = getSVGCoords(e);
