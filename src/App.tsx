@@ -1231,7 +1231,7 @@ export default function App() {
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-[270px] bg-gray-800/95 border-r border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
-          <div className="p-3 overflow-y-auto flex-1 space-y-3">
+          <div className="p-3 overflow-y-auto flex-1 space-y-3 min-h-0">
             <div>
               <h3 className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Инструменты</h3>
               <div className="grid grid-cols-2 gap-1">
@@ -2486,8 +2486,8 @@ export default function App() {
           </div>
         </main>
 
-        <aside className="w-[260px] bg-gray-800/95 border-l border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
-          <div className="p-3 overflow-y-auto flex-1">
+        <aside className="w-[clamp(380px,30vw,500px)] bg-gray-800/95 border-l border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
+          <div className="p-3 overflow-y-auto flex-1 min-h-0">
             <RecommendationPanel onApply={handleApplyRecommendations} />
             <RetrainPanel />
           </div>
