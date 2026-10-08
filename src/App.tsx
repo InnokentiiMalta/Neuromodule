@@ -526,7 +526,7 @@ export default function App() {
         }
       }
     }
-  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints]);
+  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints, panStart]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
     if (toolMode !== 'select' && toolMode !== 'none') {
@@ -806,7 +806,7 @@ export default function App() {
         [dragState.unitId!]: { x: newX, y: newY }
       }));
     }
-  }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements, customPumpPositions]);
+  }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements, customPumpPositions, panStart, setPanOffset]);
 
   const handleMouseUp = useCallback(() => {
     if (panStart) {
@@ -892,7 +892,7 @@ export default function App() {
       setIsSelecting(false);
       setSelectionBox(null);
     }
-  }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons]);
+  }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons, panStart]);
 
   const handleDeploy = useCallback(() => {
     const result = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
