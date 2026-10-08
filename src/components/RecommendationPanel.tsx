@@ -161,6 +161,51 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
         </div>
       )}
 
+      {/* Прогноз к следующему этапу */}
+      {stvols > 0 && summary.stage < 4 && (
+        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2.5">
+          <div className="text-[10px] text-purple-400 font-semibold mb-1">🔮 Прогноз к следующему этапу</div>
+          <div className="text-[9px] text-purple-300/70 mb-1">
+            Ориентир по текущей рекомендации. Будет актуализирован после следующего этапа.
+          </div>
+          <div className="space-y-1 text-[10px] text-gray-300">
+            <div className="flex justify-between">
+              <span>Ориентир по стволам:</span>
+              <span className="font-mono text-purple-200">{stvols}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Ориентир по АЦ-40:</span>
+              <span className="font-mono text-purple-200">{Math.ceil(stvols / 2)}</span>
+            </div>
+            {summary.forecastExtinguishTotal !== null && (
+              <div className="flex justify-between border-t border-purple-700/30 pt-1 mt-1">
+                <span>Общее время тушения:</span>
+                <span className="font-mono text-purple-200">{summary.forecastExtinguishTotal.toFixed(0)} мин</span>
+              </div>
+            )}
+          </div>
+          {resources.ac >= Math.ceil(stvols / 2) && (
+            <div className="mt-2 pt-2 border-t border-purple-700/30 text-[10px] text-emerald-300">
+              ✅ Сил достаточно на весь пожар
+            </div>
+          )}
+          {resources.ac < Math.ceil(stvols / 2) && (
+            <div className="mt-2 pt-2 border-t border-purple-700/30 text-[10px] text-amber-300">
+              ⚠️ Рекомендуется вызвать ещё {Math.ceil(stvols / 2) - resources.ac} АЦ-40
+            </div>
+          )}
+        </div>
+      )}
+
+      {stvols > 0 && summary.stage === 4 && (
+        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2.5">
+          <div className="text-[10px] text-purple-400 font-semibold mb-1">🔮 Прогноз</div>
+          <div className="text-[10px] text-emerald-300">
+            ✅ Все этапы пройдены. Тушение завершено.
+          </div>
+        </div>
+      )}
+
       {(actualAc > 0 || actualSpecial > 0 || actualTrains > 0 || actualStvols > 0) && (
         <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-2.5">
           <div className="text-[10px] text-blue-400 font-semibold mb-1">📋 Заявлено РТП для прогноза параметров</div>
