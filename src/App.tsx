@@ -407,6 +407,8 @@ export default function App() {
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const [isSelecting, setIsSelecting] = useState(false);
   const [scale, setScale] = useLocalStorageState<number>('map_scale', 1);
+  const [panOffset, setPanOffset] = useLocalStorageState<{ x: number; y: number }>('map_panOffset', { x: 0, y: 0 });
+  const [panStart, setPanStart] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const [rulerPoints, setRulerPoints] = useState<Array<{ x: number; y: number }>>([]);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -438,6 +440,7 @@ export default function App() {
   }, [scale]);
 
   const handleSVGClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return;
     if (dragState) return;
     const { x, y } = getSVGCoords(e);
 
@@ -524,7 +527,7 @@ export default function App() {
         }
       }
     }
-  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints]);
+  }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints, panStart]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
     if (toolMode !== 'select' && toolMode !== 'none') {
@@ -551,6 +554,14 @@ export default function App() {
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const { x, y } = getSVGCoords(e);
+
+    if (panStart) {
+      setPanOffset({
+        x: panStart.panX - (x - panStart.x),
+        y: panStart.panY - (y - panStart.y)
+      });
+      return;
+    }
 
     if (isSelecting && selectionBox) {
       setSelectionBox({
@@ -796,9 +807,13 @@ export default function App() {
         [dragState.unitId!]: { x: newX, y: newY }
       }));
     }
-  }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements, customPumpPositions]);
+  }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements, customPumpPositions, panStart, setPanOffset]);
 
   const handleMouseUp = useCallback(() => {
+    if (panStart) {
+      setPanStart(null);
+      return;
+    }
     setDragState(null);
 
     if (isSelecting && selectionBox) {
@@ -878,7 +893,7 @@ export default function App() {
       setIsSelecting(false);
       setSelectionBox(null);
     }
-  }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons]);
+  }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons, panStart]);
 
   const handleDeploy = useCallback(() => {
     const result = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
@@ -1202,7 +1217,7 @@ export default function App() {
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-[270px] bg-gray-800/95 border-r border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
-          <div className="p-3 overflow-y-auto flex-1 space-y-3">
+          <div className="p-3 overflow-y-auto flex-1 space-y-3 min-h-0">
             <div>
               <h3 className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Инструменты</h3>
               <div className="grid grid-cols-2 gap-1">
@@ -1235,6 +1250,12 @@ export default function App() {
                 <span>100%</span>
                 <span>200%</span>
               </div>
+              <button
+                onClick={() => { setScale(1); setPanOffset({ x: 0, y: 0 }); }}
+                className="w-full mt-2 px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-[10px] font-medium"
+              >
+                🔄 Сбросить вид
+              </button>
             </div>
 
             {toolMode === 'fire' && (
@@ -1514,10 +1535,16 @@ export default function App() {
           <div className="flex-1 bg-gray-800 rounded-xl border border-gray-700 overflow-hidden relative">
             <svg
               ref={svgRef}
-              viewBox={`${500 - 500/scale} ${300 - 300/scale} ${1000/scale} ${600/scale}`}
+              viewBox={`${500 - 500/scale + panOffset.x} ${300 - 300/scale + panOffset.y} ${1000/scale} ${600/scale}`}
               className="w-full h-full"
               onClick={handleSVGClick}
               onMouseDown={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault();
+                  const { x, y } = getSVGCoords(e);
+                  setPanStart({ x, y, panX: panOffset.x, panY: panOffset.y });
+                  return;
+                }
                 if (toolMode === 'selection') {
                   e.preventDefault();
                   const { x, y } = getSVGCoords(e);
@@ -2457,8 +2484,8 @@ export default function App() {
           </div>
         </main>
 
-        <aside className="w-[260px] bg-gray-800/95 border-l border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
-          <div className="p-3 overflow-y-auto flex-1">
+        <aside className="w-[clamp(380px,30vw,500px)] bg-gray-800/95 border-l border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
+          <div className="p-3 overflow-y-auto flex-1 min-h-0">
             <RecommendationPanel onApply={handleApplyRecommendations} />
             <RetrainPanel />
           </div>
