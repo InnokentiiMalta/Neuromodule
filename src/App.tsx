@@ -440,6 +440,7 @@ export default function App() {
   }, [scale]);
 
   const handleSVGClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return;
     if (dragState) return;
     const { x, y } = getSVGCoords(e);
 
