@@ -177,12 +177,6 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
               <span>Ориентир по АЦ-40:</span>
               <span className="font-mono text-purple-200">{Math.ceil(stvols / 2)}</span>
             </div>
-            {summary.forecastExtinguishTotal !== null && (
-              <div className="flex justify-between border-t border-purple-700/30 pt-1 mt-1">
-                <span>Общее время тушения:</span>
-                <span className="font-mono text-purple-200">{summary.forecastExtinguishTotal.toFixed(0)} мин</span>
-              </div>
-            )}
           </div>
           {resources.ac >= Math.ceil(stvols / 2) && (
             <div className="mt-2 pt-2 border-t border-purple-700/30 text-[10px] text-emerald-300">
