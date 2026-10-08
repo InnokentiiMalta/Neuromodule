@@ -2,11 +2,12 @@ import { usePredictionSummary } from '../hooks/usePredictionSummary';
 
 interface RecommendationPanelProps {
   onApply: (resources: { ac: number; al: number; asr: number; personnel: number }) => void;
+  resources: { ac: number; al: number; asr: number; personnel: number };
 }
 
 const RSK_50_FLOW = 3.5; // л/с — расход ствола РСК-50
 
-export default function RecommendationPanel({ onApply }: RecommendationPanelProps) {
+export default function RecommendationPanel({ onApply, resources }: RecommendationPanelProps) {
   const summary = usePredictionSummary();
 
   if (!summary.hasData) {
