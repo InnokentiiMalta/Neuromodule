@@ -1578,13 +1578,6 @@ export default function App() {
                 </div>
 
                 <p className="text-[9px] text-gray-400">{deployment.strategy}</p>
-                {deployment.warnings.length > 0 && (
-                  <div className="mt-2 space-y-0.5">
-                    {deployment.warnings.map((w, i) => (
-                      <div key={i} className="text-[9px] text-yellow-300 bg-yellow-900/30 rounded px-1.5 py-0.5">{w}</div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </div>
