@@ -1144,7 +1144,7 @@ export default function App() {
             >
               📊 Прогнозирование
             </Link>
-            <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Силы</button>
+            <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Имеющиеся силы на пожаре</button>
             <div className="flex gap-1">
               <button onClick={() => setPlacingUnit('ac')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'ac' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АЦ</button>
               <button onClick={() => setPlacingUnit('asa')} className={`px-2 py-1.5 rounded text-xs ${placingUnit === 'asa' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`}>+АСА</button>
