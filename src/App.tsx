@@ -921,7 +921,7 @@ export default function App() {
   );
 
   const handleReset = useCallback(() => {
-    setFireSource(null);
+    // НЕ трогаем fireSource — очаг пожара остаётся, чтобы можно было заново расставить технику
     setObstacles([]);
     setDeployment(null);
     setManualUnits([]);
@@ -930,6 +930,7 @@ export default function App() {
     setFireTrainPTW({});
     setSelectedFireTrainId(null);
     setCustomPumpPositions({});
+    setCustomPositions({});
     setToolMode('none');
   }, []);
 
@@ -1125,7 +1126,7 @@ export default function App() {
   }, [fireSource, wagons]);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div className="h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
       <header className="bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700 px-4 py-2 shadow-lg flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1209,7 +1210,7 @@ export default function App() {
             </div>
             <button onClick={handleDeploy} disabled={!fireSource} className="px-4 py-1.5 bg-gradient-to-r from-red-600 to-red-700 disabled:from-gray-600 disabled:to-gray-700 rounded-lg font-semibold text-xs">🚀 Расставить</button>
             <button onClick={() => setShowHelp(true)} className="px-2 py-1.5 bg-gray-700 rounded-lg text-xs">❓</button>
-            <button onClick={handleReset} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 rounded-lg text-xs font-semibold">🗑 Сброс обстановки</button>
+            <button onClick={handleReset} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 rounded-lg text-xs font-semibold">🗑 Очистить расстановку</button>
             <button
               onClick={() => {
                 if (!confirm('Начать новый пожар? Вся обстановка карты и данные прогноза будут очищены.')) return;

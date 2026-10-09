@@ -37,6 +37,28 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
   const actualSpecial = summary.actualSpecialVehicles;
   const actualTrains = summary.actualFireTrains;
   const actualStvols = summary.initialParams['Всего_подано_пожарных_стволов_ед'] ?? 0;
+  const factLocalization = summary.additionalParams['Время_локализации_пожара_мин'] ?? 0;
+  const factOpenFlame = summary.additionalParams['Время_ликвидации_открытого_горения_мин'] ?? 0;
+  const factConsequences = summary.additionalParams['Время_ликвидации_последствий_пожара_мин'] ?? 0;
+  const factExtinguishTotal = factLocalization + factOpenFlame;
+
+  const renderCompare = (forecast: number | null, fact: number, unit: string = 'мин') => {
+    if (forecast === null || fact <= 0) {
+      return <span className="font-mono text-purple-200">{forecast !== null ? `${forecast.toFixed(1)} ${unit}` : '—'}</span>;
+    }
+    const diff = fact - forecast;
+    const faster = diff < 0;
+    const color = Math.abs(diff) < 0.5 ? 'text-gray-300' : (faster ? 'text-emerald-300' : 'text-amber-300');
+    const label = Math.abs(diff) < 0.5
+      ? 'соответствует прогнозу'
+      : (faster ? `быстрее на ${Math.abs(diff).toFixed(1)} мин` : `медленнее на ${diff.toFixed(1)} мин`);
+    return (
+      <span className="flex flex-col items-end leading-tight">
+        <span className="font-mono text-purple-200">{forecast.toFixed(1)} → {fact.toFixed(1)}</span>
+        <span className={`text-[9px] ${color}`}>{label}</span>
+      </span>
+    );
+  };
 
   // --- Итерация 7: АСО ---
   const asoRecommended = summary.needsAso ? 1 : 0;
@@ -47,15 +69,18 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
 
   return (
     <div className="p-3 space-y-3">
+      {/* Заголовок на всю ширину */}
       <div>
         <h3 className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">
           💡 Рекомендации модели
         </h3>
-        <div className="text-[10px] text-emerald-400 bg-emerald-900/20 rounded px-2 py-1 mb-2">
+        <div className="text-[10px] text-emerald-400 bg-emerald-900/20 rounded px-2 py-1">
           Источник: {summary.stageLabel}
         </div>
       </div>
 
+      {/* Основные блоки — в 2 колонки */}
+      <div className="grid grid-cols-2 gap-3">
       {(summary.workDate || summary.workTime) && (
         <div className="bg-sky-900/20 border border-sky-500/30 rounded-lg p-2.5">
           <div className="text-[10px] text-sky-400 font-semibold mb-1">🕐 Условия работ</div>
@@ -206,29 +231,30 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
         summary.forecastExtinguishTotal !== null) && (
         <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2.5">
           <div className="text-[10px] text-purple-400 font-semibold mb-1">🔮 Прогноз времени</div>
+          <div className="text-[9px] text-purple-300/70 mb-1">прогноз → факт</div>
           <div className="space-y-1 text-[11px]">
             {summary.forecastLocalization !== null && (
-              <div className="flex justify-between">
+              <div className="flex justify-between items-start">
                 <span className="text-gray-300">Локализация:</span>
-                <span className="font-mono text-purple-200">{formatTime(summary.forecastLocalization)}</span>
+                {renderCompare(summary.forecastLocalization, factLocalization)}
               </div>
             )}
             {summary.forecastOpenFlame !== null && (
-              <div className="flex justify-between">
+              <div className="flex justify-between items-start">
                 <span className="text-gray-300">Ликв. горения:</span>
-                <span className="font-mono text-purple-200">{formatTime(summary.forecastOpenFlame)}</span>
+                {renderCompare(summary.forecastOpenFlame, factOpenFlame)}
               </div>
             )}
             {summary.forecastConsequences !== null && (
-              <div className="flex justify-between">
+              <div className="flex justify-between items-start">
                 <span className="text-gray-300">Ликв. последствий:</span>
-                <span className="font-mono text-purple-200">{formatTime(summary.forecastConsequences)}</span>
+                {renderCompare(summary.forecastConsequences, factConsequences)}
               </div>
             )}
             {summary.forecastExtinguishTotal !== null && (
-              <div className="flex justify-between border-t border-purple-700/40 pt-1 mt-1">
+              <div className="flex justify-between items-start border-t border-purple-700/40 pt-1 mt-1">
                 <span className="text-purple-300 font-semibold">Итого тушение:</span>
-                <span className="font-mono font-bold text-purple-200">{formatTime(summary.forecastExtinguishTotal)}</span>
+                {renderCompare(summary.forecastExtinguishTotal, factExtinguishTotal)}
               </div>
             )}
           </div>
@@ -296,24 +322,27 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
           )}
         </div>
       )}
+      </div>
 
-      {stvols > 0 && (
-        <button
-          onClick={() => onApply({
-            ac: recommendedAc,
-            al: actualSpecial > 0 ? actualSpecial : 0,
-            asr: asoRecommended,
-            personnel: recommendedPersonnel,
-          })}
-          className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-xs font-semibold"
-        >
-          ⚡ Заполнить рекомендациями
-        </button>
-      )}
-
-      <p className="text-[9px] text-gray-500 leading-tight">
-        Нажмите «Заполнить», затем «🚀 Расставить» — карта построит расстановку с рекомендованными силами.
-      </p>
+      {/* Кнопка и подсказка — на всю ширину */}
+      <div className="space-y-2">
+        {stvols > 0 && (
+          <button
+            onClick={() => onApply({
+              ac: recommendedAc,
+              al: actualSpecial > 0 ? actualSpecial : 0,
+              asr: asoRecommended,
+              personnel: recommendedPersonnel,
+            })}
+            className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-xs font-semibold"
+          >
+            ⚡ Заполнить рекомендациями
+          </button>
+        )}
+        <p className="text-[9px] text-gray-500 leading-tight">
+          Нажмите «Заполнить», затем «🚀 Расставить» — карта построит расстановку с рекомендованными силами.
+        </p>
+      </div>
     </div>
   );
 }
