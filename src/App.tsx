@@ -8,6 +8,7 @@ import RetrainPanel from './components/RetrainPanel';
 import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
+import { distributePersonnel } from './utils/personnel';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -446,6 +447,12 @@ export default function App() {
     const { x, y } = getSVGCoords(e);
 
     if (placingUnit) {
+      const defaultPersonnel = placingUnit === 'asa' ? 3 : placingUnit === 'aso' ? 1 : 2;
+      const input = window.prompt(
+        `Сколько человек в экипаже ${placingUnit === 'ac' ? 'АЦ-40' : placingUnit === 'asa' ? 'АСА' : 'АСО'}?`,
+        String(defaultPersonnel)
+      );
+      const personnelCount = Math.max(1, parseInt(input || String(defaultPersonnel), 10) || defaultPersonnel);
       const newUnit: ManualUnit = {
         id: `manual-${Date.now()}`,
         type: placingUnit,
@@ -453,7 +460,7 @@ export default function App() {
         x: x - 22,
         y: y - 10,
         angle: 0,
-        personnel: placingUnit === 'asa' ? 5 : placingUnit === 'aso' ? 3 : 7,
+        personnel: personnelCount,
         hoses: 0,
         role: 'Добавлен вручную',
         safeDistance: 200,
@@ -1500,6 +1507,29 @@ export default function App() {
                       className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
                     />
                   </div>
+                  {(() => {
+                    const unit = manualUnits.find(u => u.id === selectedUnitId);
+                    if (!unit) return null;
+                    const maxP = unit.type === 'aso' ? 10 : (unit.type === 'asa' ? 6 : 6);
+                    return (
+                      <div>
+                        <label className="text-[9px] text-gray-400 block mb-0.5">Экипаж (чел.):</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max={maxP}
+                          value={unit.personnel}
+                          onChange={e => {
+                            const val = Math.max(1, Math.min(maxP, parseInt(e.target.value, 10) || 1));
+                            setManualUnits(prev => prev.map(u =>
+                              u.id === selectedUnitId ? { ...u, personnel: val } : u
+                            ));
+                          }}
+                          className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
+                        />
+                      </div>
+                    );
+                  })()}
                   {(() => {
                     const selectedManualUnit = manualUnits.find(u => u.id === selectedUnitId);
                     if (selectedManualUnit && !selectedManualUnit.ptvDeployed && selectedManualUnit.type !== 'aso') {
