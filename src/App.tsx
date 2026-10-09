@@ -272,27 +272,26 @@ function routeHoseAlongCorridor(
 
   const SPACING = 20;
   const startIdx = sideInfo?.startIdx ?? 0;
-  const total = sideInfo?.total ?? 1;
-  const nozzlesCount = sideInfo?.nozzlesCount ?? 1;
-  const totalPositions = total * 2;
-  const startOffset = -((totalPositions - 1) * SPACING) / 2;
-  const baseNozzle1X = fireX + startOffset + (startIdx * 2) * SPACING;
-  const baseNozzle2X = fireX + startOffset + ((startIdx + 1) * 2) * SPACING;
-  let baseNozzle1Y = fireY;
-  let baseNozzle2Y = fireY;
+  const totalPositions = sideInfo?.total ?? 2;
+  const nozzlesCount = sideInfo?.nozzlesCount ?? 2;
 
+  const startOffset = -((totalPositions - 1) * SPACING) / 2;
+
+  let baseY = fireY;
   if (unitAboveTracks) {
     const minY = TRACK_TOP - MIN_DISTANCE_FROM_TRACKS;
-    baseNozzle1Y = Math.min(baseNozzle1Y, minY);
-    baseNozzle2Y = Math.min(baseNozzle2Y, minY);
+    baseY = Math.min(baseY, minY);
   } else {
     const maxY = TRACK_BOTTOM + MIN_DISTANCE_FROM_TRACKS;
-    baseNozzle1Y = Math.max(baseNozzle1Y, maxY);
-    baseNozzle2Y = Math.max(baseNozzle2Y, maxY);
+    baseY = Math.max(baseY, maxY);
   }
 
-  defaultNozzles.push({ x: baseNozzle1X, y: baseNozzle1Y });
-  defaultNozzles.push({ x: baseNozzle2X, y: baseNozzle2Y });
+  // Генерируем nozzlesCount ствольщиков, каждый на своей позиции
+  for (let i = 0; i < nozzlesCount; i++) {
+    const posIdx = startIdx + i;
+    const x = fireX + startOffset + posIdx * SPACING;
+    defaultNozzles.push({ x, y: baseY });
+  }
 
   for (let i = 0; i < defaultNozzles.length; i++) {
     let nozzleX = defaultNozzles[i].x;
