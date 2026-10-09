@@ -1657,10 +1657,28 @@ export default function App() {
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
                   <p className="text-[9px] font-semibold text-gray-300 mb-1">👥 Личный состав:</p>
                   <div className="space-y-0.5 text-[8px] text-gray-400">
-                    <p>• У техники: {deployment.units.length + manualUnits.filter(u => u.ptvDeployed).length} чел.</p>
-                    <p>• На разветвлениях: {deployment.units.filter(u => u.hoses > 0).length + manualUnits.filter(u => u.ptvDeployed).length} чел.</p>
-                    <p>• Ствольщики: {(deployment.units.filter(u => u.hoses > 0).length + manualUnits.filter(u => u.ptvDeployed).length) * 2} чел.</p>
-                    <p>• Свободные: {deployment.personnelPositions?.length || 0} чел.</p>
+                    {(() => {
+                      const allUnits = [...deployment.units, ...manualUnits];
+                      let nozzles = 0, atVehicle = 0, atBranch = 0, freeFromUnits = 0;
+                      for (const u of allUnits) {
+                        const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+                        nozzles += d.nozzles;
+                        atVehicle += d.atVehicle;
+                        atBranch += d.atBranch;
+                        freeFromUnits += d.free;
+                      }
+                      return (
+                        <>
+                          <p>• Ствольщики: {nozzles} чел.</p>
+                          <p>• У техники: {atVehicle} чел.</p>
+                          <p>• На разветвлениях: {atBranch} чел.</p>
+                          <p>• Свободные: {freeFromUnits} чел.</p>
+                          <p className="border-t border-gray-600/40 mt-1 pt-1 text-gray-300">
+                            Итого на карте: <span className="font-mono text-white">{nozzles + atVehicle + atBranch + freeFromUnits}</span> чел.
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
