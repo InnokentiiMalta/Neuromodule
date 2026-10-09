@@ -69,15 +69,18 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
 
   return (
     <div className="p-3 space-y-3">
+      {/* Заголовок на всю ширину */}
       <div>
         <h3 className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">
           💡 Рекомендации модели
         </h3>
-        <div className="text-[10px] text-emerald-400 bg-emerald-900/20 rounded px-2 py-1 mb-2">
+        <div className="text-[10px] text-emerald-400 bg-emerald-900/20 rounded px-2 py-1">
           Источник: {summary.stageLabel}
         </div>
       </div>
 
+      {/* Основные блоки — в 2 колонки */}
+      <div className="grid grid-cols-2 gap-3">
       {(summary.workDate || summary.workTime) && (
         <div className="bg-sky-900/20 border border-sky-500/30 rounded-lg p-2.5">
           <div className="text-[10px] text-sky-400 font-semibold mb-1">🕐 Условия работ</div>
@@ -319,24 +322,27 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
           )}
         </div>
       )}
+      </div>
 
-      {stvols > 0 && (
-        <button
-          onClick={() => onApply({
-            ac: recommendedAc,
-            al: actualSpecial > 0 ? actualSpecial : 0,
-            asr: asoRecommended,
-            personnel: recommendedPersonnel,
-          })}
-          className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-xs font-semibold"
-        >
-          ⚡ Заполнить рекомендациями
-        </button>
-      )}
-
-      <p className="text-[9px] text-gray-500 leading-tight">
-        Нажмите «Заполнить», затем «🚀 Расставить» — карта построит расстановку с рекомендованными силами.
-      </p>
+      {/* Кнопка и подсказка — на всю ширину */}
+      <div className="space-y-2">
+        {stvols > 0 && (
+          <button
+            onClick={() => onApply({
+              ac: recommendedAc,
+              al: actualSpecial > 0 ? actualSpecial : 0,
+              asr: asoRecommended,
+              personnel: recommendedPersonnel,
+            })}
+            className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-xs font-semibold"
+          >
+            ⚡ Заполнить рекомендациями
+          </button>
+        )}
+        <p className="text-[9px] text-gray-500 leading-tight">
+          Нажмите «Заполнить», затем «🚀 Расставить» — карта построит расстановку с рекомендованными силами.
+        </p>
+      </div>
     </div>
   );
 }
