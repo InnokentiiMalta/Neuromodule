@@ -466,12 +466,9 @@ export default function App() {
     const { x, y } = getSVGCoords(e);
 
     if (placingUnit) {
+      // В Electron window.prompt не работает — используем дефолтный экипаж.
+      // Точное число человек пользователь задаст в панели выбранной техники.
       const defaultPersonnel = placingUnit === 'asa' ? 3 : placingUnit === 'aso' ? 1 : 2;
-      const input = window.prompt(
-        `Сколько человек в экипаже ${placingUnit === 'ac' ? 'АЦ-40' : placingUnit === 'asa' ? 'АСА' : 'АСО'}?`,
-        String(defaultPersonnel)
-      );
-      const personnelCount = Math.max(1, parseInt(input || String(defaultPersonnel), 10) || defaultPersonnel);
       const newUnit: ManualUnit = {
         id: `manual-${Date.now()}`,
         type: placingUnit,
@@ -479,7 +476,7 @@ export default function App() {
         x: x - 22,
         y: y - 10,
         angle: 0,
-        personnel: personnelCount,
+        personnel: defaultPersonnel,
         hoses: 0,
         role: 'Добавлен вручную',
         safeDistance: 200,
@@ -923,9 +920,9 @@ export default function App() {
   }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons, panStart]);
 
   const handleDeploy = useCallback(() => {
-    const result = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
+    const result = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources);
     setDeployment(result);
-  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
+  }, [wagons, fireSource, obstacles, resources, waterSources]);
 
   const handleApplyRecommendations = useCallback(
     (rec: { ac: number; al: number; asr: number; personnel: number }) => {
@@ -958,6 +955,7 @@ export default function App() {
     setCustomPumpPositions({});
     setCustomPositions({});
     setToolMode('none');
+    setPlacingUnit(null);
   }, []);
 
   const handleScreenshotScene = useCallback(() => {
@@ -1096,12 +1094,12 @@ export default function App() {
     setSelectedWagonId(null);
 
     if (fireSource) {
-      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, resources, waterSources);
       setDeployment(newDeployment);
     } else {
       setDeployment(null);
     }
-  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
+  }, [wagons, fireSource, obstacles, resources, waterSources]);
 
   const changeAllWagonsType = useCallback((newType: WagonType) => {
     const newWagons = wagons.map(w => {
@@ -1111,12 +1109,12 @@ export default function App() {
     setWagons(newWagons);
 
     if (fireSource) {
-      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, resources, waterSources);
       setDeployment(newDeployment);
     } else {
       setDeployment(null);
     }
-  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
+  }, [wagons, fireSource, obstacles, resources, waterSources]);
 
   const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
     const newName = newType === 'asa' ? 'АСА' : newType === 'aso' ? 'АСО' : 'АЦ-40';
@@ -1127,7 +1125,7 @@ export default function App() {
     ));
 
     if (fireSource) {
-      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
+      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources);
       setDeployment(newDeployment);
     }
     setSelectedUnitId(null);
