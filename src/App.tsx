@@ -1537,15 +1537,21 @@ export default function App() {
                 <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
                 <div className="grid grid-cols-3 gap-1 mb-2">
                   <div className="bg-gray-700/80 rounded p-1 text-center">
-                    <div className="text-sm font-bold">{deployment.units.length + manualUnits.filter(u => u.ptvDeployed).length}</div>
+                    <div className="text-sm font-bold">{deployment.units.length + manualUnits.length}</div>
                     <div className="text-[8px] text-gray-400">Техника</div>
                   </div>
                   <div className="bg-gray-700/80 rounded p-1 text-center">
-                    <div className="text-sm font-bold">{deployment.totalPersonnel}</div>
+                    <div className="text-sm font-bold">
+                      {deployment.units.reduce((s, u) => s + u.personnel, 0) +
+                       manualUnits.reduce((s, u) => s + u.personnel, 0)}
+                    </div>
                     <div className="text-[8px] text-gray-400">Л/с всего</div>
                   </div>
                   <div className="bg-gray-700/80 rounded p-1 text-center">
-                    <div className="text-sm font-bold">{deployment.totalHoses}</div>
+                    <div className="text-sm font-bold">
+                      {deployment.units.reduce((s, u) => s + u.hoses, 0) +
+                       manualUnits.reduce((s, u) => s + u.hoses, 0)}
+                    </div>
                     <div className="text-[8px] text-gray-400">Стволов</div>
                   </div>
                 </div>
