@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit, WaterSource, FireTrain } from './types';
 import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
 import html2canvas from 'html2canvas';
@@ -1124,6 +1124,54 @@ export default function App() {
     const w = wagons.find(w => w.id === fireSource.wagonId);
     return w ? w.label : '';
   }, [fireSource, wagons]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+
+      if (selectedFireTrainId) {
+        e.preventDefault();
+        setFireTrains(prev => prev.filter(t => t.id !== selectedFireTrainId));
+        setFireTrainPTW(prev => {
+          const copy = { ...prev };
+          delete copy[selectedFireTrainId];
+          return copy;
+        });
+        setSelectedFireTrainId(null);
+        return;
+      }
+
+      if (selectedUnitId) {
+        e.preventDefault();
+        // Удаляем из deployment.units, если там есть
+        if (deployment) {
+          setDeployment({
+            ...deployment,
+            units: deployment.units.filter(u => u.id !== selectedUnitId),
+          });
+        }
+        // Удаляем из manualUnits
+        setManualUnits(prev => prev.filter(u => u.id !== selectedUnitId));
+        // Убираем кастомные позиции
+        setCustomPositions(prev => {
+          const copy = { ...prev };
+          delete copy[selectedUnitId];
+          return copy;
+        });
+        setCustomPumpPositions(prev => {
+          const copy = { ...prev };
+          delete copy[selectedUnitId];
+          return copy;
+        });
+        setSelectedUnitId(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedUnitId, selectedFireTrainId, deployment]);
 
   return (
     <div className="h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
@@ -2598,6 +2646,7 @@ export default function App() {
               <p><strong className="text-blue-400">Выделение:</strong> В режиме "Перемещение" или "Просмотр" можно выделить несколько элементов прямоугольной областью (кликните на пустое место и тяните). Все выделенные элементы можно перемещать одновременно.</p>
               <p><strong className="text-yellow-400">Подразделение:</strong> Выберите машину и укажите принадлежность к подразделению (например, "ПЧ-12").</p>
               <p><strong className="text-blue-400">Смена типа техники:</strong> Кликните на размещённую машину для изменения её типа (АЦ/АСА/АСО).</p>
+              <p><strong className="text-red-400">Удаление:</strong> Выберите машину или пожарный поезд и нажмите <kbd className="px-1 bg-gray-700 rounded">Del</kbd> или <kbd className="px-1 bg-gray-700 rounded">Backspace</kbd> для удаления с карты. ПТВ и рукава удаляются вместе с техникой.</p>
               <div className="mt-3 pt-2 border-t border-gray-700 text-[11px] text-gray-400 space-y-1">
                 <p>🔗 <strong>Рукавные линии:</strong> прокладываются вдоль вагонов на расстоянии 5м снаружи по кратчайшему пути.</p>
                 <p>🧑‍🚒 <strong>Личный состав:</strong> отображается у каждой машины (1 чел.) и у каждого разветвления РТ-80.</p>
