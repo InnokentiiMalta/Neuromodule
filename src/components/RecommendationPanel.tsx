@@ -40,7 +40,7 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
   const factLocalization = summary.additionalParams['Время_локализации_пожара_мин'] ?? 0;
   const factOpenFlame = summary.additionalParams['Время_ликвидации_открытого_горения_мин'] ?? 0;
   const factConsequences = summary.additionalParams['Время_ликвидации_последствий_пожара_мин'] ?? 0;
-  const factExtinguishTotal = factLocalization + factOpenFlame;
+  const factExtinguishTotal = factLocalization + factOpenFlame + factConsequences;
 
   const renderCompare = (forecast: number | null, fact: number, unit: string = 'мин') => {
     if (forecast === null || fact <= 0) {
@@ -59,6 +59,11 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
       </span>
     );
   };
+
+  const forecastExtinguishTotalFull =
+    (summary.forecastLocalization ?? 0) +
+    (summary.forecastOpenFlame ?? 0) +
+    (summary.forecastConsequences ?? 0);
 
   // --- Итерация 7: АСО ---
   const asoRecommended = summary.needsAso ? 1 : 0;
@@ -251,10 +256,10 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
                 {renderCompare(summary.forecastConsequences, factConsequences)}
               </div>
             )}
-            {summary.forecastExtinguishTotal !== null && (
+            {(summary.forecastLocalization !== null || summary.forecastOpenFlame !== null || summary.forecastConsequences !== null) && (
               <div className="flex justify-between items-start border-t border-purple-700/40 pt-1 mt-1">
                 <span className="text-purple-300 font-semibold">Итого тушение:</span>
-                {renderCompare(summary.forecastExtinguishTotal, factExtinguishTotal)}
+                {renderCompare(forecastExtinguishTotalFull, factExtinguishTotal)}
               </div>
             )}
           </div>
