@@ -1194,7 +1194,8 @@ export default function App() {
             >
               📊 Прогнозирование
             </Link>
-            <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Имеющиеся силы на пожаре</button>
+            {/* Кнопка "Имеющиеся силы" временно скрыта. Функционал сохранён — при необходимости вернуть из истории. */}
+            {/* <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Имеющиеся силы на пожаре</button> */}
             <div className="relative">
               <button
                 onClick={() => setShowAddTechMenu(v => !v)}
