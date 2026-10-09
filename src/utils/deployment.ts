@@ -1,4 +1,5 @@
 import { Wagon, FireSource, Obstacle, FireUnit, Deployment, AvailableResources, WaterSource } from '../types';
+import { distributePersonnel } from './personnel';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -302,14 +303,25 @@ export function calculateDeployment(
   strategy += `Безопасное расстояние: ${(safeDist * 0.5).toFixed(0)} м.`;
 
   // Calculate total personnel from resources
-  // Фактический экипаж размещённой техники (водители + расчёты)
-  const deploymentPersonnel = units.reduce((s, u) => s + u.personnel, 0);
+  // Распределяем людей по каждой единице техники
+  let nozzlesTotal = 0;
+  let atVehicleTotal = 0;
+  let atBranchTotal = 0;
+  let freeFromUnits = 0;
 
-  // Заявленное РТП общее количество людей
-  const totalAvailablePersonnel = resources ? resources.personnel : 100;
+  for (const u of units) {
+    const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+    nozzlesTotal += d.nozzles;
+    atVehicleTotal += d.atVehicle;
+    atBranchTotal += d.atBranch;
+    freeFromUnits += d.free;
+  }
 
-  // Свободные = заявленное - фактически занятые в технике
-  const freePersonnel = Math.max(0, totalAvailablePersonnel - deploymentPersonnel);  
+  // Итого все люди, которые физически присутствуют на карте
+  const deploymentPersonnel = nozzlesTotal + atVehicleTotal + atBranchTotal + freeFromUnits;
+
+  // Свободные для размещения иконок — только те, кого нужно нарисовать отдельно
+  const freePersonnel = freeFromUnits;  
   // Generate FREE personnel positions only
   const personnelPositions = generatePersonnelPositions(
     fireX, fireY,
