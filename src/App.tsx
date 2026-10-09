@@ -1094,12 +1094,12 @@ export default function App() {
     setSelectedWagonId(null);
 
     if (fireSource) {
-      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, resources, waterSources);
       setDeployment(newDeployment);
     } else {
       setDeployment(null);
     }
-  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
+  }, [wagons, fireSource, obstacles, resources, waterSources]);
 
   const changeAllWagonsType = useCallback((newType: WagonType) => {
     const newWagons = wagons.map(w => {
@@ -1109,12 +1109,12 @@ export default function App() {
     setWagons(newWagons);
 
     if (fireSource) {
-      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, resources, waterSources);
       setDeployment(newDeployment);
     } else {
       setDeployment(null);
     }
-  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
+  }, [wagons, fireSource, obstacles, resources, waterSources]);
 
   const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
     const newName = newType === 'asa' ? 'АСА' : newType === 'aso' ? 'АСО' : 'АЦ-40';
@@ -1125,7 +1125,7 @@ export default function App() {
     ));
 
     if (fireSource) {
-      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
+      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources);
       setDeployment(newDeployment);
     }
     setSelectedUnitId(null);
