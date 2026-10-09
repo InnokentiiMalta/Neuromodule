@@ -217,7 +217,7 @@ function routeHoseAlongCorridor(
   customNozzles?: Array<{ x: number; y: number }>,
   unitAngle?: number,
   customPumpPos?: { x: number; y: number },
-  sideInfo?: { sideIndex: number; sideTotal: number }
+  sideInfo?: { startIdx: number; total: number; nozzlesCount: number }
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
@@ -271,12 +271,13 @@ function routeHoseAlongCorridor(
   const defaultNozzles: Array<{ x: number; y: number }> = [];
 
   const SPACING = 20;
-  const sideIndex = sideInfo?.sideIndex ?? 0;
-  const sideTotal = sideInfo?.sideTotal ?? 1;
-  const totalPositions = sideTotal * 2;
+  const startIdx = sideInfo?.startIdx ?? 0;
+  const total = sideInfo?.total ?? 1;
+  const nozzlesCount = sideInfo?.nozzlesCount ?? 1;
+  const totalPositions = total * 2;
   const startOffset = -((totalPositions - 1) * SPACING) / 2;
-  const baseNozzle1X = fireX + startOffset + (sideIndex * 2) * SPACING;
-  const baseNozzle2X = fireX + startOffset + (sideIndex * 2 + 1) * SPACING;
+  const baseNozzle1X = fireX + startOffset + (startIdx * 2) * SPACING;
+  const baseNozzle2X = fireX + startOffset + ((startIdx + 1) * 2) * SPACING;
   let baseNozzle1Y = fireY;
   let baseNozzle2Y = fireY;
 
@@ -418,16 +419,35 @@ export default function App() {
     const unitSideInfo = useMemo(() => {
     const allUnits = [...(deployment?.units || []), ...manualUnits];
     const activeUnits = allUnits.filter(u => u.hoses > 0 || (u as any).ptvDeployed);
-    const above: string[] = [];
-    const below: string[] = [];
-    activeUnits.forEach(u => {
-      const centerY = u.y + 10;
-      if (centerY < 300) above.push(u.id);
-      else below.push(u.id);
+
+    // Для каждой машины определяем количество ствольщиков по её экипажу
+    const withNozzles = activeUnits.map(u => ({
+      id: u.id,
+      type: u.type,
+      personnel: u.personnel,
+      nozzlesCount: distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel).nozzles,
+      centerY: u.y + 10,
+    })).filter(u => u.nozzlesCount > 0);
+
+    const above = withNozzles.filter(u => u.centerY < 300);
+    const below = withNozzles.filter(u => u.centerY >= 300);
+
+    const info: Record<string, { startIdx: number; total: number; nozzlesCount: number }> = {};
+
+    let aboveCursor = 0;
+    const aboveTotal = above.reduce((s, u) => s + u.nozzlesCount, 0);
+    above.forEach(u => {
+      info[u.id] = { startIdx: aboveCursor, total: aboveTotal, nozzlesCount: u.nozzlesCount };
+      aboveCursor += u.nozzlesCount;
     });
-    const info: Record<string, { sideIndex: number; sideTotal: number }> = {};
-    above.forEach((id, idx) => { info[id] = { sideIndex: idx, sideTotal: above.length }; });
-    below.forEach((id, idx) => { info[id] = { sideIndex: idx, sideTotal: below.length }; });
+
+    let belowCursor = 0;
+    const belowTotal = below.reduce((s, u) => s + u.nozzlesCount, 0);
+    below.forEach(u => {
+      info[u.id] = { startIdx: belowCursor, total: belowTotal, nozzlesCount: u.nozzlesCount };
+      belowCursor += u.nozzlesCount;
+    });
+
     return info;
   }, [deployment, manualUnits]);
 
