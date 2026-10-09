@@ -920,9 +920,9 @@ export default function App() {
   }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons, panStart]);
 
   const handleDeploy = useCallback(() => {
-    const result = calculateDeployment(wagons, fireSource, obstacles, useCustomResources ? resources : null, waterSources);
+    const result = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources);
     setDeployment(result);
-  }, [wagons, fireSource, obstacles, resources, useCustomResources, waterSources]);
+  }, [wagons, fireSource, obstacles, resources, waterSources]);
 
   const handleApplyRecommendations = useCallback(
     (rec: { ac: number; al: number; asr: number; personnel: number }) => {
@@ -955,6 +955,7 @@ export default function App() {
     setCustomPumpPositions({});
     setCustomPositions({});
     setToolMode('none');
+    setPlacingUnit(null);
   }, []);
 
   const handleScreenshotScene = useCallback(() => {
