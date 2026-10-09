@@ -8,6 +8,7 @@ import RetrainPanel from './components/RetrainPanel';
 import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
+import { distributePersonnel } from './utils/personnel';
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -216,7 +217,7 @@ function routeHoseAlongCorridor(
   customNozzles?: Array<{ x: number; y: number }>,
   unitAngle?: number,
   customPumpPos?: { x: number; y: number },
-  sideInfo?: { sideIndex: number; sideTotal: number }
+  sideInfo?: { startIdx: number; total: number; nozzlesCount: number }
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
@@ -270,27 +271,27 @@ function routeHoseAlongCorridor(
   const defaultNozzles: Array<{ x: number; y: number }> = [];
 
   const SPACING = 20;
-  const sideIndex = sideInfo?.sideIndex ?? 0;
-  const sideTotal = sideInfo?.sideTotal ?? 1;
-  const totalPositions = sideTotal * 2;
-  const startOffset = -((totalPositions - 1) * SPACING) / 2;
-  const baseNozzle1X = fireX + startOffset + (sideIndex * 2) * SPACING;
-  const baseNozzle2X = fireX + startOffset + (sideIndex * 2 + 1) * SPACING;
-  let baseNozzle1Y = fireY;
-  let baseNozzle2Y = fireY;
+  const startIdx = sideInfo?.startIdx ?? 0;
+  const totalPositions = sideInfo?.total ?? 2;
+  const nozzlesCount = sideInfo?.nozzlesCount ?? 2;
 
+  const startOffset = -((totalPositions - 1) * SPACING) / 2;
+
+  let baseY = fireY;
   if (unitAboveTracks) {
     const minY = TRACK_TOP - MIN_DISTANCE_FROM_TRACKS;
-    baseNozzle1Y = Math.min(baseNozzle1Y, minY);
-    baseNozzle2Y = Math.min(baseNozzle2Y, minY);
+    baseY = Math.min(baseY, minY);
   } else {
     const maxY = TRACK_BOTTOM + MIN_DISTANCE_FROM_TRACKS;
-    baseNozzle1Y = Math.max(baseNozzle1Y, maxY);
-    baseNozzle2Y = Math.max(baseNozzle2Y, maxY);
+    baseY = Math.max(baseY, maxY);
   }
 
-  defaultNozzles.push({ x: baseNozzle1X, y: baseNozzle1Y });
-  defaultNozzles.push({ x: baseNozzle2X, y: baseNozzle2Y });
+  // Генерируем nozzlesCount ствольщиков, каждый на своей позиции
+  for (let i = 0; i < nozzlesCount; i++) {
+    const posIdx = startIdx + i;
+    const x = fireX + startOffset + posIdx * SPACING;
+    defaultNozzles.push({ x, y: baseY });
+  }
 
   for (let i = 0; i < defaultNozzles.length; i++) {
     let nozzleX = defaultNozzles[i].x;
@@ -417,16 +418,35 @@ export default function App() {
     const unitSideInfo = useMemo(() => {
     const allUnits = [...(deployment?.units || []), ...manualUnits];
     const activeUnits = allUnits.filter(u => u.hoses > 0 || (u as any).ptvDeployed);
-    const above: string[] = [];
-    const below: string[] = [];
-    activeUnits.forEach(u => {
-      const centerY = u.y + 10;
-      if (centerY < 300) above.push(u.id);
-      else below.push(u.id);
+
+    // Для каждой машины определяем количество ствольщиков по её экипажу
+    const withNozzles = activeUnits.map(u => ({
+      id: u.id,
+      type: u.type,
+      personnel: u.personnel,
+      nozzlesCount: distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel).nozzles,
+      centerY: u.y + 10,
+    })).filter(u => u.nozzlesCount > 0);
+
+    const above = withNozzles.filter(u => u.centerY < 300);
+    const below = withNozzles.filter(u => u.centerY >= 300);
+
+    const info: Record<string, { startIdx: number; total: number; nozzlesCount: number }> = {};
+
+    let aboveCursor = 0;
+    const aboveTotal = above.reduce((s, u) => s + u.nozzlesCount, 0);
+    above.forEach(u => {
+      info[u.id] = { startIdx: aboveCursor, total: aboveTotal, nozzlesCount: u.nozzlesCount };
+      aboveCursor += u.nozzlesCount;
     });
-    const info: Record<string, { sideIndex: number; sideTotal: number }> = {};
-    above.forEach((id, idx) => { info[id] = { sideIndex: idx, sideTotal: above.length }; });
-    below.forEach((id, idx) => { info[id] = { sideIndex: idx, sideTotal: below.length }; });
+
+    let belowCursor = 0;
+    const belowTotal = below.reduce((s, u) => s + u.nozzlesCount, 0);
+    below.forEach(u => {
+      info[u.id] = { startIdx: belowCursor, total: belowTotal, nozzlesCount: u.nozzlesCount };
+      belowCursor += u.nozzlesCount;
+    });
+
     return info;
   }, [deployment, manualUnits]);
 
@@ -446,6 +466,12 @@ export default function App() {
     const { x, y } = getSVGCoords(e);
 
     if (placingUnit) {
+      const defaultPersonnel = placingUnit === 'asa' ? 3 : placingUnit === 'aso' ? 1 : 2;
+      const input = window.prompt(
+        `Сколько человек в экипаже ${placingUnit === 'ac' ? 'АЦ-40' : placingUnit === 'asa' ? 'АСА' : 'АСО'}?`,
+        String(defaultPersonnel)
+      );
+      const personnelCount = Math.max(1, parseInt(input || String(defaultPersonnel), 10) || defaultPersonnel);
       const newUnit: ManualUnit = {
         id: `manual-${Date.now()}`,
         type: placingUnit,
@@ -453,7 +479,7 @@ export default function App() {
         x: x - 22,
         y: y - 10,
         angle: 0,
-        personnel: placingUnit === 'asa' ? 5 : placingUnit === 'aso' ? 3 : 7,
+        personnel: personnelCount,
         hoses: 0,
         role: 'Добавлен вручную',
         safeDistance: 200,
@@ -1194,7 +1220,8 @@ export default function App() {
             >
               📊 Прогнозирование
             </Link>
-            <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Имеющиеся силы на пожаре</button>
+            {/* Кнопка "Имеющиеся силы" временно скрыта. Функционал сохранён — при необходимости вернуть из истории. */}
+            {/* <button onClick={() => setShowResources(true)} className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 rounded-lg text-xs font-semibold">📋 Имеющиеся силы на пожаре</button> */}
             <div className="relative">
               <button
                 onClick={() => setShowAddTechMenu(v => !v)}
@@ -1471,6 +1498,29 @@ export default function App() {
                     />
                   </div>
                   {(() => {
+                    const unit = manualUnits.find(u => u.id === selectedUnitId);
+                    if (!unit) return null;
+                    const maxP = unit.type === 'aso' ? 10 : (unit.type === 'asa' ? 6 : 6);
+                    return (
+                      <div>
+                        <label className="text-[9px] text-gray-400 block mb-0.5">Экипаж (чел.):</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max={maxP}
+                          value={unit.personnel}
+                          onChange={e => {
+                            const val = Math.max(1, Math.min(maxP, parseInt(e.target.value, 10) || 1));
+                            setManualUnits(prev => prev.map(u =>
+                              u.id === selectedUnitId ? { ...u, personnel: val } : u
+                            ));
+                          }}
+                          className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
+                        />
+                      </div>
+                    );
+                  })()}
+                  {(() => {
                     const selectedManualUnit = manualUnits.find(u => u.id === selectedUnitId);
                     if (selectedManualUnit && !selectedManualUnit.ptvDeployed && selectedManualUnit.type !== 'aso') {
                       return (
@@ -1578,10 +1628,28 @@ export default function App() {
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
                   <p className="text-[9px] font-semibold text-gray-300 mb-1">👥 Личный состав:</p>
                   <div className="space-y-0.5 text-[8px] text-gray-400">
-                    <p>• У техники: {deployment.units.length + manualUnits.filter(u => u.ptvDeployed).length} чел.</p>
-                    <p>• На разветвлениях: {deployment.units.filter(u => u.hoses > 0).length + manualUnits.filter(u => u.ptvDeployed).length} чел.</p>
-                    <p>• Ствольщики: {(deployment.units.filter(u => u.hoses > 0).length + manualUnits.filter(u => u.ptvDeployed).length) * 2} чел.</p>
-                    <p>• Свободные: {deployment.personnelPositions?.length || 0} чел.</p>
+                    {(() => {
+                      const allUnits = [...deployment.units, ...manualUnits];
+                      let nozzles = 0, atVehicle = 0, atBranch = 0, freeFromUnits = 0;
+                      for (const u of allUnits) {
+                        const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+                        nozzles += d.nozzles;
+                        atVehicle += d.atVehicle;
+                        atBranch += d.atBranch;
+                        freeFromUnits += d.free;
+                      }
+                      return (
+                        <>
+                          <p>• Ствольщики: {nozzles} чел.</p>
+                          <p>• У техники: {atVehicle} чел.</p>
+                          <p>• На разветвлениях: {atBranch} чел.</p>
+                          <p>• Свободные: {freeFromUnits} чел.</p>
+                          <p className="border-t border-gray-600/40 mt-1 pt-1 text-gray-300">
+                            Итого на карте: <span className="font-mono text-white">{nozzles + atVehicle + atBranch + freeFromUnits}</span> чел.
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
