@@ -410,23 +410,36 @@ function generatePersonnelPositions(
   const unitsBelowTracks = units.filter(u => (u.y + 10) > TRACK_BOTTOM).length;
   const preferAbove = unitsAboveTracks >= unitsBelowTracks;
   
-  const generatePosition = (preferSide: boolean): { x: number; y: number } | null => {
-    for (let attempt = 0; attempt < 100; attempt++) {
+  const MIN_DISTANCE_BETWEEN_PERSONNEL = 18;
+
+  const generatePosition = (
+    preferSide: boolean,
+    existingPositions: Array<{ x: number; y: number }>
+  ): { x: number; y: number } | null => {
+    for (let attempt = 0; attempt < 200; attempt++) {
       const angle = Math.random() * Math.PI * 2;
       const distance = MIN_DISTANCE_FROM_FIRE + Math.random() * (MAX_DISTANCE_FROM_FIRE - MIN_DISTANCE_FROM_FIRE);
       const px = fireX + Math.cos(angle) * distance;
       const py = fireY + Math.sin(angle) * distance;
-      
+
       const isOnPreferredSide = preferSide ? py < TRACK_TOP : py > TRACK_BOTTOM;
       if (!isOnPreferredSide) continue;
-      
+
       if (px < 10 || px > 990 || py < 10 || py > 590) continue;
-      
+
       const distFromFire = Math.sqrt((px - fireX) ** 2 + (py - fireY) ** 2);
       if (distFromFire < MIN_DISTANCE_FROM_FIRE || distFromFire > MAX_DISTANCE_FROM_FIRE) continue;
-      
+
+      // Не пересекаемся с препятствиями и вагонами
       if (isPositionBlocked(px - 3, py - 3, 6, 6, obstacles, wagons)) continue;
-      
+
+      // Не пересекаемся с другими свободными людьми
+      const tooClose = existingPositions.some(p => {
+        const d = Math.sqrt((p.x - px) ** 2 + (p.y - py) ** 2);
+        return d < MIN_DISTANCE_BETWEEN_PERSONNEL;
+      });
+      if (tooClose) continue;
+
       return { x: px, y: py };
     }
     return null;
@@ -436,12 +449,12 @@ function generatePersonnelPositions(
   const freeOnOtherSide = freePersonnel - freeOnPreferredSide;
   
   for (let i = 0; i < freeOnPreferredSide; i++) {
-    const pos = generatePosition(true);
+    const pos = generatePosition(true, positions);
     if (pos) positions.push(pos);
   }
   
   for (let i = 0; i < freeOnOtherSide; i++) {
-    const pos = generatePosition(false);
+    const pos = generatePosition(false, positions);
     if (pos) positions.push(pos);
   }
   
