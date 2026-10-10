@@ -174,7 +174,8 @@ export function calculateDeployment(
   fireSource: FireSource | null,
   obstacles: Obstacle[],
   resources?: AvailableResources | null,
-  waterSources?: WaterSource[]
+  waterSources?: WaterSource[],
+  manualUnits?: FireUnit[]
 ): Deployment | null {
   if (!fireSource) return null;
 
@@ -321,7 +322,17 @@ export function calculateDeployment(
   let atBranchTotal = 0;
   let freeFromUnits = 0;
 
-  for (const u of units) {
+  // Учитываем и автоматические (units), и вручную добавленные (manualUnits)
+  const allUnitsForPersonnel = [...units, ...(manualUnits || [])];
+  for (const u of allUnitsForPersonnel) {
+    // Для manualUnits считаем только те, где ПТВ развёрнуто
+    const isManual = manualUnits?.some(m => m.id === u.id);
+    if (isManual && !(u as any).ptvDeployed) {
+      // Не развёрнутая вручную техника — считаем только базовый экипаж у авто
+      atVehicleTotal += 1;
+      freeFromUnits += Math.max(0, u.personnel - 1);
+      continue;
+    }
     const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
     nozzlesTotal += d.nozzles;
     atVehicleTotal += d.atVehicle;

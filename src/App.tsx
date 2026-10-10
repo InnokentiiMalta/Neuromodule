@@ -920,7 +920,7 @@ export default function App() {
   }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons, panStart]);
 
   const handleDeploy = useCallback(() => {
-    const result = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources);
+    const result = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources, manualUnits);
     setDeployment(result);
   }, [wagons, fireSource, obstacles, resources, waterSources]);
 
@@ -935,12 +935,13 @@ export default function App() {
           fireSource,
           obstacles,
           { ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel },
-          waterSources
+          waterSources,
+          manualUnits
         );
         setDeployment(newDeployment);
       }
     },
-    [fireSource, wagons, obstacles, waterSources]
+    [fireSource, wagons, obstacles, waterSources, manualUnits]
   );
 
   const handleReset = useCallback(() => {
@@ -1094,12 +1095,12 @@ export default function App() {
     setSelectedWagonId(null);
 
     if (fireSource) {
-      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, resources, waterSources);
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, resources, waterSources, manualUnits);
       setDeployment(newDeployment);
     } else {
       setDeployment(null);
     }
-  }, [wagons, fireSource, obstacles, resources, waterSources]);
+  }, [wagons, fireSource, obstacles, resources, waterSources, manualUnits]);
 
   const changeAllWagonsType = useCallback((newType: WagonType) => {
     const newWagons = wagons.map(w => {
@@ -1109,12 +1110,12 @@ export default function App() {
     setWagons(newWagons);
 
     if (fireSource) {
-      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, resources, waterSources);
+      const newDeployment = calculateDeployment(newWagons, fireSource, obstacles, resources, waterSources, manualUnits);
       setDeployment(newDeployment);
     } else {
       setDeployment(null);
     }
-  }, [wagons, fireSource, obstacles, resources, waterSources]);
+  }, [wagons, fireSource, obstacles, resources, waterSources, manualUnits]);
 
   const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
     const newName = newType === 'asa' ? 'АСА' : newType === 'aso' ? 'АСО' : 'АЦ-40';
@@ -1125,7 +1126,7 @@ export default function App() {
     ));
 
     if (fireSource) {
-      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources);
+      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources, manualUnits);
       setDeployment(newDeployment);
     }
     setSelectedUnitId(null);
@@ -2710,7 +2711,7 @@ export default function App() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => { setUseCustomResources(true); if (fireSource) setDeployment(calculateDeployment(wagons, fireSource, obstacles, resources, waterSources)); setShowResources(false); }} className="flex-1 py-2 bg-indigo-600 rounded-lg text-sm font-semibold">✅ Применить</button>
+              <button onClick={() => { setUseCustomResources(true); if (fireSource) setDeployment(calculateDeployment(wagons, fireSource, obstacles, resources, waterSources, manualUnits)); setShowResources(false); }} className="flex-1 py-2 bg-indigo-600 rounded-lg text-sm font-semibold">✅ Применить</button>
               <button onClick={() => setShowResources(false)} className="px-4 py-2 bg-gray-700 rounded-lg text-sm">Отмена</button>
             </div>
           </div>
