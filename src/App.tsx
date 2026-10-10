@@ -1684,9 +1684,16 @@ export default function App() {
                   <p className="text-[9px] font-semibold text-gray-300 mb-1">👥 Личный состав:</p>
                   <div className="space-y-0.5 text-[8px] text-gray-400">
                     {(() => {
-                      const allUnits = [...deployment.units, ...manualUnits];
+                      const allUnits = [...(deployment?.units || []), ...manualUnits];
                       let nozzles = 0, atVehicle = 0, atBranch = 0, freeFromUnits = 0;
                       for (const u of allUnits) {
+                        const isManual = manualUnits.some(m => m.id === u.id);
+                        const hasPTV = !isManual || (u as any).ptvDeployed;
+                        if (!hasPTV) {
+                          atVehicle += 1;
+                          freeFromUnits += Math.max(0, u.personnel - 1);
+                          continue;
+                        }
                         const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
                         nozzles += d.nozzles;
                         atVehicle += d.atVehicle;
