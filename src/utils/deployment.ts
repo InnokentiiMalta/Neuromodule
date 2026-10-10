@@ -215,6 +215,18 @@ export function calculateDeployment(
   const intensityMult = fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1.5 : 1;
   const totalACNeeded = Math.ceil(2 * intensityMult) + (fireSource.intensity === 'high' ? 2 : fireSource.intensity === 'medium' ? 1 : 0);
   const idealAL = (fireSource.type === 'wagon_body' || fireSource.type === 'tank') ? 1 : 0;
+
+  // Сколько всего людей заявлено РТП
+  const totalPersonnelAvailable = resources ? resources.personnel : 100;
+
+  // Сколько машин планируется разместить (АЦ + АСА + АСО)
+  const plannedUnitsCount =
+    (resources ? resources.ac : 10) +
+    (idealAL > 0 && resources && resources.al > 0 ? 1 : 0) +
+    (resources && resources.asr > 0 ? 1 : 0);
+
+  // Базовый экипаж на одну единицу — минимум 2, максимум 6 для АЦ/АСА, 10 для АСО
+  const basePersonnelPerUnit = Math.max(2, Math.floor(totalPersonnelAvailable / Math.max(1, plannedUnitsCount)));
   
   // Find nearest water source to fire
   const nearestWaterSource = waterSources && waterSources.length > 0 
@@ -246,7 +258,7 @@ export function calculateDeployment(
         x: pos.x, 
         y: pos.y, 
         angle: pos.angle, 
-        personnel: 7, 
+        personnel: Math.min(6, Math.max(2, basePersonnelPerUnit)), 
         hoses: Math.ceil(2 * intensityMult), 
         role: `Позиция ${acCount + 1}` 
       });
@@ -270,7 +282,7 @@ export function calculateDeployment(
       fireX, fireY, 55, 22, obstacles, wagons, safeDist, nearestWaterSource, occupiedPositions, 0.5
     );
     if (pos) {
-      addUnit({ type: 'asa', name: 'АСА', x: pos.x, y: pos.y, angle: pos.angle, personnel: 5, hoses: 1, role: 'Аварийно-спасательный' });
+      addUnit({ type: 'asa', name: 'АСА', x: pos.x, y: pos.y, angle: pos.angle, personnel: Math.min(6, Math.max(2, basePersonnelPerUnit)), hoses: 1, role: 'Аварийно-спасательный' });
     }
   }
 
@@ -280,7 +292,7 @@ export function calculateDeployment(
       fireX, fireY, 50, 22, obstacles, wagons, safeDist, nearestWaterSource, occupiedPositions, 1.0
     );
     if (pos) {
-      addUnit({ type: 'aso', name: 'АСО', x: pos.x, y: pos.y, angle: pos.angle, personnel: 3, hoses: 0, role: 'Связь и освещение' });
+      addUnit({ type: 'aso', name: 'АСО', x: pos.x, y: pos.y, angle: pos.angle, personnel: Math.min(10, Math.max(1, basePersonnelPerUnit)), hoses: 0, role: 'Связь и освещение' });
     }
   }
 
