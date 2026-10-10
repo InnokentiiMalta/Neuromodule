@@ -346,7 +346,7 @@ export function calculateDeployment(
   return {
     units,
     totalPersonnel: deploymentPersonnel,
-    totalHoses: units.reduce((s, u) => s + u.hoses, 0),
+    totalHoses: nozzlesTotal,
     strategy,
     warnings,
     safeRadius: safeDist,

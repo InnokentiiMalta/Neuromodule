@@ -1932,11 +1932,6 @@ export default function App() {
                         </g>
                       );
                     })}
-
-                    <circle cx={branchAbove.x} cy={branchAbove.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
-                    <text x={branchAbove.x} y={branchAbove.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
-                    <circle cx={branchBelow.x} cy={branchBelow.y + 12} r="4" fill="#ffeb3b" opacity="0.6" />
-                    <text x={branchBelow.x} y={branchBelow.y + 14} textAnchor="middle" fontSize="5">🧑‍🚒</text>
                   </g>
                 );
               })}
@@ -2067,8 +2062,12 @@ export default function App() {
                       <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                     </g>
 
-                    <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
-                    <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                    {distributePersonnel(unit.type as 'ac' | 'asa' | 'aso' | 'train', unit.personnel).atBranch > 0 && (
+                      <>
+                        <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                        <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                      </>
+                    )}
 
                     {routing.nozzles.map((nozzle, idx) => {
                       const dx = fs.x - nozzle.x;
@@ -2197,8 +2196,12 @@ export default function App() {
                       <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                     </g>
 
-                    <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
-                    <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                    {distributePersonnel(unit.type as 'ac' | 'asa' | 'aso' | 'train', unit.personnel).atBranch > 0 && (
+                      <>
+                        <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                        <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                      </>
+                    )}
 
                     {routing.nozzles.map((nozzle, idx) => {
                       const dx = fs.x - nozzle.x;
