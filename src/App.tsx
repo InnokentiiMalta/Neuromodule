@@ -1658,8 +1658,10 @@ export default function App() {
                   </div>
                   <div className="bg-gray-700/80 rounded p-1 text-center">
                     <div className="text-sm font-bold">
-                      {deployment.units.reduce((s, u) => s + u.hoses, 0) +
-                       manualUnits.reduce((s, u) => s + u.hoses, 0)}
+                      {deployment.totalHoses +
+                       manualUnits
+                         .filter(u => u.ptvDeployed)
+                         .reduce((s, u) => s + distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel).nozzles, 0)}
                     </div>
                     <div className="text-[8px] text-gray-400">Стволов</div>
                   </div>
