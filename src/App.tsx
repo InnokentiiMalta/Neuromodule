@@ -1961,11 +1961,6 @@ export default function App() {
                         </g>
                       );
                     })}
-
-                    <circle cx={branchAbove.x} cy={branchAbove.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
-                    <text x={branchAbove.x} y={branchAbove.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
-                    <circle cx={branchBelow.x} cy={branchBelow.y + 12} r="4" fill="#ffeb3b" opacity="0.6" />
-                    <text x={branchBelow.x} y={branchBelow.y + 14} textAnchor="middle" fontSize="5">🧑‍🚒</text>
                   </g>
                 );
               })}
