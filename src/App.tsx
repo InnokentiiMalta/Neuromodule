@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { Wagon, FireSource, Obstacle, Deployment, ToolMode, ObstacleType, AvailableResources, FireUnit, WaterSource, FireTrain } from './types';
-import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST } from './utils/deployment';
+import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrainCorridor, distanceToRectContour, HOSE_CORRIDOR_DIST, generatePersonnelPositions } from './utils/deployment';
 import html2canvas from 'html2canvas';
 import ServerStatus from './components/ServerStatus';
 import RecommendationPanel from './components/RecommendationPanel';
@@ -449,6 +449,31 @@ export default function App() {
 
     return info;
   }, [deployment, manualUnits]);
+
+  const freePersonsPositions = useMemo(() => {
+    if (!fireSource) return [];
+    const allUnits = [...(deployment?.units || []), ...manualUnits];
+    let freeCount = 0;
+    for (const u of allUnits) {
+      const isManual = manualUnits.some(m => m.id === u.id);
+      const hasPTV = !isManual || (u as any).ptvDeployed;
+      if (!hasPTV) {
+        freeCount += Math.max(0, u.personnel - 1);
+        continue;
+      }
+      const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+      freeCount += d.free;
+    }
+    if (freeCount === 0) return [];
+    return generatePersonnelPositions(
+      fireSource.x,
+      fireSource.y,
+      freeCount,
+      allUnits as any,
+      obstacles,
+      wagons
+    );
+  }, [fireSource, deployment, manualUnits, obstacles, wagons]);
 
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
     const svg = svgRef.current;
@@ -2568,7 +2593,7 @@ export default function App() {
                 </g>
               )}
 
-              {deployment?.personnelPositions && deployment.personnelPositions.map((pos, idx) => (
+              {freePersonsPositions.map((pos, idx) => (
                 <g
                   key={`personnel-${idx}`}
                   onMouseDown={e => {
