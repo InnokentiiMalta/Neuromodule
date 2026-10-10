@@ -1525,9 +1525,10 @@ export default function App() {
                     />
                   </div>
                   {(() => {
-                    const unit = manualUnits.find(u => u.id === selectedUnitId);
+                    const allUnits = [...(deployment?.units || []), ...manualUnits];
+                    const unit = allUnits.find(u => u.id === selectedUnitId);
                     if (!unit) return null;
-                    const maxP = unit.type === 'aso' ? 10 : (unit.type === 'asa' ? 6 : 6);
+                    const maxP = unit.type === 'aso' ? 10 : 6;
                     return (
                       <div>
                         <label className="text-[9px] text-gray-400 block mb-0.5">Экипаж (чел.):</label>
@@ -1538,9 +1539,21 @@ export default function App() {
                           value={unit.personnel}
                           onChange={e => {
                             const val = Math.max(1, Math.min(maxP, parseInt(e.target.value, 10) || 1));
-                            setManualUnits(prev => prev.map(u =>
-                              u.id === selectedUnitId ? { ...u, personnel: val } : u
-                            ));
+                            const inDeployment = deployment?.units.some(u => u.id === selectedUnitId);
+                            const inManual = manualUnits.some(u => u.id === selectedUnitId);
+                            if (inDeployment && deployment) {
+                              setDeployment({
+                                ...deployment,
+                                units: deployment.units.map(u =>
+                                  u.id === selectedUnitId ? { ...u, personnel: val } : u
+                                ),
+                              });
+                            }
+                            if (inManual) {
+                              setManualUnits(prev => prev.map(u =>
+                                u.id === selectedUnitId ? { ...u, personnel: val } : u
+                              ));
+                            }
                           }}
                           className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
                         />
