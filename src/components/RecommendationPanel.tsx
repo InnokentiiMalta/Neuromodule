@@ -25,12 +25,11 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
 
   const stvols = summary.recommendedStvols ?? 0;
 
-  // Расчёт рекомендуемой техники на основе стволов
-  // По боевому уставу: ~2 ствола РСК-50 на один АЦ-40
-  const recommendedAc = stvols > 0 ? Math.ceil(stvols / 2) : 0;
-
-  // Личный состав: 3 чел. на ствол (ствольщик + подствольщик + на разветвлении) + резерв
-  const recommendedPersonnel = stvols;
+  // Минимум для тушения поезда: 2 АЦ и 6 человек л/с
+  const MIN_AC = 2;
+  const MIN_PERSONNEL = 6;
+  const recommendedAc = stvols > 0 ? Math.max(MIN_AC, Math.ceil(stvols / 2)) : 0;
+  const recommendedPersonnel = stvols > 0 ? Math.max(MIN_PERSONNEL, stvols) : 0;
 
   // Фактические данные (что ввёл пользователь)
   const actualAc = summary.actualMainVehicles;
@@ -208,14 +207,14 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
               <span className="font-mono text-purple-200">{Math.ceil(stvols / 2)}</span>
             </div>
           </div>
-          {resources.ac >= Math.ceil(stvols / 2) && (
+          {resources.ac >= recommendedAc && (
             <div className="mt-2 pt-2 border-t border-purple-700/30 text-[10px] text-emerald-300">
               ✅ Сил достаточно на весь пожар
             </div>
           )}
-          {resources.ac < Math.ceil(stvols / 2) && (
+          {resources.ac < recommendedAc && (
             <div className="mt-2 pt-2 border-t border-purple-700/30 text-[10px] text-amber-300">
-              ⚠️ Рекомендуется вызвать ещё {Math.ceil(stvols / 2) - resources.ac} АЦ-40
+              ⚠️ Рекомендуется вызвать ещё {recommendedAc - resources.ac} АЦ-40
             </div>
           )}
         </div>
