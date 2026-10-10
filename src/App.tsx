@@ -1646,26 +1646,38 @@ export default function App() {
               <div className="p-2.5 bg-green-900/20 rounded-lg border border-green-500/30">
                 <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
                 <div className="grid grid-cols-3 gap-1 mb-2">
-                  <div className="bg-gray-700/80 rounded p-1 text-center">
-                    <div className="text-sm font-bold">{deployment.units.length + manualUnits.length}</div>
-                    <div className="text-[8px] text-gray-400">Техника</div>
-                  </div>
-                  <div className="bg-gray-700/80 rounded p-1 text-center">
-                    <div className="text-sm font-bold">
-                      {deployment.units.reduce((s, u) => s + u.personnel, 0) +
-                       manualUnits.reduce((s, u) => s + u.personnel, 0)}
-                    </div>
-                    <div className="text-[8px] text-gray-400">Л/с всего</div>
-                  </div>
-                  <div className="bg-gray-700/80 rounded p-1 text-center">
-                    <div className="text-sm font-bold">
-                      {deployment.totalHoses +
-                       manualUnits
-                         .filter(u => u.ptvDeployed)
-                         .reduce((s, u) => s + distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel).nozzles, 0)}
-                    </div>
-                    <div className="text-[8px] text-gray-400">Стволов</div>
-                  </div>
+                  {(() => {
+                    const allUnits = [...(deployment?.units || []), ...manualUnits];
+                    let nozzles = 0, people = 0;
+                    for (const u of allUnits) {
+                      const isManual = manualUnits.some(m => m.id === u.id);
+                      const hasPTV = !isManual || (u as any).ptvDeployed;
+                      const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+                      if (hasPTV) {
+                        nozzles += d.nozzles;
+                        people += d.nozzles + d.atVehicle + d.atBranch + d.free;
+                      } else {
+                        // Не развёрнутая вручную техника — только экипаж у авто + свободные
+                        people += u.personnel;
+                      }
+                    }
+                    return (
+                      <>
+                        <div className="bg-gray-700/80 rounded p-1 text-center">
+                          <div className="text-sm font-bold">{allUnits.length}</div>
+                          <div className="text-[8px] text-gray-400">Техника</div>
+                        </div>
+                        <div className="bg-gray-700/80 rounded p-1 text-center">
+                          <div className="text-sm font-bold">{people}</div>
+                          <div className="text-[8px] text-gray-400">Л/с всего</div>
+                        </div>
+                        <div className="bg-gray-700/80 rounded p-1 text-center">
+                          <div className="text-sm font-bold">{nozzles}</div>
+                          <div className="text-[8px] text-gray-400">Стволов</div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
