@@ -392,7 +392,7 @@ export function getIdealResources(fireSource: FireSource): { ac: number; al: num
 }
 
 // Generate random positions for FREE personnel only
-function generatePersonnelPositions(
+export function generatePersonnelPositions(
   fireX: number, fireY: number,
   freePersonnel: number,
   units: FireUnit[],
