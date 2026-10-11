@@ -1677,7 +1677,6 @@ export default function App() {
               </div>
             )}
 
-            {(deployment || manualUnits.length > 0 || fireTrains.length > 0) && (
               <div className="p-2.5 bg-green-900/20 rounded-lg border border-green-500/30">
                 <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
                 <div className="grid grid-cols-3 gap-1 mb-2">
@@ -1770,7 +1769,6 @@ export default function App() {
 
                 <p className="text-[9px] text-gray-400">{deployment?.strategy ?? ''}</p>
               </div>
-            )}
           </div>
         </aside>
 
