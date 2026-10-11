@@ -1667,7 +1667,7 @@ export default function App() {
               </div>
             )}
 
-            {deployment && (
+            {(deployment || manualUnits.length > 0 || fireTrains.length > 0) && (
               <div className="p-2.5 bg-green-900/20 rounded-lg border border-green-500/30">
                 <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
                 <div className="grid grid-cols-3 gap-1 mb-2">
@@ -1743,7 +1743,7 @@ export default function App() {
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
                   <p className="text-[9px] font-semibold text-gray-300 mb-1">🚒 Техника:</p>
                   <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                    {deployment.units.map((unit, idx) => (
+                    {deployment?.units?.map((unit, idx) => (
                       <div key={unit.id} className="text-[8px] text-gray-400 flex justify-between">
                         <span>{idx + 1}. {unit.name}</span>
                         <span className="text-gray-500">{unit.role}</span>
@@ -1751,14 +1751,14 @@ export default function App() {
                     ))}
                     {manualUnits.filter(u => u.ptvDeployed).map((unit, idx) => (
                       <div key={unit.id} className="text-[8px] text-blue-300 flex justify-between">
-                        <span>{deployment.units.length + idx + 1}. {unit.name}</span>
+                        <span>{(deployment?.units?.length ?? 0) + idx + 1}. {unit.name}</span>
                         <span className="text-blue-400">вручную</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <p className="text-[9px] text-gray-400">{deployment.strategy}</p>
+                <p className="text-[9px] text-gray-400">{deployment?.strategy ?? ''}</p>
               </div>
             )}
           </div>
