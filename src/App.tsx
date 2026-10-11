@@ -951,6 +951,16 @@ export default function App() {
 
   const handleApplyRecommendations = useCallback(
     (rec: { ac: number; al: number; asr: number; personnel: number }) => {
+      // Сбрасываем обстановку — оставляем только очаг, чтобы рекомендованная расстановка встала на чистое поле
+      setManualUnits([]);
+      setFireTrains([]);
+      setFireTrainPTW({});
+      setSelectedFireTrainId(null);
+      setSelectedUnitId(null);
+      setCustomPositions({});
+      setCustomPumpPositions({});
+      setDeployment(null);
+
       setResources({ ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel });
       setUseCustomResources(true);
 
@@ -961,12 +971,12 @@ export default function App() {
           obstacles,
           { ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel },
           waterSources,
-          manualUnits
+          []
         );
         setDeployment(newDeployment);
       }
     },
-    [fireSource, wagons, obstacles, waterSources, manualUnits]
+    [fireSource, wagons, obstacles, waterSources]
   );
 
   const handleReset = useCallback(() => {
