@@ -2441,19 +2441,7 @@ export default function App() {
                 );
               })}
 
-              <g transform="translate(955, 40)">
-                <circle cx="0" cy="0" r="20" fill="rgba(0,0,0,0.6)" stroke="#555" strokeWidth="1" />
-                <polygon points="0,-14 -3,0 0,-4 3,0" fill="#ff4444" />
-                <polygon points="0,14 -3,0 0,4 3,0" fill="#ccc" />
-                <text x="0" y="-15" textAnchor="middle" fill="#ff6666" fontSize="6" fontWeight="bold">С</text>
-              </g>
 
-              <g transform="translate(50, 565)">
-                <line x1="0" y1="0" x2="100" y2="0" stroke="#888" strokeWidth="2" />
-                <line x1="0" y1="-4" x2="0" y2="4" stroke="#888" strokeWidth="2" />
-                <line x1="100" y1="-4" x2="100" y2="4" stroke="#888" strokeWidth="2" />
-                <text x="50" y="13" textAnchor="middle" fill="#888" fontSize="7" fontFamily="sans-serif">≈ 50 м</text>
-              </g>
 
               {selectionBox && isSelecting && (
                 <rect
@@ -2680,6 +2668,26 @@ export default function App() {
                 });
               })}
             </svg>
+
+            {/* Компас — фиксированный, не двигается при панорамировании */}
+            <div className="absolute top-4 right-4 pointer-events-none z-10">
+              <svg width="50" height="50" viewBox="-25 -25 50 50">
+                <circle cx="0" cy="0" r="20" fill="rgba(0,0,0,0.7)" stroke="#555" strokeWidth="1" />
+                <polygon points="0,-14 -3,0 0,-4 3,0" fill="#ff4444" />
+                <polygon points="0,14 -3,0 0,4 3,0" fill="#ccc" />
+                <text x="0" y="-15" textAnchor="middle" fill="#ff6666" fontSize="6" fontWeight="bold">С</text>
+              </svg>
+            </div>
+
+            {/* Шкала масштаба — фиксированная */}
+            <div className="absolute bottom-4 left-4 pointer-events-none z-10 bg-black/40 rounded px-2 py-1">
+              <svg width="120" height="22" viewBox="0 0 120 22">
+                <line x1="10" y1="8" x2="110" y2="8" stroke="#ccc" strokeWidth="2" />
+                <line x1="10" y1="4" x2="10" y2="12" stroke="#ccc" strokeWidth="2" />
+                <line x1="110" y1="4" x2="110" y2="12" stroke="#ccc" strokeWidth="2" />
+                <text x="60" y="20" textAnchor="middle" fill="#ccc" fontSize="9" fontFamily="sans-serif">≈ 50 м</text>
+              </svg>
+            </div>
 
             {placingUnit && (
               <div className="absolute top-2 left-2 bg-red-600/90 backdrop-blur-sm rounded px-3 py-2 border border-red-400">
