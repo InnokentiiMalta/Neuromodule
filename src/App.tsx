@@ -1781,7 +1781,8 @@ export default function App() {
               onClick={handleSVGClick}
               onClickCapture={() => { if (showAddTechMenu) setShowAddTechMenu(false); }}
               onMouseDown={(e) => {
-                if (e.button === 1) {
+                // Средняя (1) или правая (2) кнопка — панорамирование
+                if (e.button === 1 || e.button === 2) {
                   e.preventDefault();
                   const { x, y } = getSVGCoords(e);
                   setPanStart({ x, y, panX: panOffset.x, panY: panOffset.y });
@@ -1803,6 +1804,8 @@ export default function App() {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              onContextMenu={(e) => e.preventDefault()}
+              onAuxClick={(e) => e.preventDefault()}
               style={{ cursor: placingUnit ? 'cell' : toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : toolMode === 'water' ? 'cell' : toolMode === 'select' ? 'move' : toolMode === 'selection' ? 'crosshair' : toolMode === 'ruler' ? 'crosshair' : 'pointer' }}
             >
               <defs>
