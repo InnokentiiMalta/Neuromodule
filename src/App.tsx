@@ -944,6 +944,32 @@ export default function App() {
     }
   }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons, panStart]);
 
+  const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const rect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+
+    const cursorSvgX = viewBox.x + ((e.clientX - rect.left) / rect.width) * viewBox.width;
+    const cursorSvgY = viewBox.y + ((e.clientY - rect.top) / rect.height) * viewBox.height;
+
+    const delta = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+    const newScale = Math.max(0.3, Math.min(3, scale * delta));
+    if (newScale === scale) return;
+
+    const cursorOffsetX = cursorSvgX - (500 + panOffset.x);
+    const cursorOffsetY = cursorSvgY - (300 + panOffset.y);
+
+    const scaleRatio = newScale / scale;
+    const newPanX = panOffset.x + cursorOffsetX * (1 - 1 / scaleRatio);
+    const newPanY = panOffset.y + cursorOffsetY * (1 - 1 / scaleRatio);
+
+    setScale(newScale);
+    setPanOffset({ x: newPanX, y: newPanY });
+  }, [scale, panOffset]);
+
   const handleDeploy = useCallback(() => {
     const result = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources, manualUnits);
     setDeployment(result);
@@ -1378,8 +1404,8 @@ export default function App() {
               <label className="text-[10px] text-gray-400 block mb-1">Масштаб: {Math.round(scale * 100)}%</label>
               <input
                 type="range"
-                min="0.5"
-                max="2"
+                min="0.3"
+                max="3"
                 step="0.1"
                 value={scale}
                 onChange={(e) => setScale(parseFloat(e.target.value))}
@@ -1648,7 +1674,6 @@ export default function App() {
               </div>
             )}
 
-            {(deployment || manualUnits.length > 0 || fireTrains.length > 0) && (
               <div className="p-2.5 bg-green-900/20 rounded-lg border border-green-500/30">
                 <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
                 <div className="grid grid-cols-3 gap-1 mb-2">
@@ -1741,7 +1766,6 @@ export default function App() {
 
                 <p className="text-[9px] text-gray-400">{deployment?.strategy ?? ''}</p>
               </div>
-            )}
           </div>
         </aside>
 
@@ -1754,7 +1778,8 @@ export default function App() {
               onClick={handleSVGClick}
               onClickCapture={() => { if (showAddTechMenu) setShowAddTechMenu(false); }}
               onMouseDown={(e) => {
-                if (e.button === 1) {
+                // Средняя (1) или правая (2) кнопка — панорамирование
+                if (e.button === 1 || e.button === 2) {
                   e.preventDefault();
                   const { x, y } = getSVGCoords(e);
                   setPanStart({ x, y, panX: panOffset.x, panY: panOffset.y });
@@ -1774,8 +1799,11 @@ export default function App() {
                 }
               }}
               onMouseMove={handleMouseMove}
+              onWheel={handleWheel}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              onContextMenu={(e) => e.preventDefault()}
+              onAuxClick={(e) => e.preventDefault()}
               style={{ cursor: placingUnit ? 'cell' : toolMode === 'fire' ? 'crosshair' : toolMode === 'obstacle' ? 'cell' : toolMode === 'water' ? 'cell' : toolMode === 'select' ? 'move' : toolMode === 'selection' ? 'crosshair' : toolMode === 'ruler' ? 'crosshair' : 'pointer' }}
             >
               <defs>
@@ -2411,19 +2439,7 @@ export default function App() {
                 );
               })}
 
-              <g transform="translate(955, 40)">
-                <circle cx="0" cy="0" r="20" fill="rgba(0,0,0,0.6)" stroke="#555" strokeWidth="1" />
-                <polygon points="0,-14 -3,0 0,-4 3,0" fill="#ff4444" />
-                <polygon points="0,14 -3,0 0,4 3,0" fill="#ccc" />
-                <text x="0" y="-15" textAnchor="middle" fill="#ff6666" fontSize="6" fontWeight="bold">С</text>
-              </g>
 
-              <g transform="translate(50, 565)">
-                <line x1="0" y1="0" x2="100" y2="0" stroke="#888" strokeWidth="2" />
-                <line x1="0" y1="-4" x2="0" y2="4" stroke="#888" strokeWidth="2" />
-                <line x1="100" y1="-4" x2="100" y2="4" stroke="#888" strokeWidth="2" />
-                <text x="50" y="13" textAnchor="middle" fill="#888" fontSize="7" fontFamily="sans-serif">≈ 50 м</text>
-              </g>
 
               {selectionBox && isSelecting && (
                 <rect
@@ -2650,6 +2666,26 @@ export default function App() {
                 });
               })}
             </svg>
+
+            {/* Компас — фиксированный */}
+            <div className="absolute top-4 right-4 pointer-events-none z-10">
+              <svg width="50" height="50" viewBox="-25 -25 50 50">
+                <circle cx="0" cy="0" r="20" fill="rgba(0,0,0,0.7)" stroke="#555" strokeWidth="1" />
+                <polygon points="0,-14 -3,0 0,-4 3,0" fill="#ff4444" />
+                <polygon points="0,14 -3,0 0,4 3,0" fill="#ccc" />
+                <text x="0" y="-15" textAnchor="middle" fill="#ff6666" fontSize="6" fontWeight="bold">С</text>
+              </svg>
+            </div>
+
+            {/* Шкала масштаба — фиксированная */}
+            <div className="absolute bottom-4 left-4 pointer-events-none z-10 bg-black/40 rounded px-2 py-1">
+              <svg width="120" height="22" viewBox="0 0 120 22">
+                <line x1="10" y1="8" x2="110" y2="8" stroke="#ccc" strokeWidth="2" />
+                <line x1="10" y1="4" x2="10" y2="12" stroke="#ccc" strokeWidth="2" />
+                <line x1="110" y1="4" x2="110" y2="12" stroke="#ccc" strokeWidth="2" />
+                <text x="60" y="20" textAnchor="middle" fill="#ccc" fontSize="9" fontFamily="sans-serif">≈ 50 м</text>
+              </svg>
+            </div>
 
             {placingUnit && (
               <div className="absolute top-2 left-2 bg-red-600/90 backdrop-blur-sm rounded px-3 py-2 border border-red-400">
