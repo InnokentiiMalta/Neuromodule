@@ -944,6 +944,32 @@ export default function App() {
     }
   }, [isSelecting, selectionBox, deployment, manualUnits, obstacles, fireSource, customPositions, wagons, panStart]);
 
+  const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const rect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+
+    const cursorSvgX = viewBox.x + ((e.clientX - rect.left) / rect.width) * viewBox.width;
+    const cursorSvgY = viewBox.y + ((e.clientY - rect.top) / rect.height) * viewBox.height;
+
+    const delta = e.deltaY > 0 ? 1.15 : 1 / 1.15;
+    const newScale = Math.max(0.3, Math.min(3, scale * delta));
+    if (newScale === scale) return;
+
+    const cursorOffsetX = cursorSvgX - (500 + panOffset.x);
+    const cursorOffsetY = cursorSvgY - (300 + panOffset.y);
+
+    const scaleRatio = newScale / scale;
+    const newPanX = panOffset.x + cursorOffsetX * (1 - 1 / scaleRatio);
+    const newPanY = panOffset.y + cursorOffsetY * (1 - 1 / scaleRatio);
+
+    setScale(newScale);
+    setPanOffset({ x: newPanX, y: newPanY });
+  }, [scale, panOffset]);
+
   const handleDeploy = useCallback(() => {
     const result = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources, manualUnits);
     setDeployment(result);
