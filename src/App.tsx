@@ -1433,8 +1433,8 @@ export default function App() {
               <label className="text-[10px] text-gray-400 block mb-1">Масштаб: {Math.round(scale * 100)}%</label>
               <input
                 type="range"
-                min="0.5"
-                max="2"
+                min="0.3"
+                max="3"
                 step="0.1"
                 value={scale}
                 onChange={(e) => setScale(parseFloat(e.target.value))}
@@ -1828,6 +1828,7 @@ export default function App() {
                 }
               }}
               onMouseMove={handleMouseMove}
+              onWheel={handleWheel}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
               onContextMenu={(e) => e.preventDefault()}
