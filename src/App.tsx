@@ -218,7 +218,7 @@ function routeHoseAlongCorridor(
   unitAngle?: number,
   customPumpPos?: { x: number; y: number },
   sideInfo?: { startIdx: number; total: number; nozzlesCount: number }
-): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }> } {
+): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }>; branchPaths: Array<Array<{ x: number; y: number }>> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
 
@@ -356,28 +356,43 @@ function routeHoseAlongCorridor(
   }
 
   const branchConnections: Array<{ x: number; y: number }> = [];
+  const branchPaths: Array<Array<{ x: number; y: number }>> = [];
   const HOSE_SEGMENT_LENGTH = 40;
-
+  
   for (const nozzle of nozzles) {
-    const dx = nozzle.x - branchX;
-    const dy = nozzle.y - branchY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist > HOSE_SEGMENT_LENGTH) {
-      const numSegments = Math.floor(dist / HOSE_SEGMENT_LENGTH);
-      const segDx = dx / dist;
-      const segDy = dy / dist;
-
-      for (let i = 1; i <= numSegments; i++) {
-        const connX = branchX + segDx * (i * HOSE_SEGMENT_LENGTH);
-        const connY = branchY + segDy * (i * HOSE_SEGMENT_LENGTH);
-        branchConnections.push({ x: connX, y: connY });
+    // Строим путь с обходом препятствий от разветвления к ствольщику
+    const bp = findShortestPath(branchX, branchY, nozzle.x, nozzle.y, wagons, obstacles);
+    branchPaths.push(bp);
+    
+    // Считаем стыки рукавов вдоль этого пути
+    let totalDist = 0;
+    for (let i = 0; i < bp.length - 1; i++) {
+      const p1 = bp[i];
+      const p2 = bp[i + 1];
+      const segLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+      if (segLen === 0) continue;
+      const segDx = (p2.x - p1.x) / segLen;
+      const segDy = (p2.y - p1.y) / segLen;
+      
+      let segDist = 0;
+      while (segDist < segLen) {
+        const nextConnDist = Math.ceil((totalDist + segDist) / HOSE_SEGMENT_LENGTH) * HOSE_SEGMENT_LENGTH;
+        const distInSeg = nextConnDist - totalDist;
+        if (distInSeg > segLen) break;
+        if (distInSeg > 0) {
+          branchConnections.push({
+            x: p1.x + segDx * distInSeg,
+            y: p1.y + segDy * distInSeg
+          }
+          );
+        }
+        segDist = distInSeg + 1;
       }
+      totalDist += segLen;
     }
   }
-
-  return { path, branchPoint: { x: branchX, y: branchY }, nozzles, branchConnections };
-}
+  
+  return { path, branchPoint: { x: branchX, y: branchY }, nozzles, branchConnections, branchPaths };}
 
 export default function App() {
   const [wagons, setWagons] = useLocalStorageState<Wagon[]>('map_wagons', generateDefaultWagons());
@@ -2127,10 +2142,12 @@ export default function App() {
                       </g>
                     ))}
 
-                    {routing.nozzles.map((nozzle, idx) => (
-                      <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
-                        stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
-                    ))}
+                    {routing.branchPaths.map((branchPath, idx) =>
+                      branchPath.slice(0, -1).map((p, i) => (
+                        <line key={`${idx}-${i}`} x1={p.x} y1={p.y} x2={branchPath[i + 1].x} y2={branchPath[i + 1].y}
+                          stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
+                      ))
+                    )}
 
                     {routing.branchConnections.map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
