@@ -253,9 +253,9 @@ function routeHoseAlongCorridor(
     const branchDist = Math.min(distToFire * 0.7, MAX_BRANCH_DISTANCE_FROM_UNIT);
     branchX = pumpPos.x + Math.cos(angleToFire) * branchDist;
     branchY = pumpPos.y + Math.sin(angleToFire) * branchDist;
-
+    
     const unitAboveTracks = unitCenterY < TRACK_TOP;
-
+    
     if (unitAboveTracks) {
       const minY = TRACK_TOP - MIN_BRANCH_DISTANCE_FROM_TRACKS;
       if (branchY > minY) {
@@ -267,15 +267,48 @@ function routeHoseAlongCorridor(
         branchY = maxY;
       }
     }
-
+    
     const distToPump = Math.sqrt((branchX - pumpPos.x) ** 2 + (branchY - pumpPos.y) ** 2);
     if (distToPump > MAX_BRANCH_DISTANCE_FROM_UNIT) {
       const scale = MAX_BRANCH_DISTANCE_FROM_UNIT / distToPump;
       branchX = pumpPos.x + (branchX - pumpPos.x) * scale;
       branchY = pumpPos.y + (branchY - pumpPos.y) * scale;
     }
-  }
 
+    // Если branchPoint попал в препятствие или вагон — сдвигаем его в сторону вдоль перпендикуляра
+    const isBranchBlocked = (bx: number, by: number): boolean => {
+      for (const obs of obstacles) {
+        if (obs.type === 'road' || obs.type === 'tree_group') continue;
+        if (bx >= obs.x - 4 && bx <= obs.x + obs.width + 4 &&
+            by >= obs.y - 4 && by <= obs.y + obs.height + 4) return true;
+      }
+      for (const w of wagons) {
+        if (bx >= w.x - 4 && bx <= w.x + w.width + 4 &&
+            by >= w.y - 4 && by <= w.y + w.height + 4) return true;
+      }
+      return false;
+    };
+
+    if (isBranchBlocked(branchX, branchY)) {
+      // Пробуем сдвинуть перпендикулярно направлению к очагу
+      const perpX = -Math.sin(angleToFire);
+      const perpY = Math.cos(angleToFire);
+      let found = false;
+      for (let step = 15; step <= 300 && !found; step += 15) {
+        for (const sign of [1, -1]) {
+          const tryX = branchX + perpX * step * sign;
+          const tryY = branchY + perpY * step * sign;
+          if (tryX < 20 || tryX > 980 || tryY < 20 || tryY > 580) continue;
+          if (!isBranchBlocked(tryX, tryY)) {
+            branchX = tryX;
+            branchY = tryY;
+            found = true;
+            break;
+          }
+        }
+      }
+    }
+  }
   const path = findShortestPath(pumpPos.x, pumpPos.y, branchX, branchY, wagons, obstacles);
 
   const nozzles: Array<{ x: number; y: number }> = [];
