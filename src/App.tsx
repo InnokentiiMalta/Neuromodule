@@ -87,7 +87,7 @@ function findShortestPath(
   const perpX = -dy / len;
   const perpY = dx / len;
 
-  for (let offset = 30; offset <= 200; offset += 15) {
+  for (let offset = 20; offset <= 500; offset += 10) {
     for (const sign of [1, -1]) {
       const midX = (fromX + toX) / 2 + perpX * offset * sign;
       const midY = (fromY + toY) / 2 + perpY * offset * sign;
@@ -110,7 +110,7 @@ function lineCrossesBlockingObstacle(
   obstacles: Obstacle[], wagons: Wagon[], margin: number = 0
 ): boolean {
   for (const obs of obstacles) {
-    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
+    if (obs.type === 'road' || obs.type === 'tree_group') continue;
     if (lineIntersectsRect(x1, y1, x2, y2, obs.x, obs.y, obs.width, obs.height, margin)) {
       return true;
     }
@@ -127,24 +127,38 @@ function lineIntersectsRect(
   x1: number, y1: number, x2: number, y2: number,
   rx: number, ry: number, rw: number, rh: number, margin: number = 0
 ): boolean {
-  const steps = 30;
-  const expandedRx = rx - margin;
-  const expandedRy = ry - margin;
-  const expandedRw = rw + margin * 2;
-  const expandedRh = rh + margin * 2;
+  // Расширенный прямоугольник
+  const left = rx - margin;
+  const right = rx + rw + margin;
+  const top = ry - margin;
+  const bottom = ry + rh + margin;
 
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const px = x1 + (x2 - x1) * t;
-    const py = y1 + (y2 - y1) * t;
-    if (px >= expandedRx && px <= expandedRx + expandedRw &&
-        py >= expandedRy && py <= expandedRy + expandedRh) {
-      return true;
-    }
-  }
-  return false;
+  // Если хотя бы один из концов отрезка внутри — пересекает
+  const p1Inside = x1 >= left && x1 <= right && y1 >= top && y1 <= bottom;
+  const p2Inside = x2 >= left && x2 <= right && y2 >= top && y2 <= bottom;
+  if (p1Inside || p2Inside) return true;
+
+  // Проверка пересечения двух отрезков (векторным произведением)
+  const segmentsIntersect = (
+    ax: number, ay: number, bx: number, by: number,
+    cx: number, cy: number, dx: number, dy: number
+  ): boolean => {
+    const d1 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    const d2 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
+    const d3 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx);
+    const d4 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
+    return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+           ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+  };
+
+  // Проверяем 4 стороны прямоугольника
+  return (
+    segmentsIntersect(x1, y1, x2, y2, left, top, right, top) ||
+    segmentsIntersect(x1, y1, x2, y2, right, top, right, bottom) ||
+    segmentsIntersect(x1, y1, x2, y2, right, bottom, left, bottom) ||
+    segmentsIntersect(x1, y1, x2, y2, left, bottom, left, top)
+  );
 }
-
 function isPointInBlockingObstacle(x: number, y: number, obstacles: Obstacle[], wagons: Wagon[]): boolean {
   for (const obs of obstacles) {
     if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
