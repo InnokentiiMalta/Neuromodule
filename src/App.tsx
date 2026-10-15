@@ -110,7 +110,7 @@ function lineCrossesBlockingObstacle(
   obstacles: Obstacle[], wagons: Wagon[], margin: number = 0
 ): boolean {
   for (const obs of obstacles) {
-    if (obs.type === 'road' || obs.type === 'tree_group' || obs.type === 'equipment') continue;
+    if (obs.type === 'road' || obs.type === 'tree_group') continue;
     if (lineIntersectsRect(x1, y1, x2, y2, obs.x, obs.y, obs.width, obs.height, margin)) {
       return true;
     }
