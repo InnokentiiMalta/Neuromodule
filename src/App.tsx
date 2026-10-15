@@ -87,7 +87,7 @@ function findShortestPath(
   const perpX = -dy / len;
   const perpY = dx / len;
 
-  for (let offset = 30; offset <= 200; offset += 15) {
+  for (let offset = 20; offset <= 500; offset += 10) {
     for (const sign of [1, -1]) {
       const midX = (fromX + toX) / 2 + perpX * offset * sign;
       const midY = (fromY + toY) / 2 + perpY * offset * sign;
