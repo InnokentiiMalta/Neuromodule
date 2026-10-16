@@ -2013,6 +2013,18 @@ export default function App() {
                       </g>
                     ))}
                     <text x={train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2} y={train.wagons[0].y - 15} textAnchor="middle" fill="#ff4444" fontSize="8" fontFamily="sans-serif" fontWeight="bold">ПОЖАРНЫЙ ПОЕЗД</text>
+                    {(() => {
+                      const trainDist = distributePersonnel('train', train.personnel);
+                      if (trainDist.atVehicle === 0) return null;
+                      const cx = train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2;
+                      const cy = train.wagons[0].y + train.wagons[0].height + 12;
+                      return (
+                        <g>
+                          <circle cx={cx} cy={cy} r="4" fill="#ffeb3b" opacity="0.6" />
+                          <text x={cx} y={cy + 2} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                        </g>
+                      );
+                    })()}
                   </g>
                 );
               })}
