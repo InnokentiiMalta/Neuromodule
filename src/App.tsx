@@ -2061,13 +2061,13 @@ export default function App() {
                       <line x1={trainCenterX} y1={trainCenterY} x2={branchBelow.x} y2={branchBelow.y} stroke="#000" strokeWidth="3" />
                     )}
 
-                    {trainToAboveConnections.map((conn, idx) => (
+                    {topCount > 0 && trainToAboveConnections.map((conn, idx) => (
                       <g key={`train-above-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
                       </g>
                     ))}
-                    {trainToBelowConnections.map((conn, idx) => (
+                    {bottomCount > 0 && trainToBelowConnections.map((conn, idx) => (
                       <g key={`train-below-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
