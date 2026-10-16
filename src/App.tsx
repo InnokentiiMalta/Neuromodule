@@ -1792,6 +1792,7 @@ export default function App() {
                 <div className="grid grid-cols-3 gap-1 mb-2">
                   {(() => {
                     const allUnits = [...(deployment?.units || []), ...manualUnits];
+                    const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
                     let nozzles = 0, people = 0;
                     for (const u of allUnits) {
                       const isManual = manualUnits.some(m => m.id === u.id);
@@ -1805,10 +1806,15 @@ export default function App() {
                         people += u.personnel;
                       }
                     }
+                    for (const t of activeTrains) {
+                      const d = distributePersonnel('train', t.personnel);
+                      nozzles += d.nozzles;
+                      people += d.nozzles + d.atVehicle + d.atBranch + d.free;
+                    }
                     return (
                       <>
                         <div className="bg-gray-700/80 rounded p-1 text-center">
-                          <div className="text-sm font-bold">{allUnits.length}</div>
+                          <div className="text-sm font-bold">{allUnits.length + activeTrains.length}</div>
                           <div className="text-[8px] text-gray-400">Техника</div>
                         </div>
                         <div className="bg-gray-700/80 rounded p-1 text-center">
