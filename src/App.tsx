@@ -2094,7 +2094,7 @@ export default function App() {
                       <line key={`below-${idx}`} x1={branchBelow.x} y1={branchBelow.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
 
-                    {nozzles.slice(0, 2).map((nozzle, idx) => {
+                    {topCount > 0 && nozzles.slice(0, topCount).map((nozzle, idx) => {
                       const connections = calculateConnections(branchAbove.x, branchAbove.y, nozzle.x, nozzle.y);
                       return connections.map((conn, cidx) => (
                         <g key={`above-nozzle-${idx}-conn-${cidx}`}>
@@ -2103,7 +2103,7 @@ export default function App() {
                         </g>
                       ));
                     })}
-                    {nozzles.slice(2, 4).map((nozzle, idx) => {
+                    {bottomCount > 0 && nozzles.slice(topCount, topCount + bottomCount).map((nozzle, idx) => {
                       const connections = calculateConnections(branchBelow.x, branchBelow.y, nozzle.x, nozzle.y);
                       return connections.map((conn, cidx) => (
                         <g key={`below-nozzle-${idx}-conn-${cidx}`}>
