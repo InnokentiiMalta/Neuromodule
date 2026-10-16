@@ -2070,11 +2070,18 @@ export default function App() {
                       </g>
                     ))}
 
-                    <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
-                    <text x={branchAbove.x} y={branchAbove.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-
-                    <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
-                    <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    {topCount > 0 && (
+                      <>
+                        <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                        <text x={branchAbove.x} y={branchAbove.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                      </>
+                    )}
+                    {bottomCount > 0 && (
+                      <>
+                        <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                        <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                      </>
+                    )}
 
                     {nozzles.slice(0, 2).map((nozzle, idx) => (
                       <line key={`above-${idx}`} x1={branchAbove.x} y1={branchAbove.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
