@@ -2025,36 +2025,47 @@ export default function App() {
 
                 return (
                   <g key={`train-ptw-${train.id}`}>
-                    <line x1={trainCenterX} y1={trainCenterY} x2={branchAbove.x} y2={branchAbove.y} stroke="#000" strokeWidth="3" />
-                    <line x1={trainCenterX} y1={trainCenterY} x2={branchBelow.x} y2={branchBelow.y} stroke="#000" strokeWidth="3" />
+                    {topCount > 0 && (
+                      <line x1={trainCenterX} y1={trainCenterY} x2={branchAbove.x} y2={branchAbove.y} stroke="#000" strokeWidth="3" />
+                    )}
+                    {bottomCount > 0 && (
+                      <line x1={trainCenterX} y1={trainCenterY} x2={branchBelow.x} y2={branchBelow.y} stroke="#000" strokeWidth="3" />
+                    )}
 
-                    {trainToAboveConnections.map((conn, idx) => (
+                    {topCount > 0 && trainToAboveConnections.map((conn, idx) => (
                       <g key={`train-above-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
                       </g>
                     ))}
-                    {trainToBelowConnections.map((conn, idx) => (
+                    {bottomCount > 0 && trainToBelowConnections.map((conn, idx) => (
                       <g key={`train-below-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
                       </g>
                     ))}
 
-                    <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
-                    <text x={branchAbove.x} y={branchAbove.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                    {topCount > 0 && (
+                      <>
+                        <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                        <text x={branchAbove.x} y={branchAbove.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                      </>
+                    )}
+                    {bottomCount > 0 && (
+                      <>
+                        <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
+                        <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
+                      </>
+                    )}
 
-                    <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
-                    <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-
-                    {nozzles.slice(0, 2).map((nozzle, idx) => (
+                    {topCount > 0 && nozzles.slice(0, topCount).map((nozzle, idx) => (
                       <line key={`above-${idx}`} x1={branchAbove.x} y1={branchAbove.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
-                    {nozzles.slice(2, 4).map((nozzle, idx) => (
+                    {bottomCount > 0 && nozzles.slice(topCount, topCount + bottomCount).map((nozzle, idx) => (
                       <line key={`below-${idx}`} x1={branchBelow.x} y1={branchBelow.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
 
-                    {nozzles.slice(0, 2).map((nozzle, idx) => {
+                    {topCount > 0 && nozzles.slice(0, topCount).map((nozzle, idx) => {
                       const connections = calculateConnections(branchAbove.x, branchAbove.y, nozzle.x, nozzle.y);
                       return connections.map((conn, cidx) => (
                         <g key={`above-nozzle-${idx}-conn-${cidx}`}>
@@ -2063,7 +2074,7 @@ export default function App() {
                         </g>
                       ));
                     })}
-                    {nozzles.slice(2, 4).map((nozzle, idx) => {
+                    {bottomCount > 0 && nozzles.slice(topCount, topCount + bottomCount).map((nozzle, idx) => {
                       const connections = calculateConnections(branchBelow.x, branchBelow.y, nozzle.x, nozzle.y);
                       return connections.map((conn, cidx) => (
                         <g key={`below-nozzle-${idx}-conn-${cidx}`}>
