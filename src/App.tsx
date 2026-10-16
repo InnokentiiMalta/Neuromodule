@@ -2010,12 +2010,22 @@ export default function App() {
                 const branchAbove = { x: trainCenterX, y: 268 };
                 const branchBelow = { x: trainCenterX, y: 332 };
 
-                const nozzles = [
-                  { x: fireSource.x - 15, y: 275 },
-                  { x: fireSource.x + 15, y: 275 },
-                  { x: fireSource.x - 15, y: 325 },
-                  { x: fireSource.x + 15, y: 325 },
-                ];
+                const trainDist = distributePersonnel('train', train.personnel);
+                const nozzlesCount = trainDist.nozzles;
+
+                // Распределяем ствольщиков: до 2 сверху, остальные снизу
+                const topCount = Math.min(2, nozzlesCount);
+                const bottomCount = nozzlesCount - topCount;
+
+                const nozzles: Array<{ x: number; y: number }> = [];
+                for (let i = 0; i < topCount; i++) {
+                  const offset = topCount === 1 ? 0 : (i === 0 ? -15 : 15);
+                  nozzles.push({ x: fireSource.x + offset, y: 275 });
+                }
+                for (let i = 0; i < bottomCount; i++) {
+                  const offset = bottomCount === 1 ? 0 : (i === 0 ? -15 : 15);
+                  nozzles.push({ x: fireSource.x + offset, y: 325 });
+                }
 
                 const HOSE_SEGMENT_LENGTH = 40;
                 const calculateConnections = (x1: number, y1: number, x2: number, y2: number) => {
