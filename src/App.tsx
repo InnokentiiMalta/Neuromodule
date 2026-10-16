@@ -2087,10 +2087,10 @@ export default function App() {
                       </>
                     )}
 
-                    {nozzles.slice(0, 2).map((nozzle, idx) => (
+                    {topCount > 0 && nozzles.slice(0, topCount).map((nozzle, idx) => (
                       <line key={`above-${idx}`} x1={branchAbove.x} y1={branchAbove.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
-                    {nozzles.slice(2, 4).map((nozzle, idx) => (
+                    {bottomCount > 0 && nozzles.slice(topCount, topCount + bottomCount).map((nozzle, idx) => (
                       <line key={`below-${idx}`} x1={branchBelow.x} y1={branchBelow.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
 
