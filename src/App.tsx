@@ -2054,8 +2054,12 @@ export default function App() {
 
                 return (
                   <g key={`train-ptw-${train.id}`}>
-                    <line x1={trainCenterX} y1={trainCenterY} x2={branchAbove.x} y2={branchAbove.y} stroke="#000" strokeWidth="3" />
-                    <line x1={trainCenterX} y1={trainCenterY} x2={branchBelow.x} y2={branchBelow.y} stroke="#000" strokeWidth="3" />
+                    {topCount > 0 && (
+                      <line x1={trainCenterX} y1={trainCenterY} x2={branchAbove.x} y2={branchAbove.y} stroke="#000" strokeWidth="3" />
+                    )}
+                    {bottomCount > 0 && (
+                      <line x1={trainCenterX} y1={trainCenterY} x2={branchBelow.x} y2={branchBelow.y} stroke="#000" strokeWidth="3" />
+                    )}
 
                     {trainToAboveConnections.map((conn, idx) => (
                       <g key={`train-above-conn-${idx}`}>
