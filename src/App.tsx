@@ -2113,6 +2113,20 @@ export default function App() {
                       </>
                     )}
 
+                    {/* Человечки на разветвлениях: 1 → верхнее, 2 → оба */}
+                    {topCount > 0 && trainDist.atBranch >= 1 && (
+                      <g>
+                        <circle cx={branchAbove.x} cy={branchAbove.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                        <text x={branchAbove.x} y={branchAbove.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                      </g>
+                    )}
+                    {bottomCount > 0 && trainDist.atBranch >= 2 && (
+                      <g>
+                        <circle cx={branchBelow.x} cy={branchBelow.y + 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                        <text x={branchBelow.x} y={branchBelow.y + 14} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                      </g>
+                    )}
+
                     {topCount > 0 && nozzles.slice(0, topCount).map((nozzle, idx) => (
                       <line key={`above-${idx}`} x1={branchAbove.x} y1={branchAbove.y} x2={nozzle.x} y2={nozzle.y} stroke="#000" strokeWidth="2.5" />
                     ))}
