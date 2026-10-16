@@ -1395,7 +1395,7 @@ export default function App() {
                           label: isTank ? `Цистерна ПП ${i + 1}` : `Вагон ПП ${i + 1}`,
                         });
                       }
-                      setFireTrains(prev => [...prev, { id: trainId, wagons: trainWagons }]);
+                      setFireTrains(prev => [...prev, { id: trainId, wagons: trainWagons, personnel: 2 }]);
                       setShowAddTechMenu(false);
                     }}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-gray-700 rounded-b-lg border-t border-gray-700"
@@ -1678,6 +1678,28 @@ export default function App() {
                 </div>
                 <div className="space-y-2">
                   <p className="text-[9px] text-gray-300">Выбран пожарный поезд</p>
+                  {(() => {
+                    const train = fireTrains.find(t => t.id === selectedFireTrainId);
+                    if (!train) return null;
+                    return (
+                      <div>
+                        <label className="text-[9px] text-gray-400 block mb-0.5">Экипаж (чел.):</label>
+                        <input
+                          type="number"
+                          min="2"
+                          max="16"
+                          value={train.personnel}
+                          onChange={e => {
+                            const val = Math.max(2, Math.min(16, parseInt(e.target.value, 10) || 2));
+                            setFireTrains(prev => prev.map(t =>
+                              t.id === selectedFireTrainId ? { ...t, personnel: val } : t
+                            ));
+                          }}
+                          className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
+                        />
+                      </div>
+                    );
+                  })()}
                   {(() => {
                     const isPTWDeployed = fireTrainPTW[selectedFireTrainId];
                     if (!isPTWDeployed && fireSource) {

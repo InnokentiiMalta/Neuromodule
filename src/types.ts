@@ -52,6 +52,7 @@ export interface FireUnit {
 export interface FireTrain {
   id: string;
   wagons: Wagon[];
+  personnel: number;
 }
 
 export interface Deployment {
