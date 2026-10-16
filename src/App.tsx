@@ -526,6 +526,12 @@ export default function App() {
       const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
       freeCount += d.free;
     }
+    // Учитываем свободных людей от пожарных поездов
+    const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
+    for (const t of activeTrains) {
+      const d = distributePersonnel('train', t.personnel);
+      freeCount += d.free;
+    }
     if (freeCount === 0) return [];
     return generatePersonnelPositions(
       fireSource.x,
@@ -535,7 +541,7 @@ export default function App() {
       obstacles,
       wagons
     );
-  }, [fireSource, deployment, manualUnits, obstacles, wagons]);
+  }, [fireSource, deployment, manualUnits, obstacles, wagons, fireTrains, fireTrainPTW]);
 
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
     const svg = svgRef.current;
@@ -1984,6 +1990,18 @@ export default function App() {
                       </g>
                     ))}
                     <text x={train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2} y={train.wagons[0].y - 15} textAnchor="middle" fill="#ff4444" fontSize="8" fontFamily="sans-serif" fontWeight="bold">ПОЖАРНЫЙ ПОЕЗД</text>
+                    {(() => {
+                      const trainDist = distributePersonnel('train', train.personnel);
+                      if (trainDist.atVehicle === 0) return null;
+                      const cx = train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2;
+                      const cy = train.wagons[0].y + train.wagons[0].height + 12;
+                      return (
+                        <g>
+                          <circle cx={cx} cy={cy} r="4" fill="#ffeb3b" opacity="0.6" />
+                          <text x={cx} y={cy + 2} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                        </g>
+                      );
+                    })()}
                   </g>
                 );
               })}
@@ -2070,6 +2088,20 @@ export default function App() {
                         <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                         <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                       </>
+                    )}
+
+                    {/* Человечки на разветвлениях: 1 → верхнее, 2 → оба */}
+                    {topCount > 0 && trainDist.atBranch >= 1 && (
+                      <g>
+                        <circle cx={branchAbove.x} cy={branchAbove.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                        <text x={branchAbove.x} y={branchAbove.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                      </g>
+                    )}
+                    {bottomCount > 0 && trainDist.atBranch >= 2 && (
+                      <g>
+                        <circle cx={branchBelow.x} cy={branchBelow.y + 12} r="4" fill="#ffeb3b" opacity="0.6" />
+                        <text x={branchBelow.x} y={branchBelow.y + 14} textAnchor="middle" fontSize="5">🧑‍🚒</text>
+                      </g>
                     )}
 
                     {topCount > 0 && nozzles.slice(0, topCount).map((nozzle, idx) => (

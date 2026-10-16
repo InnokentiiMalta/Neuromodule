@@ -24,7 +24,8 @@ export function distributePersonnel(
     const capped = Math.min(N, 16);
     const nozzles = Math.min(capped - 1, 4);
     const atVehicle = capped >= 2 ? 1 : 0;
-    const atBranch = capped >= 6 ? 1 : 0;
+    // Один человек на разветвлении при 6, второй — при 7+
+    const atBranch = capped >= 7 ? 2 : (capped >= 6 ? 1 : 0);
     const free = Math.max(0, capped - nozzles - atVehicle - atBranch);
     return { nozzles, atVehicle, atBranch, free };
   }
