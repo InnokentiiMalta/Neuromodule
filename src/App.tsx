@@ -1835,6 +1835,7 @@ export default function App() {
                   <div className="space-y-0.5 text-[8px] text-gray-400">
                     {(() => {
                       const allUnits = [...(deployment?.units || []), ...manualUnits];
+                      const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
                       let nozzles = 0, atVehicle = 0, atBranch = 0, freeFromUnits = 0;
                       for (const u of allUnits) {
                         const isManual = manualUnits.some(m => m.id === u.id);
@@ -1845,6 +1846,13 @@ export default function App() {
                           continue;
                         }
                         const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+                        nozzles += d.nozzles;
+                        atVehicle += d.atVehicle;
+                        atBranch += d.atBranch;
+                        freeFromUnits += d.free;
+                      }
+                      for (const t of activeTrains) {
+                        const d = distributePersonnel('train', t.personnel);
                         nozzles += d.nozzles;
                         atVehicle += d.atVehicle;
                         atBranch += d.atBranch;
