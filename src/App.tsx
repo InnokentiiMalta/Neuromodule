@@ -1395,7 +1395,7 @@ export default function App() {
                           label: isTank ? `Цистерна ПП ${i + 1}` : `Вагон ПП ${i + 1}`,
                         });
                       }
-                      setFireTrains(prev => [...prev, { id: trainId, wagons: trainWagons }]);
+                      setFireTrains(prev => [...prev, { id: trainId, wagons: trainWagons, personnel: 16 }]);
                       setShowAddTechMenu(false);
                     }}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-gray-700 rounded-b-lg border-t border-gray-700"
