@@ -526,6 +526,12 @@ export default function App() {
       const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
       freeCount += d.free;
     }
+    // Учитываем свободных людей от пожарных поездов
+    const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
+    for (const t of activeTrains) {
+      const d = distributePersonnel('train', t.personnel);
+      freeCount += d.free;
+    }
     if (freeCount === 0) return [];
     return generatePersonnelPositions(
       fireSource.x,
@@ -535,7 +541,7 @@ export default function App() {
       obstacles,
       wagons
     );
-  }, [fireSource, deployment, manualUnits, obstacles, wagons]);
+  }, [fireSource, deployment, manualUnits, obstacles, wagons, fireTrains, fireTrainPTW]);
 
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
     const svg = svgRef.current;
