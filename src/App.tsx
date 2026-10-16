@@ -2325,10 +2325,12 @@ export default function App() {
                       </g>
                     ))}
 
-                    {routing.nozzles.map((nozzle, idx) => (
-                      <line key={idx} x1={routing.branchPoint.x} y1={routing.branchPoint.y} x2={nozzle.x} y2={nozzle.y}
-                        stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
-                    ))}
+                    {routing.branchPaths.map((branchPath, idx) =>
+                      branchPath.slice(0, -1).map((p, i) => (
+                        <line key={`${idx}-${i}`} x1={p.x} y1={p.y} x2={branchPath[i + 1].x} y2={branchPath[i + 1].y}
+                          stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
+                      ))
+                    )}
 
                     {routing.branchConnections.map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
