@@ -41,7 +41,7 @@ interface ManualUnit extends FireUnit {
 }
 
 interface DragState {
-  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'personnel' | 'pump';
+  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'personnel' | 'pump' | 'trainBranchAbove' | 'trainBranchBelow' | 'trainFirefighter';
   id: string;
   unitId?: string;
   offsetX: number;
@@ -52,6 +52,9 @@ interface CustomPositions {
   [unitId: string]: {
     branchPoint?: { x: number; y: number };
     nozzles?: Array<{ x: number; y: number }>;
+    trainBranchAbove?: { x: number; y: number };
+    trainBranchBelow?: { x: number; y: number };
+    trainNozzles?: Array<{ x: number; y: number }>;
   };
 }
 
