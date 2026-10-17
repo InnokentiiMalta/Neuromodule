@@ -649,9 +649,9 @@ export default function App() {
     }
   }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints, panStart]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'trainBranchAbove' | 'trainBranchBelow' | 'trainFirefighter', id: string, unitId?: string) => {
     if (toolMode !== 'select' && toolMode !== 'none') {
-      if (type !== 'firefighter' && type !== 'branch') return;
+      if (type !== 'firefighter' && type !== 'branch' && type !== 'trainFirefighter' && type !== 'trainBranchAbove' && type !== 'trainBranchBelow') return;
     }
     e.stopPropagation();
     const { x, y } = getSVGCoords(e);
@@ -667,7 +667,7 @@ export default function App() {
       if (unit) {
         setDragState({ type, id, offsetX: x - unit.x, offsetY: y - unit.y });
       }
-    } else if (type === 'branch' || type === 'firefighter') {
+    } else if (type === 'branch' || type === 'firefighter' || type === 'trainBranchAbove' || type === 'trainBranchBelow' || type === 'trainFirefighter') {
       setDragState({ type, id, unitId, offsetX: x, offsetY: y });
     }
   }, [toolMode, obstacles, getSVGCoords, deployment, manualUnits, selectedElements, fireSource, customPositions, wagons]);
