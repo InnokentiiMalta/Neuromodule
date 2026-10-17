@@ -222,6 +222,8 @@ export default function PredictionPage() {
     });
     setCurrentStage(0);
     setStageResults([null, null, null, null]);
+    setStageActuals([null, null, null, null]);
+    setCurrentActuals(EMPTY_STAGE_ACTUALS);
     setWorkDate('');
     setWorkTime('');
     setFinalSubmitted(false);
@@ -229,7 +231,7 @@ export default function PredictionPage() {
     // Сброс данных прогноза
     ['prediction_initialParams', 'prediction_additionalParams', 'prediction_currentStage',
      'prediction_stageResults', 'prediction_workDate', 'prediction_workTime',
-     'prediction_finalSubmitted'].forEach(k => localStorage.removeItem(k));
+     'prediction_finalSubmitted', 'prediction_stageActuals', 'prediction_currentActuals'].forEach(k => localStorage.removeItem(k));
     // Сброс обстановки карты
     ['map_wagons', 'map_fireSource', 'map_obstacles', 'map_deployment',
      'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
