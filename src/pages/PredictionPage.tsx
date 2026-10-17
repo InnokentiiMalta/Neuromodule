@@ -18,6 +18,19 @@ interface AdditionalParams {
   Время_ликвидации_последствий_пожара_мин: number;
 }
 
+interface StageActuals {
+  ac: number;
+  asa: number;
+  aso: number;
+  trains: number;
+  stvols: number;
+  personnel: number;
+}
+
+const EMPTY_STAGE_ACTUALS: StageActuals = {
+  ac: 0, asa: 0, aso: 0, trains: 0, stvols: 0, personnel: 0,
+};
+
 const INITIAL_FIELDS = [
   { key: 'Время_следования_мин', label: 'Время следования (мин)', default: 8 },
   { key: 'Время_подачи_первого_ствола_мин', label: 'Время подачи первого ствола (мин)', default: 1 },
@@ -87,6 +100,8 @@ export default function PredictionPage() {
 
   const [currentStage, setCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
   const [stageResults, setStageResults] = useLocalStorageState<(Record<string, unknown> | null)[]>('prediction_stageResults', [null, null, null, null]);
+  const [stageActuals, setStageActuals] = useLocalStorageState<(StageActuals | null)[]>('prediction_stageActuals', [null, null, null, null]);
+  const [currentActuals, setCurrentActuals] = useLocalStorageState<StageActuals>('prediction_currentActuals', EMPTY_STAGE_ACTUALS);
   const [workDate, setWorkDate] = useLocalStorageState<string>('prediction_workDate', '');
   const [workTime, setWorkTime] = useLocalStorageState<string>('prediction_workTime', '');
   const [loading, setLoading] = useState(false);
@@ -151,6 +166,12 @@ export default function PredictionPage() {
         const newResults = [...prev];
         newResults[stage] = result as Record<string, unknown>;
         return newResults;
+      });
+      // Фиксируем текущие фактические силы для этого этапа
+      setStageActuals(prev => {
+        const newActuals = [...prev];
+        newActuals[stage] = { ...currentActuals };
+        return newActuals;
       });
       setCurrentStage(prev => Math.max(prev, stage + 1));
     } catch (err) {
@@ -322,6 +343,91 @@ export default function PredictionPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Текущие фактические силы и средства */}
+        <div className="bg-gray-800 rounded-lg p-4 mb-3">
+          <h2 className="text-lg font-semibold mb-3">🚒 Текущие фактические силы и средства</h2>
+          <p className="text-xs text-gray-400 mb-3">
+            Введите силы, которые реально прибыли на текущий момент. Значения зафиксируются при нажатии кнопки этапа.
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">АЦ-40 (ед.)</label>
+              <input
+                type="number"
+                min="0"
+                value={currentActuals.ac}
+                onChange={(e) => setCurrentActuals({ ...currentActuals, ac: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">АСА (ед.)</label>
+              <input
+                type="number"
+                min="0"
+                value={currentActuals.asa}
+                onChange={(e) => setCurrentActuals({ ...currentActuals, asa: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">АСО (ед.)</label>
+              <input
+                type="number"
+                min="0"
+                value={currentActuals.aso}
+                onChange={(e) => setCurrentActuals({ ...currentActuals, aso: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Пожарных поездов (ед.)</label>
+              <input
+                type="number"
+                min="0"
+                value={currentActuals.trains}
+                onChange={(e) => setCurrentActuals({ ...currentActuals, trains: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Стволов (ед.)</label>
+              <input
+                type="number"
+                min="0"
+                value={currentActuals.stvols}
+                onChange={(e) => setCurrentActuals({ ...currentActuals, stvols: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Л/С всего (чел.)</label>
+              <input
+                type="number"
+                min="0"
+                value={currentActuals.personnel}
+                onChange={(e) => setCurrentActuals({ ...currentActuals, personnel: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+                disabled={loading}
+              />
+            </div>
+          </div>
+          {currentStage > 0 && (
+            <p className="text-xs text-gray-500 mt-2">
+              На этапе {currentStage} зафиксировано: {stageActuals[currentStage - 1]?.ac || 0} АЦ,{' '}
+              {stageActuals[currentStage - 1]?.asa || 0} АСА,{' '}
+              {stageActuals[currentStage - 1]?.aso || 0} АСО,{' '}
+              {stageActuals[currentStage - 1]?.stvols || 0} ств.,{' '}
+              {stageActuals[currentStage - 1]?.personnel || 0} л/с
+            </p>
+          )}
         </div>
 
         {/* Кнопки этапов */}
