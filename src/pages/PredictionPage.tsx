@@ -518,6 +518,90 @@ export default function PredictionPage() {
             </div>
           )}
 
+          {/* 📊 Таблица по этапам */}
+          {finalSubmitted && (
+            <div className="mt-4 bg-gray-900 rounded-lg p-4 border border-blue-700/50">
+              <h3 className="text-base font-semibold text-blue-300 mb-3">📊 Прогноз vs Факт по этапам</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-700 text-gray-400">
+                      <th className="text-left py-2 px-2">Этап</th>
+                      <th className="text-center py-2 px-2">Прогноз сил</th>
+                      <th className="text-center py-2 px-2">Факт сил</th>
+                      <th className="text-center py-2 px-2">Прогноз времени</th>
+                      <th className="text-center py-2 px-2">Факт времени</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-gray-300">
+                    {[
+                      {
+                        idx: 0,
+                        label: 'Этап 1: Локализация',
+                        forecastForce: stageResults[0]?.['Всего_подано_пожарных_стволов_ед'],
+                        forecastTime: stageResults[0]?.['Время_локализации_пожара_мин'],
+                        factTime: additionalParams['Время_локализации_пожара_мин'],
+                      },
+                      {
+                        idx: 1,
+                        label: 'Этап 2: Ликв. горения',
+                        forecastForce: stageResults[1]?.['Всего_подано_пожарных_стволов_ед'],
+                        forecastTime: stageResults[1]?.['Время_ликвидации_открытого_горения_мин'],
+                        factTime: additionalParams['Время_ликвидации_открытого_горения_мин'],
+                      },
+                      {
+                        idx: 2,
+                        label: 'Этап 3: Ликв. последствий',
+                        forecastForce: stageResults[2]?.['Всего_подано_пожарных_стволов_ед'],
+                        forecastTime: stageResults[2]?.['Время_ликвидации_последствий_пожара_мин'],
+                        factTime: additionalParams['Время_ликвидации_последствий_пожара_мин'],
+                      },
+                      {
+                        idx: 3,
+                        label: 'Финальный',
+                        forecastForce: stageResults[3]?.['Всего_подано_пожарных_стволов_ед'],
+                        forecastTime: null,
+                        factTime: null,
+                      },
+                    ].map((row) => {
+                      const actuals = stageActuals[row.idx];
+                      const actualForceStr = actuals
+                        ? [
+                            actuals.ac > 0 ? `${actuals.ac} АЦ` : null,
+                            actuals.asa > 0 ? `${actuals.asa} АСА` : null,
+                            actuals.aso > 0 ? `${actuals.aso} АСО` : null,
+                            actuals.trains > 0 ? `${actuals.trains} ПП` : null,
+                            actuals.stvols > 0 ? `${actuals.stvols} ств.` : null,
+                            actuals.personnel > 0 ? `${actuals.personnel} л/с` : null,
+                          ].filter(Boolean).join(', ') || '—'
+                        : '—';
+                      return (
+                        <tr key={row.idx} className="border-b border-gray-800">
+                          <td className="py-2 px-2 text-gray-200">{row.label}</td>
+                          <td className="text-center py-2 px-2 font-mono text-purple-300">
+                            {typeof row.forecastForce === 'number' ? `${row.forecastForce} ств.` : '—'}
+                          </td>
+                          <td className="text-center py-2 px-2 font-mono text-emerald-300">
+                            {actualForceStr}
+                          </td>
+                          <td className="text-center py-2 px-2 font-mono text-purple-300">
+                            {typeof row.forecastTime === 'number' ? `${row.forecastTime.toFixed(1)} мин` : '—'}
+                          </td>
+                          <td className="text-center py-2 px-2 font-mono text-emerald-300">
+                            {typeof row.factTime === 'number' && row.factTime > 0 ? `${row.factTime.toFixed(1)} мин` : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-3">
+                💡 Прогноз сил — рекомендация ML на момент этапа. Факт сил — что введено в панели «Текущие фактические силы» и зафиксировано кнопкой этапа.
+              </p>
+            </div>
+          )}
+
           {currentStage >= 4 && (
             <button
               onClick={handleNewFire}
