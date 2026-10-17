@@ -2105,8 +2105,9 @@ export default function App() {
                 const trainCenterX = train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2;
                 const trainCenterY = train.wagons[0].y + train.wagons[0].height / 2;
 
-                const branchAbove = { x: trainCenterX, y: 268 };
-                const branchBelow = { x: trainCenterX, y: 332 };
+                const customTrainPos = customPositions[train.id];
+                const branchAbove = customTrainPos?.trainBranchAbove || { x: trainCenterX, y: 268 };
+                const branchBelow = customTrainPos?.trainBranchBelow || { x: trainCenterX, y: 332 };
 
                 const trainDist = distributePersonnel('train', train.personnel);
                 const nozzlesCount = trainDist.nozzles;
@@ -2123,6 +2124,14 @@ export default function App() {
                 for (let i = 0; i < bottomCount; i++) {
                   const offset = bottomCount === 1 ? 0 : (i === 0 ? -15 : 15);
                   nozzles.push({ x: fireSource.x + offset, y: 325 });
+                }
+
+                // Применяем кастомные позиции ствольщиков, если есть
+                const customTrainNozzles = customTrainPos?.trainNozzles;
+                if (customTrainNozzles) {
+                  for (let i = 0; i < nozzles.length; i++) {
+                    if (customTrainNozzles[i]) nozzles[i] = customTrainNozzles[i];
+                  }
                 }
 
                 const HOSE_SEGMENT_LENGTH = 40;
