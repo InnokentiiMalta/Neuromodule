@@ -2250,15 +2250,12 @@ export default function App() {
                       const sprayY = nozzle.y + Math.sin(angle) * sprayLength;
 
                       return (
-                        <g key={`nozzle-${idx}`}>
-                          <circle
-                            cx={nozzle.x}
-                            cy={nozzle.y}
-                            r="12"
-                            fill="transparent"
-                            onMouseDown={e => handleMouseDown(e, 'trainFirefighter', `${train.id}-${idx}`, train.id)}
-                            style={{ cursor: 'move', pointerEvents: 'all' }}
-                          />
+                        <g
+                          key={`nozzle-${idx}`}
+                          onMouseDown={e => handleMouseDown(e, 'trainFirefighter', `${train.id}-${idx}`, train.id)}
+                          style={{ cursor: 'move' }}
+                        >
+                          <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
                           <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
                             stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                             <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
