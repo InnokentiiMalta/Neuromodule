@@ -888,6 +888,69 @@ export default function App() {
           }
         };
       });
+    } else if (dragState.type === 'trainBranchAbove' && dragState.unitId) {
+      let branchX = x;
+      let branchY = y;
+      if (fireSource) {
+        const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
+        if (distFromFire > 700) {
+          const angle = Math.atan2(branchY - fireSource.y, branchX - fireSource.x);
+          branchX = fireSource.x + Math.cos(angle) * 700;
+          branchY = fireSource.y + Math.sin(angle) * 700;
+        }
+      }
+      branchX = Math.max(10, Math.min(990, branchX));
+      branchY = Math.max(10, Math.min(590, branchY));
+      setCustomPositions(prev => ({
+        ...prev,
+        [dragState.unitId!]: {
+          ...prev[dragState.unitId!],
+          trainBranchAbove: { x: branchX, y: branchY }
+        }
+      }));
+    } else if (dragState.type === 'trainBranchBelow' && dragState.unitId) {
+      let branchX = x;
+      let branchY = y;
+      if (fireSource) {
+        const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
+        if (distFromFire > 700) {
+          const angle = Math.atan2(branchY - fireSource.y, branchX - fireSource.x);
+          branchX = fireSource.x + Math.cos(angle) * 700;
+          branchY = fireSource.y + Math.sin(angle) * 700;
+        }
+      }
+      branchX = Math.max(10, Math.min(990, branchX));
+      branchY = Math.max(10, Math.min(590, branchY));
+      setCustomPositions(prev => ({
+        ...prev,
+        [dragState.unitId!]: {
+          ...prev[dragState.unitId!],
+          trainBranchBelow: { x: branchX, y: branchY }
+        }
+      }));
+    } else if (dragState.type === 'trainFirefighter' && dragState.unitId) {
+      const nozzleIndex = parseInt(dragState.id.split('-').pop() || '0');
+      let nozzleX = x;
+      let nozzleY = y;
+      if (fireSource) {
+        const distFromFire = Math.sqrt((nozzleX - fireSource.x) ** 2 + (nozzleY - fireSource.y) ** 2);
+        if (distFromFire > 700) {
+          const angle = Math.atan2(nozzleY - fireSource.y, nozzleX - fireSource.x);
+          nozzleX = fireSource.x + Math.cos(angle) * 700;
+          nozzleY = fireSource.y + Math.sin(angle) * 700;
+        }
+      }
+      nozzleX = Math.max(10, Math.min(990, nozzleX));
+      nozzleY = Math.max(10, Math.min(590, nozzleY));
+      setCustomPositions(prev => {
+        const positions = prev[dragState.unitId!] || {};
+        const trainNozzles = [...(positions.trainNozzles || [])];
+        trainNozzles[nozzleIndex] = { x: nozzleX, y: nozzleY };
+        return {
+          ...prev,
+          [dragState.unitId!]: { ...positions, trainNozzles }
+        };
+      });
     } else if (dragState.type === 'personnel') {
       const personnelIndex = parseInt(dragState.id.split('-')[1]);
       let newX = x - dragState.offsetX;
