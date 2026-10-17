@@ -2182,16 +2182,22 @@ export default function App() {
                     ))}
 
                     {topCount > 0 && (
-                      <>
+                      <g
+                        onMouseDown={e => handleMouseDown(e, 'trainBranchAbove', train.id, train.id)}
+                        style={{ cursor: 'move' }}
+                      >
                         <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                         <text x={branchAbove.x} y={branchAbove.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-                      </>
+                      </g>
                     )}
                     {bottomCount > 0 && (
-                      <>
+                      <g
+                        onMouseDown={e => handleMouseDown(e, 'trainBranchBelow', train.id, train.id)}
+                        style={{ cursor: 'move' }}
+                      >
                         <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                         <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-                      </>
+                      </g>
                     )}
 
                     {/* Человечки на разветвлениях: 1 → верхнее, 2 → оба */}
@@ -2245,6 +2251,14 @@ export default function App() {
 
                       return (
                         <g key={`nozzle-${idx}`}>
+                          <circle
+                            cx={nozzle.x}
+                            cy={nozzle.y}
+                            r="12"
+                            fill="transparent"
+                            onMouseDown={e => handleMouseDown(e, 'trainFirefighter', `${train.id}-${idx}`, train.id)}
+                            style={{ cursor: 'move', pointerEvents: 'all' }}
+                          />
                           <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
                             stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                             <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
