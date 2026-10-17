@@ -41,7 +41,7 @@ interface ManualUnit extends FireUnit {
 }
 
 interface DragState {
-  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'personnel' | 'pump';
+  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'personnel' | 'pump' | 'trainBranchAbove' | 'trainBranchBelow' | 'trainFirefighter';
   id: string;
   unitId?: string;
   offsetX: number;
@@ -52,6 +52,9 @@ interface CustomPositions {
   [unitId: string]: {
     branchPoint?: { x: number; y: number };
     nozzles?: Array<{ x: number; y: number }>;
+    trainBranchAbove?: { x: number; y: number };
+    trainBranchBelow?: { x: number; y: number };
+    trainNozzles?: Array<{ x: number; y: number }>;
   };
 }
 
@@ -646,9 +649,9 @@ export default function App() {
     }
   }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints, panStart]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter', id: string, unitId?: string) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'trainBranchAbove' | 'trainBranchBelow' | 'trainFirefighter', id: string, unitId?: string) => {
     if (toolMode !== 'select' && toolMode !== 'none') {
-      if (type !== 'firefighter' && type !== 'branch') return;
+      if (type !== 'firefighter' && type !== 'branch' && type !== 'trainFirefighter' && type !== 'trainBranchAbove' && type !== 'trainBranchBelow') return;
     }
     e.stopPropagation();
     const { x, y } = getSVGCoords(e);
@@ -664,7 +667,7 @@ export default function App() {
       if (unit) {
         setDragState({ type, id, offsetX: x - unit.x, offsetY: y - unit.y });
       }
-    } else if (type === 'branch' || type === 'firefighter') {
+    } else if (type === 'branch' || type === 'firefighter' || type === 'trainBranchAbove' || type === 'trainBranchBelow' || type === 'trainFirefighter') {
       setDragState({ type, id, unitId, offsetX: x, offsetY: y });
     }
   }, [toolMode, obstacles, getSVGCoords, deployment, manualUnits, selectedElements, fireSource, customPositions, wagons]);
@@ -883,6 +886,69 @@ export default function App() {
             ...positions,
             nozzles: newNozzles
           }
+        };
+      });
+    } else if (dragState.type === 'trainBranchAbove' && dragState.unitId) {
+      let branchX = x;
+      let branchY = y;
+      if (fireSource) {
+        const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
+        if (distFromFire > 700) {
+          const angle = Math.atan2(branchY - fireSource.y, branchX - fireSource.x);
+          branchX = fireSource.x + Math.cos(angle) * 700;
+          branchY = fireSource.y + Math.sin(angle) * 700;
+        }
+      }
+      branchX = Math.max(10, Math.min(990, branchX));
+      branchY = Math.max(10, Math.min(590, branchY));
+      setCustomPositions(prev => ({
+        ...prev,
+        [dragState.unitId!]: {
+          ...prev[dragState.unitId!],
+          trainBranchAbove: { x: branchX, y: branchY }
+        }
+      }));
+    } else if (dragState.type === 'trainBranchBelow' && dragState.unitId) {
+      let branchX = x;
+      let branchY = y;
+      if (fireSource) {
+        const distFromFire = Math.sqrt((branchX - fireSource.x) ** 2 + (branchY - fireSource.y) ** 2);
+        if (distFromFire > 700) {
+          const angle = Math.atan2(branchY - fireSource.y, branchX - fireSource.x);
+          branchX = fireSource.x + Math.cos(angle) * 700;
+          branchY = fireSource.y + Math.sin(angle) * 700;
+        }
+      }
+      branchX = Math.max(10, Math.min(990, branchX));
+      branchY = Math.max(10, Math.min(590, branchY));
+      setCustomPositions(prev => ({
+        ...prev,
+        [dragState.unitId!]: {
+          ...prev[dragState.unitId!],
+          trainBranchBelow: { x: branchX, y: branchY }
+        }
+      }));
+    } else if (dragState.type === 'trainFirefighter' && dragState.unitId) {
+      const nozzleIndex = parseInt(dragState.id.split('-').pop() || '0');
+      let nozzleX = x;
+      let nozzleY = y;
+      if (fireSource) {
+        const distFromFire = Math.sqrt((nozzleX - fireSource.x) ** 2 + (nozzleY - fireSource.y) ** 2);
+        if (distFromFire > 700) {
+          const angle = Math.atan2(nozzleY - fireSource.y, nozzleX - fireSource.x);
+          nozzleX = fireSource.x + Math.cos(angle) * 700;
+          nozzleY = fireSource.y + Math.sin(angle) * 700;
+        }
+      }
+      nozzleX = Math.max(10, Math.min(990, nozzleX));
+      nozzleY = Math.max(10, Math.min(590, nozzleY));
+      setCustomPositions(prev => {
+        const positions = prev[dragState.unitId!] || {};
+        const trainNozzles = [...(positions.trainNozzles || [])];
+        trainNozzles[nozzleIndex] = { x: nozzleX, y: nozzleY };
+        return {
+          ...prev,
+          [dragState.unitId!]: { ...positions, trainNozzles }
         };
       });
     } else if (dragState.type === 'personnel') {
@@ -2010,8 +2076,9 @@ export default function App() {
                 const trainCenterX = train.wagons[0].x + (train.wagons[train.wagons.length - 1].x + train.wagons[train.wagons.length - 1].width - train.wagons[0].x) / 2;
                 const trainCenterY = train.wagons[0].y + train.wagons[0].height / 2;
 
-                const branchAbove = { x: trainCenterX, y: 268 };
-                const branchBelow = { x: trainCenterX, y: 332 };
+                const customTrainPos = customPositions[train.id];
+                const branchAbove = customTrainPos?.trainBranchAbove || { x: trainCenterX, y: 268 };
+                const branchBelow = customTrainPos?.trainBranchBelow || { x: trainCenterX, y: 332 };
 
                 const trainDist = distributePersonnel('train', train.personnel);
                 const nozzlesCount = trainDist.nozzles;
@@ -2028,6 +2095,14 @@ export default function App() {
                 for (let i = 0; i < bottomCount; i++) {
                   const offset = bottomCount === 1 ? 0 : (i === 0 ? -15 : 15);
                   nozzles.push({ x: fireSource.x + offset, y: 325 });
+                }
+
+                // Применяем кастомные позиции ствольщиков, если есть
+                const customTrainNozzles = customTrainPos?.trainNozzles;
+                if (customTrainNozzles) {
+                  for (let i = 0; i < nozzles.length; i++) {
+                    if (customTrainNozzles[i]) nozzles[i] = customTrainNozzles[i];
+                  }
                 }
 
                 const HOSE_SEGMENT_LENGTH = 40;
@@ -2078,16 +2153,22 @@ export default function App() {
                     ))}
 
                     {topCount > 0 && (
-                      <>
+                      <g
+                        onMouseDown={e => handleMouseDown(e, 'trainBranchAbove', train.id, train.id)}
+                        style={{ cursor: 'move' }}
+                      >
                         <rect x={branchAbove.x - 8} y={branchAbove.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                         <text x={branchAbove.x} y={branchAbove.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-                      </>
+                      </g>
                     )}
                     {bottomCount > 0 && (
-                      <>
+                      <g
+                        onMouseDown={e => handleMouseDown(e, 'trainBranchBelow', train.id, train.id)}
+                        style={{ cursor: 'move' }}
+                      >
                         <rect x={branchBelow.x - 8} y={branchBelow.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
                         <text x={branchBelow.x} y={branchBelow.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-                      </>
+                      </g>
                     )}
 
                     {/* Человечки на разветвлениях: 1 → верхнее, 2 → оба */}
@@ -2141,6 +2222,14 @@ export default function App() {
 
                       return (
                         <g key={`nozzle-${idx}`}>
+                          <circle
+                            cx={nozzle.x}
+                            cy={nozzle.y}
+                            r="12"
+                            fill="transparent"
+                            onMouseDown={e => handleMouseDown(e, 'trainFirefighter', `${train.id}-${idx}`, train.id)}
+                            style={{ cursor: 'move', pointerEvents: 'all' }}
+                          />
                           <line x1={nozzle.x} y1={nozzle.y} x2={fireSource.x} y2={fireSource.y}
                             stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
                             <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
