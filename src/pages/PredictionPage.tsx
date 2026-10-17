@@ -167,6 +167,12 @@ export default function PredictionPage() {
         newResults[stage] = result as Record<string, unknown>;
         return newResults;
       });
+      // Фиксируем текущие фактические силы для этого этапа
+      setStageActuals(prev => {
+        const newActuals = [...prev];
+        newActuals[stage] = { ...currentActuals };
+        return newActuals;
+      });
       setCurrentStage(prev => Math.max(prev, stage + 1));
     } catch (err) {
       setError((err as Error).message);
