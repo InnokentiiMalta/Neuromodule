@@ -18,6 +18,19 @@ interface AdditionalParams {
   Время_ликвидации_последствий_пожара_мин: number;
 }
 
+interface StageActuals {
+  ac: number;
+  asa: number;
+  aso: number;
+  trains: number;
+  stvols: number;
+  personnel: number;
+}
+
+const EMPTY_STAGE_ACTUALS: StageActuals = {
+  ac: 0, asa: 0, aso: 0, trains: 0, stvols: 0, personnel: 0,
+};
+
 const INITIAL_FIELDS = [
   { key: 'Время_следования_мин', label: 'Время следования (мин)', default: 8 },
   { key: 'Время_подачи_первого_ствола_мин', label: 'Время подачи первого ствола (мин)', default: 1 },
@@ -87,6 +100,8 @@ export default function PredictionPage() {
 
   const [currentStage, setCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
   const [stageResults, setStageResults] = useLocalStorageState<(Record<string, unknown> | null)[]>('prediction_stageResults', [null, null, null, null]);
+  const [stageActuals, setStageActuals] = useLocalStorageState<(StageActuals | null)[]>('prediction_stageActuals', [null, null, null, null]);
+  const [currentActuals, setCurrentActuals] = useLocalStorageState<StageActuals>('prediction_currentActuals', EMPTY_STAGE_ACTUALS);
   const [workDate, setWorkDate] = useLocalStorageState<string>('prediction_workDate', '');
   const [workTime, setWorkTime] = useLocalStorageState<string>('prediction_workTime', '');
   const [loading, setLoading] = useState(false);
