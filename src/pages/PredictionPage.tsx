@@ -441,28 +441,28 @@ export default function PredictionPage() {
               disabled={loading}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded font-semibold text-sm"
             >
-              📍 На момент прибытия 1 РТП
+              Этап 1
             </button>
             <button
               onClick={() => handlePredict(1)}
               disabled={currentStage < 1 || loading}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded font-semibold text-sm"
             >
-              🎯 Локализация
+              Этап 2
             </button>
             <button
               onClick={() => handlePredict(2)}
               disabled={currentStage < 2 || loading}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded font-semibold text-sm"
             >
-              🔥 Ликвидация открытого горения
+              Этап 3
             </button>
             <button
               onClick={() => handlePredict(3)}
               disabled={currentStage < 3 || loading}
               className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded font-semibold text-sm"
             >
-              🛠 Ликвидация последствий
+              Финальный этап
             </button>
           </div>
 
@@ -682,10 +682,7 @@ export default function PredictionPage() {
           {stageResults.map((result, idx) => {
             if (!result) return null;
 
-            const stageLabel = idx === 0 ? '📍 На момент прибытия 1 РТП'
-              : idx === 1 ? '🎯 Локализация'
-              : idx === 2 ? '🔥 Ликвидация открытого горения'
-              : '🛠 Ликвидация последствий';
+            const stageLabel = idx === 3 ? 'Финальный этап' : `Этап ${idx + 1}`;
 
             const actualStvols = initialParams['Всего_подано_пожарных_стволов_ед'];
             const recommendedStvols = result['Всего_подано_пожарных_стволов_ед'];
