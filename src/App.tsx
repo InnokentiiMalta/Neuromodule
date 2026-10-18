@@ -585,7 +585,11 @@ export default function App() {
     }
 
     if (toolMode === 'fire') {
-      const clickedWagon = wagons.find(w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height);
+      const CLICK_MARGIN = 8;
+      const clickedWagon = wagons.find(w =>
+        x >= w.x - CLICK_MARGIN && x <= w.x + w.width + CLICK_MARGIN &&
+        y >= w.y - CLICK_MARGIN && y <= w.y + w.height + CLICK_MARGIN
+      );
       if (clickedWagon) {
         setFireSource({ wagonId: clickedWagon.id, x, y, intensity: fireIntensity, type: fireType });
         setDeployment(null);
@@ -2929,13 +2933,13 @@ export default function App() {
             </div>
 
             {placingUnit && (
-              <div className="absolute top-2 left-2 bg-red-600/90 backdrop-blur-sm rounded px-3 py-2 border border-red-400">
+              <div className="absolute top-2 left-2 bg-red-600/90 backdrop-blur-sm rounded px-3 py-2 border border-red-400 pointer-events-none">
                 <span className="text-xs text-white font-semibold">👆 Кликните на карту для размещения {placingUnit === 'asa' ? 'аварийно-спасательного (АСА)' : placingUnit === 'aso' ? 'машины связи и освещения (АСО)' : 'автоцистерны (АЦ)'}</span>
               </div>
             )}
 
             {!placingUnit && (
-              <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded px-2 py-1 border border-gray-600/50">
+              <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm rounded px-2 py-1 border border-gray-600/50 pointer-events-none">
                 <span className="text-[10px] text-gray-200 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
                   {toolMode === 'none' ? 'Просмотр (клик на объект для выбора)' :
@@ -2950,7 +2954,7 @@ export default function App() {
             )}
 
             {selectedElements.length > 0 && (
-              <div className="absolute top-2 right-2 bg-blue-600/90 backdrop-blur-sm rounded px-3 py-2 border border-blue-400">
+              <div className="absolute top-2 right-2 bg-blue-600/90 backdrop-blur-sm rounded px-3 py-2 border border-blue-400 pointer-events-none">
                 <div className="text-xs text-white font-semibold mb-1">
                   Выделено: {selectedElements.length}
                 </div>
