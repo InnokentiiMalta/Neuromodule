@@ -487,6 +487,39 @@ export default function PredictionPage() {
           {finalSubmitted && (
             <div className="mt-4 bg-gray-900 rounded-lg p-4 border border-emerald-700/50">
               <h3 className="text-base font-semibold text-emerald-300 mb-2">📊 Итоговая сводка</h3>
+              <button
+                onClick={() => {
+                  const lines: string[] = [];
+                  lines.push('=== ИТОГОВЫЙ ОТЧЁТ ===');
+                  lines.push(`Дата работ: ${workDate || '—'}, время: ${workTime || '—'}`);
+                  lines.push('');
+                  lines.push('--- Временные показатели ---');
+                  lines.push(`Время следования: ${initialParams['Время_следования_мин']} мин`);
+                  lines.push(`Подача первого ствола: ${initialParams['Время_подачи_первого_ствола_мин']} мин`);
+                  lines.push(`Локализация: ${additionalParams['Время_локализации_пожара_мин']} мин`);
+                  lines.push(`Ликвидация открытого горения: ${additionalParams['Время_ликвидации_открытого_горения_мин']} мин`);
+                  lines.push(`Ликвидация последствий: ${additionalParams['Время_ликвидации_последствий_пожара_мин']} мин`);
+                  const total = additionalParams['Время_локализации_пожара_мин'] + additionalParams['Время_ликвидации_открытого_горения_мин'] + additionalParams['Время_ликвидации_последствий_пожара_мин'];
+                  lines.push(`Итого тушение: ${total} мин`);
+                  lines.push('');
+                  lines.push('--- Силы и средства по этапам ---');
+                  const stageNames = ['Этап 1: Локализация', 'Этап 2: Ликв. горения', 'Этап 3: Ликв. последствий', 'Финальный'];
+                  for (let i = 0; i < 4; i++) {
+                    const a = stageActuals[i];
+                    const f = stageResults[i]?.['Всего_подано_пожарных_стволов_ед'];
+                    if (a || f) {
+                      lines.push(`${stageNames[i]}:`);
+                      if (a) lines.push(`  Факт: ${a.ac} АЦ, ${a.asa} АСА, ${a.aso} АСО, ${a.trains} ПП, ${a.stvols} ств., ${a.personnel} л/с`);
+                      if (typeof f === 'number') lines.push(`  Прогноз ML: ${f} ств.`);
+                    }
+                  }
+                  const text = lines.join('\n');
+                  navigator.clipboard.writeText(text).then(() => alert('Отчёт скопирован в буфер обмена')).catch(() => alert('Не удалось скопировать. Отчёт:\n\n' + text));
+                }}
+                className="mt-2 mb-3 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-xs font-semibold"
+              >
+                📋 Скопировать отчёт
+              </button>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Время следования:</span>
