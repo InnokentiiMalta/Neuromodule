@@ -682,7 +682,10 @@ export default function PredictionPage() {
           {stageResults.map((result, idx) => {
             if (!result) return null;
 
-            const stageLabel = idx === 3 ? 'Финальный этап' : `Этап ${idx + 1}`;
+            const stageLabel = idx === 0 ? '📍 На момент прибытия 1 РТП'
+              : idx === 1 ? '🎯 Локализация'
+              : idx === 2 ? '🔥 Ликвидация открытого горения'
+              : '🛠 Ликвидация последствий';
 
             const actualStvols = initialParams['Всего_подано_пожарных_стволов_ед'];
             const recommendedStvols = result['Всего_подано_пожарных_стволов_ед'];
