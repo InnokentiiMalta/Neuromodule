@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { predictStage, sendFinalData, getDataStatus } from '../api/backend';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import StageCard from '../components/StageCard';
 
 interface InitialParams {
   Время_следования_мин: number;
@@ -304,132 +305,48 @@ export default function PredictionPage() {
           </div>
         </div>
 
-        {/* Дополнительные параметры */}
-        <div className="bg-gray-800 rounded-lg p-4 mb-3">
-          <h2 className="text-lg font-semibold mb-4">Дополнительные параметры</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">
-                {ADDITIONAL_FIELDS[0].label}
-              </label>
-              <input
-                type="number"
-                value={additionalParams['Время_локализации_пожара_мин']}
-                onChange={(e) => handleAdditionalChange('Время_локализации_пожара_мин', e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white disabled:opacity-50"
-                disabled={currentStage < 1 || loading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">
-                {ADDITIONAL_FIELDS[1].label}
-              </label>
-              <input
-                type="number"
-                value={additionalParams['Время_ликвидации_открытого_горения_мин']}
-                onChange={(e) => handleAdditionalChange('Время_ликвидации_открытого_горения_мин', e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white disabled:opacity-50"
-                disabled={currentStage < 2 || loading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">
-                {ADDITIONAL_FIELDS[2].label}
-              </label>
-              <input
-                type="number"
-                value={additionalParams['Время_ликвидации_последствий_пожара_мин']}
-                onChange={(e) => handleAdditionalChange('Время_ликвидации_последствий_пожара_мин', e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white disabled:opacity-50"
-                disabled={currentStage < 3 || loading}
-              />
-            </div>
-          </div>
-        </div>
+        {/* Карточки этапов */}
+        <div className="space-y-3 mb-3">
+          {[0, 1, 2, 3].map((stageIdx) => {
+            const isLocked = stageIdx > currentStage;
+            const isFixed = stageIdx < currentStage;
+            const state = isLocked ? 'locked' : (isFixed ? 'fixed' : 'active');
 
-        {/* Текущие фактические силы и средства */}
-        <div className="bg-gray-800 rounded-lg p-4 mb-3">
-          <h2 className="text-lg font-semibold mb-3">🚒 Текущие фактические силы и средства</h2>
-          <p className="text-xs text-gray-400 mb-3">
-            Введите силы, которые реально прибыли на текущий момент. Значения зафиксируются при нажатии кнопки этапа.
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">АЦ-40 (ед.)</label>
-              <input
-                type="number"
-                min="0"
-                value={currentActuals.ac}
-                onChange={(e) => setCurrentActuals({ ...currentActuals, ac: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                disabled={loading}
+            const stageConfig = [
+              { label: '📍 На момент прибытия 1 РТП', timeLabel: undefined, timeHint: undefined },
+              { label: '🎯 Локализация', timeLabel: 'Время локализации (мин)', timeHint: 'Длительность фазы локализации' },
+              { label: '🔥 Ликвидация открытого горения', timeLabel: 'Время ликвидации горения (мин)', timeHint: 'Длительность фазы ликвидации горения' },
+              { label: '✅ Полная ликвидация', timeLabel: 'Время ликвидации последствий (мин)', timeHint: 'Длительность последней фазы. Полная ликвидация = все работы завершены.' },
+            ][stageIdx];
+
+            const timeValue = stageIdx === 0 ? 0 : (additionalParams[stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] || 0);
+
+            const forecastForce = stageResults[stageIdx]?.['Всего_подано_пожарных_стволов_ед'] as number | undefined;
+            const forecastTime = stageIdx < 3 ? (stageResults[stageIdx]?.[stageIdx === 0 ? 'Время_локализации_пожара_мин' : stageIdx === 1 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] as number | undefined) : undefined;
+
+            return (
+              <StageCard
+                key={stageIdx}
+                stageIndex={stageIdx}
+                stageLabel={stageConfig.label}
+                timeLabel={stageConfig.timeLabel}
+                timeHint={stageConfig.timeHint}
+                state={state}
+                actuals={isFixed ? currentActuals : null}
+                current={currentActuals}
+                timeValue={timeValue}
+                forecastForce={isFixed ? forecastForce : null}
+                forecastTime={isFixed ? forecastTime : null}
+                onActualsChange={setCurrentActuals}
+                onTimeChange={(v) => {
+                  const key = stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин';
+                  setAdditionalParams(prev => ({ ...prev, [key]: v }));
+                }}
+                onFix={() => handlePredict(stageIdx)}
+                loading={loading}
               />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">АСА (ед.)</label>
-              <input
-                type="number"
-                min="0"
-                value={currentActuals.asa}
-                onChange={(e) => setCurrentActuals({ ...currentActuals, asa: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                disabled={loading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">АСО (ед.)</label>
-              <input
-                type="number"
-                min="0"
-                value={currentActuals.aso}
-                onChange={(e) => setCurrentActuals({ ...currentActuals, aso: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                disabled={loading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">Пожарных поездов (ед.)</label>
-              <input
-                type="number"
-                min="0"
-                value={currentActuals.trains}
-                onChange={(e) => setCurrentActuals({ ...currentActuals, trains: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                disabled={loading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">Стволов (ед.)</label>
-              <input
-                type="number"
-                min="0"
-                value={currentActuals.stvols}
-                onChange={(e) => setCurrentActuals({ ...currentActuals, stvols: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                disabled={loading}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">Л/С всего (чел.)</label>
-              <input
-                type="number"
-                min="0"
-                value={currentActuals.personnel}
-                onChange={(e) => setCurrentActuals({ ...currentActuals, personnel: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                disabled={loading}
-              />
-            </div>
-          </div>
-          {currentStage > 0 && (
-            <p className="text-xs text-gray-500 mt-2">
-              На этапе {currentStage} зафиксировано: {stageActuals[currentStage - 1]?.ac || 0} АЦ,{' '}
-              {stageActuals[currentStage - 1]?.asa || 0} АСА,{' '}
-              {stageActuals[currentStage - 1]?.aso || 0} АСО,{' '}
-              {stageActuals[currentStage - 1]?.stvols || 0} ств.,{' '}
-              {stageActuals[currentStage - 1]?.personnel || 0} л/с
-            </p>
-          )}
+            );
+          })}
         </div>
 
         {/* Кнопки этапов */}
