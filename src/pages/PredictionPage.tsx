@@ -18,7 +18,7 @@ interface AdditionalParams {
   Время_ликвидации_последствий_пожара_мин: number;
 }
 
-interface StageActuals {
+export interface StageActuals {
   ac: number;
   asa: number;
   aso: number;
@@ -462,7 +462,7 @@ export default function PredictionPage() {
               disabled={currentStage < 3 || loading}
               className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded font-semibold text-sm"
             >
-              🛠 Ликвидация последствий
+              ✅ Полная ликвидация
             </button>
           </div>
 
@@ -682,7 +682,10 @@ export default function PredictionPage() {
           {stageResults.map((result, idx) => {
             if (!result) return null;
 
-            const stageLabel = idx === 3 ? 'Финальный этап' : `Этап ${idx + 1}`;
+            const stageLabel = idx === 0 ? '📍 На момент прибытия 1 РТП'
+              : idx === 1 ? '🎯 Локализация'
+              : idx === 2 ? '🔥 Ликвидация открытого горения'
+              : '✅ Полная ликвидация';
 
             const actualStvols = initialParams['Всего_подано_пожарных_стволов_ед'];
             const recommendedStvols = result['Всего_подано_пожарных_стволов_ед'];

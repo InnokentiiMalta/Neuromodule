@@ -1,6 +1,6 @@
 {
   "name": "neural-module-fire-prediction",
-  "version": "1.2.52",
+  "version": "1.2.53",
   "private": true,
   "main": "electron/main.cjs",
   "type": "module",
@@ -83,7 +83,7 @@
       {
         "provider": "github",
         "owner": "InnokentiiMalta",
-        "repo": "Neuromodule",
+        "repo": "Neuro3",
         "releaseType": "release"
       }
     ]
