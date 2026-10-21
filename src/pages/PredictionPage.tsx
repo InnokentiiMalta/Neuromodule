@@ -144,6 +144,13 @@ export default function PredictionPage() {
   const buildInputData = (stage: number) => {
     const data: Record<string, number> = { ...initialParams };
 
+    // Для этапов > 0 используем фактические силы, введённые РТП на карточке этапа
+    if (stage >= 1) {
+      data['Количество_основных_пожарных_автомобилей_ед'] = currentActuals.ac;
+      data['Количество_специальных_пожарных_автомобилей_ед'] = currentActuals.asa + currentActuals.aso;
+      data['Количество_пожарных_поездов_ед'] = currentActuals.trains;
+    }
+
     if (stage >= 1) {
       data['Время_локализации_пожара_мин'] = additionalParams['Время_локализации_пожара_мин'];
     }
@@ -287,23 +294,6 @@ export default function PredictionPage() {
         </div>
 
         {/* Начальные параметры */}
-        <div className="bg-gray-800 rounded-lg p-4 mb-3">
-          <h2 className="text-lg font-semibold mb-4">Начальные параметры</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {INITIAL_FIELDS.map(field => (
-              <div key={field.key}>
-                <label className="block text-sm text-gray-300 mb-1">{field.label}</label>
-                <input
-                  type="number"
-                  value={initialParams[field.key as keyof InitialParams]}
-                  onChange={(e) => handleInitialChange(field.key as keyof InitialParams, e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
-                  disabled={loading}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Карточки этапов */}
         <div className="space-y-3 mb-3">
@@ -344,6 +334,68 @@ export default function PredictionPage() {
                 }}
                 onFix={() => handlePredict(stageIdx)}
                 loading={loading}
+              />
+            );
+          })}
+        </div>
+
+        {/* Карточки этапов */}
+        <div className="space-y-3 mb-3">
+          {[0, 1, 2, 3].map((stageIdx) => {
+            const isLocked = stageIdx > currentStage;
+            const isFixed = stageIdx < currentStage;
+            const state = isLocked ? 'locked' : (isFixed ? 'fixed' : 'active');
+
+            const stageConfig = [
+              { label: '📍 На момент прибытия 1 РТП', timeLabel: undefined, timeHint: undefined },
+              { label: '🎯 Локализация', timeLabel: 'Время локализации (мин)', timeHint: 'Длительность фазы локализации' },
+              { label: '🔥 Ликвидация открытого горения', timeLabel: 'Время ликвидации горения (мин)', timeHint: 'Длительность фазы ликвидации горения' },
+              { label: '✅ Полная ликвидация', timeLabel: 'Время ликвидации последствий (мин)', timeHint: 'Длительность последней фазы. Полная ликвидация = все работы завершены.' },
+            ][stageIdx];
+
+            const timeValue = stageIdx === 0 ? 0 : (additionalParams[stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] || 0);
+
+            const forecastForce = stageResults[stageIdx]?.['Всего_подано_пожарных_стволов_ед'] as number | undefined;
+            const forecastTime = stageIdx < 3 ? (stageResults[stageIdx]?.[stageIdx === 0 ? 'Время_локализации_пожара_мин' : stageIdx === 1 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] as number | undefined) : undefined;
+
+            const showForces = stageIdx > 0;
+            const customTimeFields = stageIdx === 0 ? [
+              {
+                key: 'time_following',
+                label: 'Время следования (мин)',
+                value: initialParams['Время_следования_мин'],
+                onChange: (v: number) => setInitialParams(prev => ({ ...prev, 'Время_следования_мин': v }))
+              },
+              {
+                key: 'time_first_barrel',
+                label: 'Время подачи первого ствола (мин)',
+                value: initialParams['Время_подачи_первого_ствола_мин'],
+                onChange: (v: number) => setInitialParams(prev => ({ ...prev, 'Время_подачи_первого_ствола_мин': v }))
+              }
+            ] : undefined;
+
+            return (
+              <StageCard
+                key={stageIdx}
+                stageIndex={stageIdx}
+                stageLabel={stageConfig.label}
+                timeLabel={stageConfig.timeLabel}
+                timeHint={stageConfig.timeHint}
+                state={state}
+                actuals={isFixed ? currentActuals : null}
+                current={currentActuals}
+                timeValue={timeValue}
+                forecastForce={isFixed ? forecastForce : null}
+                forecastTime={isFixed ? forecastTime : null}
+                onActualsChange={setCurrentActuals}
+                onTimeChange={(v) => {
+                  const key = stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин';
+                  setAdditionalParams(prev => ({ ...prev, [key]: v }));
+                }}
+                onFix={() => handlePredict(stageIdx)}
+                loading={loading}
+                showForces={showForces}
+                customTimeFields={customTimeFields}
               />
             );
           })}
@@ -400,160 +452,7 @@ export default function PredictionPage() {
               Порог авто-дообучения: <span className="font-mono text-white">{dataStatus.threshold}</span>.
             </div>
           )}
-
-          {finalSubmitted && (
-            <div className="mt-4 bg-gray-900 rounded-lg p-4 border border-emerald-700/50">
-              <h3 className="text-base font-semibold text-emerald-300 mb-2">📊 Итоговая сводка</h3>
-              <button
-                onClick={() => {
-                  const lines: string[] = [];
-                  lines.push('=== ИТОГОВЫЙ ОТЧЁТ ===');
-                  lines.push(`Дата работ: ${workDate || '—'}, время: ${workTime || '—'}`);
-                  lines.push('');
-                  lines.push('--- Временные показатели ---');
-                  lines.push(`Время следования: ${initialParams['Время_следования_мин']} мин`);
-                  lines.push(`Подача первого ствола: ${initialParams['Время_подачи_первого_ствола_мин']} мин`);
-                  lines.push(`Локализация: ${additionalParams['Время_локализации_пожара_мин']} мин`);
-                  lines.push(`Ликвидация открытого горения: ${additionalParams['Время_ликвидации_открытого_горения_мин']} мин`);
-                  lines.push(`Ликвидация последствий: ${additionalParams['Время_ликвидации_последствий_пожара_мин']} мин`);
-                  const total = additionalParams['Время_локализации_пожара_мин'] + additionalParams['Время_ликвидации_открытого_горения_мин'] + additionalParams['Время_ликвидации_последствий_пожара_мин'];
-                  lines.push(`Итого тушение: ${total} мин`);
-                  lines.push('');
-                  lines.push('--- Силы и средства по этапам ---');
-                  const stageNames = ['Этап 1: Локализация', 'Этап 2: Ликв. горения', 'Этап 3: Ликв. последствий', 'Финальный'];
-                  for (let i = 0; i < 4; i++) {
-                    const a = stageActuals[i];
-                    const f = stageResults[i]?.['Всего_подано_пожарных_стволов_ед'];
-                    if (a || f) {
-                      lines.push(`${stageNames[i]}:`);
-                      if (a) lines.push(`  Факт: ${a.ac} АЦ, ${a.asa} АСА, ${a.aso} АСО, ${a.trains} ПП, ${a.stvols} ств., ${a.personnel} л/с`);
-                      if (typeof f === 'number') lines.push(`  Прогноз ML: ${f} ств.`);
-                    }
-                  }
-                  const text = lines.join('\n');
-                  navigator.clipboard.writeText(text).then(() => alert('Отчёт скопирован в буфер обмена')).catch(() => alert('Не удалось скопировать. Отчёт:\n\n' + text));
-                }}
-                className="mt-2 mb-3 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded text-xs font-semibold"
-              >
-                📋 Скопировать отчёт
-              </button>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Время следования:</span>
-                  <span className="font-mono">{initialParams['Время_следования_мин']} мин</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Подача первого ствола:</span>
-                  <span className="font-mono">{initialParams['Время_подачи_первого_ствола_мин']} мин</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Локализация пожара:</span>
-                  <span className="font-mono">{additionalParams['Время_локализации_пожара_мин']} мин</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Ликвидация открытого горения:</span>
-                  <span className="font-mono">{additionalParams['Время_ликвидации_открытого_горения_мин']} мин</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Ликвидация последствий:</span>
-                  <span className="font-mono">{additionalParams['Время_ликвидации_последствий_пожара_мин']} мин</span>
-                </div>
-                <div className="flex justify-between border-t border-gray-700 mt-2 pt-2">
-                  <span className="text-gray-300 font-semibold">Итого потушено за:</span>
-                  <span className="font-mono text-emerald-300 font-bold">
-                    {additionalParams['Время_локализации_пожара_мин'] +
-                     additionalParams['Время_ликвидации_открытого_горения_мин'] +
-                     additionalParams['Время_ликвидации_последствий_пожара_мин']} мин
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 📊 Таблица по этапам */}
-          {finalSubmitted && (
-            <div className="mt-4 bg-gray-900 rounded-lg p-4 border border-blue-700/50">
-              <h3 className="text-base font-semibold text-blue-300 mb-3">📊 Прогноз vs Факт по этапам</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-700 text-gray-400">
-                      <th className="text-left py-2 px-2">Этап</th>
-                      <th className="text-center py-2 px-2">Прогноз сил</th>
-                      <th className="text-center py-2 px-2">Факт сил</th>
-                      <th className="text-center py-2 px-2">Прогноз времени</th>
-                      <th className="text-center py-2 px-2">Факт времени</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-gray-300">
-                    {[
-                      {
-                        idx: 0,
-                        label: 'Этап 1: Локализация',
-                        forecastForce: stageResults[0]?.['Всего_подано_пожарных_стволов_ед'],
-                        forecastTime: stageResults[0]?.['Время_локализации_пожара_мин'],
-                        factTime: additionalParams['Время_локализации_пожара_мин'],
-                      },
-                      {
-                        idx: 1,
-                        label: 'Этап 2: Ликв. горения',
-                        forecastForce: stageResults[1]?.['Всего_подано_пожарных_стволов_ед'],
-                        forecastTime: stageResults[1]?.['Время_ликвидации_открытого_горения_мин'],
-                        factTime: additionalParams['Время_ликвидации_открытого_горения_мин'],
-                      },
-                      {
-                        idx: 2,
-                        label: 'Этап 3: Ликв. последствий',
-                        forecastForce: stageResults[2]?.['Всего_подано_пожарных_стволов_ед'],
-                        forecastTime: stageResults[2]?.['Время_ликвидации_последствий_пожара_мин'],
-                        factTime: additionalParams['Время_ликвидации_последствий_пожара_мин'],
-                      },
-                      {
-                        idx: 3,
-                        label: 'Финальный',
-                        forecastForce: stageResults[3]?.['Всего_подано_пожарных_стволов_ед'],
-                        forecastTime: null,
-                        factTime: null,
-                      },
-                    ].map((row) => {
-                      const actuals = stageActuals[row.idx];
-                      const actualForceStr = actuals
-                        ? [
-                            actuals.ac > 0 ? `${actuals.ac} АЦ` : null,
-                            actuals.asa > 0 ? `${actuals.asa} АСА` : null,
-                            actuals.aso > 0 ? `${actuals.aso} АСО` : null,
-                            actuals.trains > 0 ? `${actuals.trains} ПП` : null,
-                            actuals.stvols > 0 ? `${actuals.stvols} ств.` : null,
-                            actuals.personnel > 0 ? `${actuals.personnel} л/с` : null,
-                          ].filter(Boolean).join(', ') || '—'
-                        : '—';
-                      return (
-                        <tr key={row.idx} className="border-b border-gray-800">
-                          <td className="py-2 px-2 text-gray-200">{row.label}</td>
-                          <td className="text-center py-2 px-2 font-mono text-purple-300">
-                            {typeof row.forecastForce === 'number' ? `${row.forecastForce} ств.` : '—'}
-                          </td>
-                          <td className="text-center py-2 px-2 font-mono text-emerald-300">
-                            {actualForceStr}
-                          </td>
-                          <td className="text-center py-2 px-2 font-mono text-purple-300">
-                            {typeof row.forecastTime === 'number' ? `${row.forecastTime.toFixed(1)} мин` : '—'}
-                          </td>
-                          <td className="text-center py-2 px-2 font-mono text-emerald-300">
-                            {typeof row.factTime === 'number' && row.factTime > 0 ? `${row.factTime.toFixed(1)} мин` : '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-[10px] text-gray-500 mt-3">
-                💡 Прогноз сил — рекомендация ML на момент этапа. Факт сил — что введено в панели «Текущие фактические силы» и зафиксировано кнопкой этапа.
-              </p>
-            </div>
-          )}
-
+                   
           {currentStage >= 4 && (
             <button
               onClick={handleNewFire}
