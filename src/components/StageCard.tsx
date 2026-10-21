@@ -15,6 +15,13 @@ interface StageCardProps {
   onTimeChange: (v: number) => void;
   onFix: () => void;
   loading?: boolean;
+  showForces?: boolean;
+  customTimeFields?: Array<{
+    key: string;
+    label: string;
+    value: number;
+    onChange: (v: number) => void;
+  }>;
 }
 
 export default function StageCard({
@@ -32,6 +39,8 @@ export default function StageCard({
   onTimeChange,
   onFix,
   loading,
+  showForces = true,
+  customTimeFields,
 }: StageCardProps) {
   const isLocked = state === 'locked';
   const isFixed = state === 'fixed';
@@ -62,7 +71,8 @@ export default function StageCard({
         {statusBadge}
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-3">
+      {showForces && (
+        <div className="grid grid-cols-3 gap-3 mb-3">
         <div>
           <label className="block text-xs text-gray-400 mb-1">АЦ-40 (ед.)</label>
           <input
@@ -130,13 +140,26 @@ export default function StageCard({
           />
         </div>
       </div>
+      )}
 
-      {timeLabel && (
+      {customTimeFields ? (
+        customTimeFields.map((field) => (
+          <div key={field.key} className="mb-3">
+            <label className="block text-sm text-gray-300 mb-1">{field.label}</label>
+            <input
+              type="number"
+              min="0"
+              value={field.value}
+              onChange={(e) => field.onChange(Math.max(0, parseFloat(e.target.value) || 0))}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white disabled:opacity-50"
+              disabled={inputsDisabled}
+            />
+          </div>
+        ))
+      ) : timeLabel ? (
         <div className="mb-3">
           <label className="block text-sm text-gray-300 mb-1">{timeLabel}</label>
-          {timeHint && (
-            <p className="text-xs text-gray-500 mb-1">ℹ️ {timeHint}</p>
-          )}
+          {timeHint && <p className="text-xs text-gray-500 mb-1">ℹ️ {timeHint}</p>}
           <input
             type="number"
             min="0"
@@ -146,7 +169,7 @@ export default function StageCard({
             disabled={inputsDisabled}
           />
         </div>
-      )}
+      ) : null}
 
       {isActive && (
         <button
@@ -160,21 +183,37 @@ export default function StageCard({
 
       {isFixed && hasForecast && (
         <div className="mt-3 p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg">
-          <div className="text-[10px] text-purple-400 font-semibold mb-1">🎯 Рекомендация ML на следующий этап</div>
-          <div className="space-y-1 text-xs text-gray-300">
-            {forecastForce !== null && forecastForce !== undefined && (
-              <div className="flex justify-between">
-                <span>Стволов:</span>
-                <span className="font-mono text-purple-200">{forecastForce}</span>
-              </div>
-            )}
-            {forecastTime !== null && forecastTime !== undefined && (
-              <div className="flex justify-between">
-                <span>Время:</span>
-                <span className="font-mono text-purple-200">{forecastTime.toFixed(1)} мин</span>
-              </div>
-            )}
-          </div>
+          <div className="text-[10px] text-purple-400 font-semibold mb-2">🎯 Прогноз ML и рекомендации</div>
+          <table className="w-full text-xs text-left">
+            <thead>
+              <tr className="border-b border-purple-700/40 text-purple-300">
+                <th className="pb-1 font-normal">Показатель</th>
+                <th className="pb-1 text-center font-normal">Прогноз ML</th>
+                <th className="pb-1 text-right font-normal">Факт</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-300">
+              {forecastTime !== null && forecastTime !== undefined && (
+                <tr>
+                  <td className="py-1">Время этапа</td>
+                  <td className="text-center font-mono text-purple-200">{forecastTime.toFixed(1)} мин</td>
+                  <td className="text-right font-mono text-emerald-200">{timeValue > 0 ? `${timeValue} мин` : '—'}</td>
+                </tr>
+              )}
+              {forecastForce !== null && (
+                <tr>
+                  <td className="py-1">Стволов</td>
+                  <td className="text-center font-mono text-purple-200">{forecastForce} шт.</td>
+                  <td className="text-right font-mono text-emerald-200">{current.stvols > 0 ? `${current.stvols} шт.` : '—'}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {forecastForce !== null && (
+            <div className="mt-2 pt-2 border-t border-purple-700/40 text-[10px] text-emerald-300">
+              ✅ Для перехода на следующий этап необходимо: {forecastForce} ств., и желательно {(current.ac + current.asa) > 0 ? (current.ac + current.asa) : 1} АЦ.
+            </div>
+          )}
         </div>
       )}
     </div>
