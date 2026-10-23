@@ -404,36 +404,57 @@ export default function PredictionPage() {
         {/* Кнопки этапов */}
         <div className="bg-gray-800 rounded-lg p-4 mb-3">
           <h2 className="text-lg font-semibold mb-4">Этапы прогнозирования</h2>
-          <div className="flex gap-3">
-            <button
-              onClick={() => handlePredict(0)}
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded font-semibold text-sm"
-            >
-              📍 На момент прибытия 1 РТП
-            </button>
-            <button
-              onClick={() => handlePredict(1)}
-              disabled={currentStage < 1 || loading}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded font-semibold text-sm"
-            >
-              🎯 Локализация
-            </button>
-            <button
-              onClick={() => handlePredict(2)}
-              disabled={currentStage < 2 || loading}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 rounded font-semibold text-sm"
-            >
-              🔥 Ликвидация открытого горения
-            </button>
-            <button
-              onClick={() => handlePredict(3)}
-              disabled={currentStage < 3 || loading}
-              className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 rounded font-semibold text-sm"
-            >
-              ✅ Полная ликвидация
-            </button>
+
+
+        {currentStage >= 4 && (
+          <div className="mt-4 mb-4 bg-gray-900 rounded-lg p-4 border border-blue-700/50">
+            <h3 className="text-sm font-semibold text-blue-300 mb-3">📊 Итоговый анализ пожара</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-600 text-gray-400">
+                    <th className="py-2 px-1">Этап</th>
+                    <th className="py-2 px-1">Рекомендуемые силы</th>
+                    <th className="py-2 px-1">Фактически подано</th>
+                    <th className="py-2 px-1">Прогноз времени</th>
+                    <th className="py-2 px-1">Факт времени</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-300">
+                  {[
+                    { idx: 0, label: '📍 1 РТП', timeKey: 'Время_локализации_пожара_мин' },
+                    { idx: 1, label: '🎯 Локализация', timeKey: 'Время_локализации_пожара_мин' },
+                    { idx: 2, label: '🔥 Горение', timeKey: 'Время_ликвидации_открытого_горения_мин' },
+                    { idx: 3, label: '✅ Ликвидация', timeKey: 'Время_ликвидации_последствий_пожара_мин' },
+                  ].map((row) => {
+                    const fForce = stageResults[row.idx]?.['Всего_подано_пожарных_стволов_ед'];
+                    const a = stageActuals[row.idx];
+                    const fTime = stageResults[row.idx]?.[row.timeKey] as number | undefined;
+                    const aTime = additionalParams[row.timeKey as keyof typeof additionalParams];
+
+                    return (
+                      <tr key={row.idx} className="border-b border-gray-700/50">
+                        <td className="py-2 px-1 text-gray-200">{row.label}</td>
+                        <td className="py-2 px-1 text-purple-300">
+                          {typeof fForce === 'number' ? `${fForce} ств.` : '—'}
+                        </td>
+                        <td className="py-2 px-1 text-emerald-300">
+                          {a ? `${a.stvols} ств. / ${a.ac} АЦ / ${a.personnel} л/с` : '—'}
+                        </td>
+                        <td className="py-2 px-1 text-purple-300">
+                          {typeof fTime === 'number' ? `${fTime.toFixed(1)} мин` : '—'}
+                        </td>
+                        <td className="py-2 px-1 text-emerald-300">
+                          {aTime ? `${aTime} мин` : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
+        )}
 
           <button
             onClick={handleSubmitFinal}
@@ -495,105 +516,7 @@ export default function PredictionPage() {
 
         {/* Результаты */}
         <div className="space-y-3">
-          {stageResults.map((result, idx) => {
-            if (!result) return null;
 
-            const stageLabel = idx === 0 ? '📍 На момент прибытия 1 РТП'
-              : idx === 1 ? '🎯 Локализация'
-              : idx === 2 ? '🔥 Ликвидация открытого горения'
-              : '✅ Полная ликвидация';
-
-            const actualStvols = initialParams['Всего_подано_пожарных_стволов_ед'];
-            const recommendedStvols = result['Всего_подано_пожарных_стволов_ед'];
-
-            return (
-              <div key={idx} className="bg-gray-800 rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-3">{stageLabel}</h3>
-
-                {idx < 3 && typeof recommendedStvols === 'number' && (
-                  <div className={`mb-3 p-2 rounded border ${
-                    recommendedStvols > actualStvols
-                      ? 'bg-orange-900/30 border-orange-500/50'
-                      : recommendedStvols < actualStvols
-                        ? 'bg-green-900/30 border-green-500/50'
-                        : 'bg-blue-900/30 border-blue-500/50'
-                  }`}>
-                    <div className="text-sm flex justify-between items-center">
-                      <span className="text-gray-300">
-                        📊 Фактически подано: <span className="font-mono font-bold">{actualStvols}</span> ств.
-                      </span>
-                      <span className={`font-mono font-bold ${
-                        recommendedStvols > actualStvols ? 'text-orange-300' :
-                        recommendedStvols < actualStvols ? 'text-green-300' : 'text-blue-300'
-                      }`}>
-                        ⭐ Рекомендуется: {recommendedStvols} ств.
-                        {recommendedStvols > actualStvols && ' ▲ увеличить'}
-                        {recommendedStvols < actualStvols && ' ▼ уменьшить'}
-                        {recommendedStvols === actualStvols && ' ✓ достаточно'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Рекомендуемые силы на этот этап */}
-                {typeof recommendedStvols === 'number' && recommendedStvols > 0 && (
-                  <div className="mb-3 p-2 rounded border border-orange-500/30 bg-orange-900/20">
-                    <div className="text-[10px] text-orange-400 font-semibold mb-1">🚒 Рекомендуемые силы на этап</div>
-                    <div className="grid grid-cols-3 gap-2 text-[11px]">
-                      <div className="flex flex-col">
-                        <span className="text-gray-400 text-[9px]">Стволов РСК-50</span>
-                        <span className="font-mono font-bold text-orange-200">{recommendedStvols}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-gray-400 text-[9px]">АЦ-40 ≈</span>
-                        <span className="font-mono font-bold text-orange-200">{Math.ceil(recommendedStvols / 2)}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-gray-400 text-[9px]">Л/с ≈</span>
-                        <span className="font-mono font-bold text-orange-200">{recommendedStvols}</span>
-                      </div>
-                    </div>
-                    <div className="text-[9px] text-orange-300/60 mt-1">
-                      Расчёт: 2 ствола РСК-50 на АЦ-40, 1 человек на ствол
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  {PARAM_ORDER.filter(key => key in result).map((key) => {
-                    const value = result[key];
-                    const isRecommended = RECOMMENDED_KEYS.has(key);
-                    const isForecast = FORECAST_KEYS.has(key);
-                    const label = PARAM_LABELS[key] || key;
-
-                    let tag = null;
-                    if (isForecast) {
-                      tag = <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 ml-2">🔮 прогноз</span>;
-                    } else if (isRecommended) {
-                      tag = <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200 ml-2">⭐ рекомендация</span>;
-                    }
-
-                    return (
-                      <div key={key} className="flex justify-between items-center text-sm py-1 border-b border-gray-700/50">
-                        <span className="text-gray-400 flex items-center">
-                          {label}
-                          {tag}
-                        </span>
-                        <span className={`font-mono font-semibold ${
-                          isForecast ? 'text-purple-200' : isRecommended ? 'text-emerald-200' : 'text-white'
-                        }`}>
-                          {formatValue(value)}
-                          {isForecast && ' мин'}
-                          {key === 'Всего_подано_пожарных_стволов_ед' && ' ств.'}
-                          {(key.includes('автомобилей') || key.includes('поездов')) && ' ед.'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>
