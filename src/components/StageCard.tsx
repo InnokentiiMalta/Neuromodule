@@ -211,7 +211,7 @@ export default function StageCard({
           </table>
           {forecastForce !== null && (
             <div className="mt-2 pt-2 border-t border-purple-700/40 text-[10px] text-emerald-300">
-              ✅ Для перехода на следующий этап необходимо: {forecastForce} ств., и желательно {(current.ac + current.asa) > 0 ? (current.ac + current.asa) : 1} АЦ.
+              💡 На текущий момент рекомендуется не меньше {forecastForce} стволов.
             </div>
           )}
         </div>

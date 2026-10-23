@@ -337,50 +337,6 @@ export default function PredictionPage() {
             const forecastForce = stageResults[stageIdx]?.['Всего_подано_пожарных_стволов_ед'] as number | undefined;
             const forecastTime = stageIdx < 3 ? (stageResults[stageIdx]?.[stageIdx === 0 ? 'Время_локализации_пожара_мин' : stageIdx === 1 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] as number | undefined) : undefined;
 
-            return (
-              <StageCard
-                key={stageIdx}
-                stageIndex={stageIdx}
-                stageLabel={stageConfig.label}
-                timeLabel={stageConfig.timeLabel}
-                timeHint={stageConfig.timeHint}
-                state={state}
-                actuals={isFixed ? currentActuals : null}
-                current={currentActuals}
-                timeValue={timeValue}
-                forecastForce={isFixed ? forecastForce : null}
-                forecastTime={isFixed ? forecastTime : null}
-                onActualsChange={setCurrentActuals}
-                onTimeChange={(v) => {
-                  const key = stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин';
-                  setAdditionalParams(prev => ({ ...prev, [key]: v }));
-                }}
-                onFix={() => handlePredict(stageIdx)}
-                loading={loading}
-              />
-            );
-          })}
-        </div>
-
-        {/* Карточки этапов */}
-        <div className="space-y-3 mb-3">
-          {[0, 1, 2, 3].map((stageIdx) => {
-            const isLocked = stageIdx > currentStage;
-            const isFixed = stageIdx < currentStage;
-            const state = isLocked ? 'locked' : (isFixed ? 'fixed' : 'active');
-
-            const stageConfig = [
-              { label: '📍 На момент прибытия 1 РТП', timeLabel: undefined, timeHint: undefined },
-              { label: '🎯 Локализация', timeLabel: 'Время локализации (мин)', timeHint: 'Длительность фазы локализации' },
-              { label: '🔥 Ликвидация открытого горения', timeLabel: 'Время ликвидации горения (мин)', timeHint: 'Длительность фазы ликвидации горения' },
-              { label: '✅ Полная ликвидация', timeLabel: 'Время ликвидации последствий (мин)', timeHint: 'Длительность последней фазы. Полная ликвидация = все работы завершены.' },
-            ][stageIdx];
-
-            const timeValue = stageIdx === 0 ? 0 : (additionalParams[stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] || 0);
-
-            const forecastForce = stageResults[stageIdx]?.['Всего_подано_пожарных_стволов_ед'] as number | undefined;
-            const forecastTime = stageIdx < 3 ? (stageResults[stageIdx]?.[stageIdx === 0 ? 'Время_локализации_пожара_мин' : stageIdx === 1 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] as number | undefined) : undefined;
-
             const showForces = stageIdx > 0;
 
             return (
@@ -391,7 +347,7 @@ export default function PredictionPage() {
                 timeLabel={stageConfig.timeLabel}
                 timeHint={stageConfig.timeHint}
                 state={state}
-                actuals={isFixed ? currentActuals : null}
+                actuals={isFixed ? stageActuals[stageIdx] : null}
                 current={currentActuals}
                 timeValue={timeValue}
                 forecastForce={isFixed ? forecastForce : null}
