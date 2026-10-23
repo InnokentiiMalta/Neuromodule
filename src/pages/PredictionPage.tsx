@@ -278,7 +278,7 @@ export default function PredictionPage() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-300 mb-1">Время начала работ</label>
+              <label className="block text-sm text-gray-300 mb-1">Момент прибытия 1 пожарного подразделения</label>
               <input
                 type="time"
                 value={workTime}
@@ -294,6 +294,29 @@ export default function PredictionPage() {
         </div>
 
         {/* Начальные параметры */}
+        <div className="bg-gray-800 rounded-lg p-4 mb-3">
+          <h2 className="text-lg font-semibold mb-3">🚒 Начальные параметры</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Время следования (мин)</label>
+              <input 
+                type="number" 
+                value={initialParams['Время_следования_мин']} 
+                onChange={(e) => setInitialParams(prev => ({ ...prev, 'Время_следования_мин': parseFloat(e.target.value) || 0 }))} 
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Время подачи первого ствола (мин)</label>
+              <input 
+                type="number" 
+                value={initialParams['Время_подачи_первого_ствола_мин']} 
+                onChange={(e) => setInitialParams(prev => ({ ...prev, 'Время_подачи_первого_ствола_мин': parseFloat(e.target.value) || 0 }))} 
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white" 
+              />
+            </div>
+          </div>
+        </div>
 
         {/* Карточки этапов */}
         <div className="space-y-3 mb-3">
@@ -359,20 +382,6 @@ export default function PredictionPage() {
             const forecastTime = stageIdx < 3 ? (stageResults[stageIdx]?.[stageIdx === 0 ? 'Время_локализации_пожара_мин' : stageIdx === 1 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] as number | undefined) : undefined;
 
             const showForces = stageIdx > 0;
-            const customTimeFields = stageIdx === 0 ? [
-              {
-                key: 'time_following',
-                label: 'Время следования (мин)',
-                value: initialParams['Время_следования_мин'],
-                onChange: (v: number) => setInitialParams(prev => ({ ...prev, 'Время_следования_мин': v }))
-              },
-              {
-                key: 'time_first_barrel',
-                label: 'Время подачи первого ствола (мин)',
-                value: initialParams['Время_подачи_первого_ствола_мин'],
-                onChange: (v: number) => setInitialParams(prev => ({ ...prev, 'Время_подачи_первого_ствола_мин': v }))
-              }
-            ] : undefined;
 
             return (
               <StageCard
@@ -395,7 +404,6 @@ export default function PredictionPage() {
                 onFix={() => handlePredict(stageIdx)}
                 loading={loading}
                 showForces={showForces}
-                customTimeFields={customTimeFields}
               />
             );
           })}

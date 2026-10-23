@@ -78,7 +78,7 @@ export default function StageCard({
           <input
             type="number"
             min="0"
-            value={current.ac}
+            value={isFixed && actuals ? actuals.ac : current.ac}
             onChange={(e) => onActualsChange({ ...current, ac: Math.max(0, parseInt(e.target.value, 10) || 0) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
@@ -89,7 +89,7 @@ export default function StageCard({
           <input
             type="number"
             min="0"
-            value={current.asa}
+            value={isFixed && actuals ? actuals.asa : current.asa}
             onChange={(e) => onActualsChange({ ...current, asa: Math.max(0, parseInt(e.target.value, 10) || 0) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
@@ -100,7 +100,7 @@ export default function StageCard({
           <input
             type="number"
             min="0"
-            value={current.aso}
+            value={isFixed && actuals ? actuals.aso : current.aso}
             onChange={(e) => onActualsChange({ ...current, aso: Math.max(0, parseInt(e.target.value, 10) || 0) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
@@ -111,7 +111,7 @@ export default function StageCard({
           <input
             type="number"
             min="0"
-            value={current.trains}
+            value={isFixed && actuals ? actuals.trains : current.trains}
             onChange={(e) => onActualsChange({ ...current, trains: Math.max(0, parseInt(e.target.value, 10) || 0) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
@@ -122,7 +122,7 @@ export default function StageCard({
           <input
             type="number"
             min="0"
-            value={current.stvols}
+            value={isFixed && actuals ? actuals.stvols : current.stvols}
             onChange={(e) => onActualsChange({ ...current, stvols: Math.max(0, parseInt(e.target.value, 10) || 0) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
@@ -133,7 +133,7 @@ export default function StageCard({
           <input
             type="number"
             min="0"
-            value={current.personnel}
+            value={isFixed && actuals ? actuals.personnel : current.personnel}
             onChange={(e) => onActualsChange({ ...current, personnel: Math.max(0, parseInt(e.target.value, 10) || 0) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
