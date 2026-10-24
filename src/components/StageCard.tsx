@@ -11,6 +11,11 @@ interface StageCardProps {
   timeValue: number;
   forecastForce?: number | null;
   forecastTime?: number | null;
+  forecastAc?: number | null;
+  forecastAso?: number | null;
+  forecastAsa?: number | null;
+  forecastTrains?: number | null;
+  forecastPersonnel?: number | null;
   onActualsChange: (a: StageActuals) => void;
   onTimeChange: (v: number) => void;
   onFix: () => void;
@@ -35,6 +40,11 @@ export default function StageCard({
   timeValue,
   forecastForce,
   forecastTime,
+  forecastAc,
+  forecastAso,
+  forecastAsa,
+  forecastTrains,
+  forecastPersonnel,
   onActualsChange,
   onTimeChange,
   onFix,
@@ -183,7 +193,9 @@ export default function StageCard({
 
       {isFixed && hasForecast && (
         <div className="mt-3 p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg">
-          <div className="text-[10px] text-purple-400 font-semibold mb-2">🎯 Прогноз ML и рекомендации</div>
+          <div className="text-[10px] text-purple-400 font-semibold mb-2">
+            🎯 Прогноз ML <span className="text-purple-300/70 font-normal">(прогноз / рекомендация)</span>
+          </div>
           <table className="w-full text-xs text-left">
             <thead>
               <tr className="border-b border-purple-700/40 text-purple-300">
@@ -193,23 +205,48 @@ export default function StageCard({
               </tr>
             </thead>
             <tbody className="text-gray-300">
-              {forecastTime !== null && forecastTime !== undefined && (
+              {forecastTime != null && (
                 <tr>
                   <td className="py-1">Время этапа</td>
                   <td className="text-center font-mono text-purple-200">{forecastTime.toFixed(1)} мин</td>
                   <td className="text-right font-mono text-emerald-200">{timeValue > 0 ? `${timeValue} мин` : '—'}</td>
                 </tr>
               )}
-              {forecastForce !== null && (
+              {forecastForce != null && (
                 <tr>
                   <td className="py-1">Стволов</td>
                   <td className="text-center font-mono text-purple-200">{forecastForce} шт.</td>
-                  <td className="text-right font-mono text-emerald-200">{current.stvols > 0 ? `${current.stvols} шт.` : '—'}</td>
+                  <td className="text-right font-mono text-emerald-200">{actuals && actuals.stvols > 0 ? `${actuals.stvols} шт.` : '—'}</td>
                 </tr>
               )}
+              <tr>
+                <td className="py-1">Количество АЦ</td>
+                <td className="text-center font-mono text-purple-200">{forecastAc != null ? `${forecastAc} ед.` : '—'}</td>
+                <td className="text-right font-mono text-emerald-200">{actuals && actuals.ac > 0 ? `${actuals.ac} ед.` : '—'}</td>
+              </tr>
+              <tr>
+                <td className="py-1">Количество АСО</td>
+                <td className="text-center font-mono text-purple-200">{forecastAso != null ? `${forecastAso} ед.` : '—'}</td>
+                <td className="text-right font-mono text-emerald-200">{actuals && actuals.aso > 0 ? `${actuals.aso} ед.` : '—'}</td>
+              </tr>
+              <tr>
+                <td className="py-1">Количество АСА</td>
+                <td className="text-center font-mono text-purple-200">{forecastAsa != null ? `${forecastAsa} ед.` : '—'}</td>
+                <td className="text-right font-mono text-emerald-200">{actuals && actuals.asa > 0 ? `${actuals.asa} ед.` : '—'}</td>
+              </tr>
+              <tr>
+                <td className="py-1">Пожарный поезд</td>
+                <td className="text-center font-mono text-purple-200">{forecastTrains != null ? `${forecastTrains} ед.` : '—'}</td>
+                <td className="text-right font-mono text-emerald-200">{actuals && actuals.trains > 0 ? `${actuals.trains} ед.` : '—'}</td>
+              </tr>
+              <tr>
+                <td className="py-1">Количество людей</td>
+                <td className="text-center font-mono text-purple-200">{forecastPersonnel != null ? `${forecastPersonnel} чел.` : '—'}</td>
+                <td className="text-right font-mono text-emerald-200">{actuals && actuals.personnel > 0 ? `${actuals.personnel} чел.` : '—'}</td>
+              </tr>
             </tbody>
           </table>
-          {forecastForce !== null && (
+          {forecastForce != null && (
             <div className="mt-2 pt-2 border-t border-purple-700/40 text-[10px] text-emerald-300">
               💡 На текущий момент рекомендуется не меньше {forecastForce} стволов.
             </div>
