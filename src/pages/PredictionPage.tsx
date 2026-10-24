@@ -390,10 +390,13 @@ export default function PredictionPage() {
                 <thead>
                   <tr className="border-b border-gray-600 text-gray-400">
                     <th className="py-2 px-1">Этап</th>
-                    <th className="py-2 px-1">Рекомендуемые силы</th>
-                    <th className="py-2 px-1">Фактически подано</th>
-                    <th className="py-2 px-1">Прогноз времени</th>
-                    <th className="py-2 px-1">Факт времени</th>
+                    <th className="py-2 px-1">Стволы (П/Ф)</th>
+                    <th className="py-2 px-1">АЦ (П/Ф)</th>
+                    <th className="py-2 px-1">АСО (П/Ф)</th>
+                    <th className="py-2 px-1">АСА (П/Ф)</th>
+                    <th className="py-2 px-1">Поезд (П/Ф)</th>
+                    <th className="py-2 px-1">Л/С (П/Ф)</th>
+                    <th className="py-2 px-1">Время (П/Ф)</th>
                   </tr>
                 </thead>
                 <tbody className="text-gray-300">
@@ -404,34 +407,62 @@ export default function PredictionPage() {
                     { idx: 3, label: '✅ Ликвидация', timeKey: 'Время_ликвидации_последствий_пожара_мин' },
                   ].map((row) => {
                     const fRes = stageResults[row.idx] as Record<string, number> | null;
+                    const a = stageActuals[row.idx];
+
                     const fStvols = fRes?.['Всего_подано_пожарных_стволов_ед'];
                     const fAc = fRes?.['Количество_основных_пожарных_автомобилей_ед'];
                     const fAso = fRes?.['Количество_АСО_ед'];
                     const fAsa = fRes?.['Количество_АСА_ед'];
                     const fTrains = fRes?.['Количество_пожарных_поездов_ед'];
                     const fPersonnel = fRes?.['Количество_людей_ед'];
-
-                    const fString = `${fStvols != null ? fStvols : '-'} ств. / ${fAc != null ? fAc : '-'} АЦ / ${fAso != null ? fAso : '-'} АСО / ${fAsa != null ? fAsa : '-'} АСА / ${fTrains != null ? fTrains : '-'} п. поезд / ${fPersonnel != null ? fPersonnel : '-'} л/с`;
-
-                    const a = stageActuals[row.idx];
-                    const aString = a ? `${a.stvols} ств. / ${a.ac} АЦ / ${a.aso} АСО / ${a.asa} АСА / ${a.trains} п. поезд / ${a.personnel} л/с` : '-';
-                    const fTime = stageResults[row.idx]?.[row.timeKey] as number | undefined;
+                    
+                    const fTime = fRes?.[row.timeKey] as number | undefined;
                     const aTime = additionalParams[row.timeKey as keyof typeof additionalParams];
 
                     return (
-                      <tr key={row.idx} className="border-b border-gray-700/50">
-                        <td className="py-2 px-1 text-gray-200">{row.label}</td>
-                        <td className="py-2 px-1 text-purple-300 text-xs leading-tight">
-                          {fString}
+                      <tr key={row.idx} className="border-b border-gray-700/50 text-xs">
+                        <td className="py-2 px-1 text-gray-200 whitespace-nowrap">{row.label}</td>
+                        
+                        <td className="py-2 px-1 whitespace-nowrap">
+                          <span className="text-purple-300">{fStvols != null ? `${fStvols}` : '—'}</span>
+                          <span className="text-gray-500 mx-1">/</span>
+                          <span className="text-emerald-300">{a ? `${a.stvols}` : '—'}</span>
                         </td>
-                        <td className="py-2 px-1 text-emerald-300 text-xs leading-tight">
-                          {aString}
+                        
+                        <td className="py-2 px-1 whitespace-nowrap">
+                          <span className="text-purple-300">{fAc != null ? `${fAc}` : '—'}</span>
+                          <span className="text-gray-500 mx-1">/</span>
+                          <span className="text-emerald-300">{a ? `${a.ac}` : '—'}</span>
                         </td>
-                        <td className="py-2 px-1 text-purple-300">
-                          {typeof fTime === 'number' ? `${fTime.toFixed(1)} мин` : '—'}
+                        
+                        <td className="py-2 px-1 whitespace-nowrap">
+                          <span className="text-purple-300">{fAso != null ? `${fAso}` : '—'}</span>
+                          <span className="text-gray-500 mx-1">/</span>
+                          <span className="text-emerald-300">{a ? `${a.aso}` : '—'}</span>
                         </td>
-                        <td className="py-2 px-1 text-emerald-300">
-                          {aTime ? `${aTime} мин` : '—'}
+
+                        <td className="py-2 px-1 whitespace-nowrap">
+                          <span className="text-purple-300">{fAsa != null ? `${fAsa}` : '—'}</span>
+                          <span className="text-gray-500 mx-1">/</span>
+                          <span className="text-emerald-300">{a ? `${a.asa}` : '—'}</span>
+                        </td>
+
+                        <td className="py-2 px-1 whitespace-nowrap">
+                          <span className="text-purple-300">{fTrains != null ? `${fTrains}` : '—'}</span>
+                          <span className="text-gray-500 mx-1">/</span>
+                          <span className="text-emerald-300">{a ? `${a.trains}` : '—'}</span>
+                        </td>
+
+                        <td className="py-2 px-1 whitespace-nowrap">
+                          <span className="text-purple-300">{fPersonnel != null ? `${fPersonnel}` : '—'}</span>
+                          <span className="text-gray-500 mx-1">/</span>
+                          <span className="text-emerald-300">{a ? `${a.personnel}` : '—'}</span>
+                        </td>
+
+                        <td className="py-2 px-1 whitespace-nowrap">
+                          <span className="text-purple-300">{fTime != null ? `${fTime.toFixed(1)}` : '—'}</span>
+                          <span className="text-gray-500 mx-1">/</span>
+                          <span className="text-emerald-300">{aTime > 0 ? `${aTime}` : '—'}</span>
                         </td>
                       </tr>
                     );
