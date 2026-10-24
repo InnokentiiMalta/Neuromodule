@@ -5,3 +5,5 @@ release/
 .DS_Store
 .next/
 build/
+__pycache__/
+*.pyc
