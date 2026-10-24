@@ -385,26 +385,29 @@ export default function PredictionPage() {
         {currentStage >= 4 && (
           <div className="mt-4 mb-4 bg-gray-900 rounded-lg p-4 border border-blue-700/50">
             <h3 className="text-sm font-semibold text-blue-300 mb-3">📊 Итоговый анализ пожара</h3>
+            <p className="text-[10px] text-gray-400 mb-2">
+              П/Ф — Прогноз или Рекомендация / Фактическое значение
+            </p>
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gray-600 text-gray-400">
                     <th className="py-2 px-1">Этап</th>
-                    <th className="py-2 px-1">Стволы (П/Ф)</th>
-                    <th className="py-2 px-1">АЦ (П/Ф)</th>
-                    <th className="py-2 px-1">АСО (П/Ф)</th>
-                    <th className="py-2 px-1">АСА (П/Ф)</th>
-                    <th className="py-2 px-1">Поезд (П/Ф)</th>
-                    <th className="py-2 px-1">Л/С (П/Ф)</th>
-                    <th className="py-2 px-1">Время (П/Ф)</th>
+                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">Стволы (П/Ф)</th>
+                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">АЦ (П/Ф)</th>
+                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">АСО (П/Ф)</th>
+                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">АСА (П/Ф)</th>
+                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">Поезд (П/Ф)</th>
+                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">Л/С (П/Ф)</th>
+                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">Время (П/Ф)</th>
                   </tr>
                 </thead>
                 <tbody className="text-gray-300">
                   {[
                     { idx: 0, label: '📍 1 РТП', timeKey: 'Время_локализации_пожара_мин' },
                     { idx: 1, label: '🎯 Локализация', timeKey: 'Время_локализации_пожара_мин' },
-                    { idx: 2, label: '🔥 Горение', timeKey: 'Время_ликвидации_открытого_горения_мин' },
-                    { idx: 3, label: '✅ Ликвидация', timeKey: 'Время_ликвидации_последствий_пожара_мин' },
+                    { idx: 2, label: '🔥 Ликвидация открытого горения', timeKey: 'Время_ликвидации_открытого_горения_мин' },
+                    { idx: 3, label: '✅ Полная ликвидация', timeKey: 'Время_ликвидации_последствий_пожара_мин' },
                   ].map((row) => {
                     const fRes = stageResults[row.idx] as Record<string, number> | null;
                     const a = stageActuals[row.idx];
