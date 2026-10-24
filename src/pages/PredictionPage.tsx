@@ -403,19 +403,29 @@ export default function PredictionPage() {
                     { idx: 2, label: '🔥 Горение', timeKey: 'Время_ликвидации_открытого_горения_мин' },
                     { idx: 3, label: '✅ Ликвидация', timeKey: 'Время_ликвидации_последствий_пожара_мин' },
                   ].map((row) => {
-                    const fForce = stageResults[row.idx]?.['Всего_подано_пожарных_стволов_ед'];
+                    const fRes = stageResults[row.idx] as Record<string, number> | null;
+                    const fStvols = fRes?.['Всего_подано_пожарных_стволов_ед'];
+                    const fAc = fRes?.['Количество_основных_пожарных_автомобилей_ед'];
+                    const fAso = fRes?.['Количество_АСО_ед'];
+                    const fAsa = fRes?.['Количество_АСА_ед'];
+                    const fTrains = fRes?.['Количество_пожарных_поездов_ед'];
+                    const fPersonnel = fRes?.['Количество_людей_ед'];
+
+                    const fString = `${fStvols != null ? fStvols : '-'} ств. / ${fAc != null ? fAc : '-'} АЦ / ${fAso != null ? fAso : '-'} АСО / ${fAsa != null ? fAsa : '-'} АСА / ${fTrains != null ? fTrains : '-'} п. поезд / ${fPersonnel != null ? fPersonnel : '-'} л/с`;
+
                     const a = stageActuals[row.idx];
+                    const aString = a ? `${a.stvols} ств. / ${a.ac} АЦ / ${a.aso} АСО / ${a.asa} АСА / ${a.trains} п. поезд / ${a.personnel} л/с` : '-';
                     const fTime = stageResults[row.idx]?.[row.timeKey] as number | undefined;
                     const aTime = additionalParams[row.timeKey as keyof typeof additionalParams];
 
                     return (
                       <tr key={row.idx} className="border-b border-gray-700/50">
                         <td className="py-2 px-1 text-gray-200">{row.label}</td>
-                        <td className="py-2 px-1 text-purple-300">
-                          {typeof fForce === 'number' ? `${fForce} ств.` : '—'}
+                        <td className="py-2 px-1 text-purple-300 text-xs leading-tight">
+                          {fString}
                         </td>
-                        <td className="py-2 px-1 text-emerald-300">
-                          {a ? `${a.stvols} ств. / ${a.ac} АЦ / ${a.personnel} л/с` : '—'}
+                        <td className="py-2 px-1 text-emerald-300 text-xs leading-tight">
+                          {aString}
                         </td>
                         <td className="py-2 px-1 text-purple-300">
                           {typeof fTime === 'number' ? `${fTime.toFixed(1)} мин` : '—'}
@@ -437,7 +447,7 @@ export default function PredictionPage() {
             disabled={currentStage < 4 || loading || finalSubmitted}
             className="mt-3 w-full py-2 bg-emerald-700 hover:bg-emerald-600 disabled:bg-gray-600 disabled:opacity-60 rounded font-semibold text-sm"
           >
-            {finalSubmitted ? '✓ Результаты сохранены' : '📋 Общие итоговые результаты'}
+            {finalSubmitted ? '✓ Данные отправлены' : '💾 Отправка в базу данных'}
           </button>
 
           {dataStatus && (
