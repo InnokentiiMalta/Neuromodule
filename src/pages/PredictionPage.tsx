@@ -144,12 +144,10 @@ export default function PredictionPage() {
   const buildInputData = (stage: number) => {
     const data: Record<string, number> = { ...initialParams };
 
-    // Для этапов > 0 используем фактические силы, введённые РТП на карточке этапа
-    if (stage >= 1) {
-      data['Количество_основных_пожарных_автомобилей_ед'] = currentActuals.ac;
-      data['Количество_специальных_пожарных_автомобилей_ед'] = currentActuals.asa + currentActuals.aso;
-      data['Количество_пожарных_поездов_ед'] = currentActuals.trains;
-    }
+    data['Количество_основных_пожарных_автомобилей_ед'] = currentActuals.ac;
+    data['Количество_специальных_пожарных_автомобилей_ед'] = currentActuals.asa + currentActuals.aso;
+    data['Количество_пожарных_поездов_ед'] = currentActuals.trains;
+    data['Всего_подано_пожарных_стволов_ед'] = currentActuals.stvols;
 
     if (stage >= 1) {
       data['Время_локализации_пожара_мин'] = additionalParams['Время_локализации_пожара_мин'];
@@ -199,6 +197,10 @@ export default function PredictionPage() {
         'Время_ликвидации_открытого_горения_мин': additionalParams['Время_ликвидации_открытого_горения_мин'],
         'Время_ликвидации_последствий_пожара_мин': additionalParams['Время_ликвидации_последствий_пожара_мин'],
       };
+      finalData['Количество_основных_пожарных_автомобилей_ед'] = currentActuals.ac;
+      finalData['Количество_специальных_пожарных_автомобилей_ед'] = currentActuals.asa + currentActuals.aso;
+      finalData['Количество_пожарных_поездов_ед'] = currentActuals.trains;
+      finalData['Всего_подано_пожарных_стволов_ед'] = currentActuals.stvols;
       finalData['Время_тушения_мин'] =
         additionalParams['Время_локализации_пожара_мин'] +
         additionalParams['Время_ликвидации_открытого_горения_мин'];
@@ -345,8 +347,6 @@ export default function PredictionPage() {
             const forecastAsa = (stageResult?.['Количество_АСА_ед'] ?? null) as number | null;
             const forecastPersonnel = (stageResult?.['Количество_людей_ед'] ?? null) as number | null;
 
-            const showForces = stageIdx > 0;
-
             return (
               <StageCard
                 key={stageIdx}
@@ -372,7 +372,6 @@ export default function PredictionPage() {
                 }}
                 onFix={() => handlePredict(stageIdx)}
                 loading={loading}
-                showForces={showForces}
               />
             );
           })}
