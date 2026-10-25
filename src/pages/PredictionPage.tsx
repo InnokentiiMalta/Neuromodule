@@ -165,6 +165,16 @@ export default function PredictionPage() {
   const handlePredict = async (stage: number) => {
     setLoading(true);
     setError(null);
+
+    // --- ВАЛИДАЦИЯ СИЛ И СРЕДСТВ ---
+    const minPersonnel = currentActuals.ac + currentActuals.stvols;
+    if (currentActuals.personnel < minPersonnel) {
+      setError(`Недостаточно личного состава! Для ${currentActuals.ac} АЦ и ${currentActuals.stvols} стволов требуется минимум ${minPersonnel} человек (1 водитель на АЦ + 1 ствольщик на ствол). Сейчас указано: ${currentActuals.personnel}.`);
+      setLoading(false);
+      return;
+    }
+    // --------------------------------
+
     try {
       const inputData = buildInputData(stage);
       const result = await predictStage(inputData, stage);
