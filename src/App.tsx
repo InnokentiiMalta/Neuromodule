@@ -1934,10 +1934,12 @@ export default function App() {
                         <span className="text-gray-500">{unit.role}</span>
                       </div>
                     ))}
-                    {manualUnits.filter(u => u.ptvDeployed).map((unit, idx) => (
+                    {manualUnits.map((unit, idx) => (
                       <div key={unit.id} className="text-[8px] text-blue-300 flex justify-between">
                         <span>{(deployment?.units?.length ?? 0) + idx + 1}. {unit.name}</span>
-                        <span className="text-blue-400">вручную</span>
+                        <span className={unit.ptvDeployed ? "text-blue-400" : "text-gray-500"}>
+                          {unit.role === 'Рекомендовано ML' ? 'Рекомендация' : unit.role === 'Фактические силы' ? 'Факт' : 'Вручную'}
+                        </span>
                       </div>
                     ))}
                   </div>

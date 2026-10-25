@@ -218,12 +218,19 @@ export default function PredictionPage() {
     }
 
     const totalVehicles = ac + asa + aso;
-    // Распределяем стволы: по 1 на машину, остаток - первым
-    let stvolsRemainder = stvols;
+    
+    // Распределяем стволы (в том числе по несколько на одну машину, если их больше)
+    const baseNozzlesPerVehicle = totalVehicles > 0 ? Math.floor(stvols / totalVehicles) : 0;
+    let nozzlesRemainder = totalVehicles > 0 ? stvols % totalVehicles : 0;
+    
     const getNozzles = (canDeploy: boolean) => {
       if (!canDeploy) return 0;
-      if (stvolsRemainder > 0) { stvolsRemainder--; return 1; }
-      return 0;
+      let n = baseNozzlesPerVehicle;
+      if (nozzlesRemainder > 0) {
+        n++;
+        nozzlesRemainder--;
+      }
+      return n;
     };
     if (totalVehicles === 0 && trains === 0) {
       alert('Нет техники для расстановки на этом этапе.');
