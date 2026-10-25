@@ -1879,7 +1879,7 @@ export default function App() {
                   })()}
                 </div>
                             <div className="text-[9px] text-gray-400 text-center mb-1">
-                                Добавлено вручную: <span className="text-white font-bold">{manualOnlyCount}</span> ед.
+                                Добавлено вручную: <span className="text-white font-bold">{manualUnits.filter(u => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы').length}</span> ед.
                             </div>
 
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
