@@ -399,7 +399,7 @@ def predict_fire_parameters(model, scalers, y_scalers, input_data, stage):
         cls_pred = torch.argmax(cls_pred, dim=1).numpy()[0] + 1
     result = {}
     # Предсказываем время, технику и людей (регрессия)
-    if stage < 3:
+    if stage <= 3:
         for i, col in enumerate(output_features[stage][:-1]):
             try:
                 # ОБРАТНОЕ ПРЕОБРАЗОВАНИЕ: сначала inverse_transform, потом expm1 (т.к. учили на log1p)
