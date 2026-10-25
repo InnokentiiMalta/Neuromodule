@@ -28,6 +28,7 @@ function startPythonServer(port = 8000) {
   console.log('[Electron] Запуск Python-сервера:', serverPath);
 
   pythonProcess = spawn(serverPath, [], {
+    cwd: path.dirname(serverPath),
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
@@ -37,16 +38,27 @@ function startPythonServer(port = 8000) {
     windowsHide: true
   });
 
+  const logFile = path.join(app.getPath('userData'), 'server_log.txt');
+
+  // Очищаем старый лог при старте
+  fs.writeFileSync(logFile, '--- SERVER START ---\n');
+
   pythonProcess.stdout.on('data', (data) => {
-    console.log('[PYTHON]', data.toString().trim());
+    const text = data.toString();
+    console.log('[PYTHON]', text.trim());
+    fs.appendFileSync(logFile, text);
   });
 
   pythonProcess.stderr.on('data', (data) => {
-    console.error('[PYTHON ERR]', data.toString().trim());
+    const text = data.toString();
+    console.error('[PYTHON ERR]', text.trim());
+    fs.appendFileSync(logFile, '[ERR] ' + text);
   });
 
   pythonProcess.on('exit', (code) => {
-    console.log('[Electron] Python-сервер завершил работу с кодом:', code);
+    const msg = `\n--- SERVER EXITED WITH CODE: ${code} ---\n`;
+    console.log('[Electron]', msg);
+    fs.appendFileSync(logFile, msg);
     pythonProcess = null;
   });
 
