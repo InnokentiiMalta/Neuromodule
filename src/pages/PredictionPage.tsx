@@ -187,6 +187,54 @@ export default function PredictionPage() {
     }
   };
 
+  const handlePlaceForces = (stageIdx: number) => {
+    const result = stageResults[stageIdx] as Record<string, number> | null;
+    if (!result) return;
+
+    const ac = result['Количество_основных_пожарных_автомобилей_ед'] || 0;
+    const asa = result['Количество_АСА_ед'] || 0;
+    const aso = result['Количество_АСО_ед'] || 0;
+
+    if (ac === 0 && asa === 0 && aso === 0) {
+      alert('Модель не рекомендовала технику для этого этапа.');
+      return;
+    }
+
+    const existingUnits = JSON.parse(localStorage.getItem('map_manualUnits') || '[]');
+    const newUnits = [...existingUnits];
+
+    let startX = 100;
+    let startY = 100;
+
+    const addUnits = (count: number, type: string, name: string, personnel: number) => {
+      for (let i = 0; i < count; i++) {
+        newUnits.push({
+          id: `manual-${Date.now()}-${type}-${i}`,
+          type: type as any,
+          name: name,
+          x: startX,
+          y: startY,
+          angle: 0,
+          personnel: personnel,
+          hoses: 0,
+          role: 'Рекомендовано ML',
+          safeDistance: 200,
+          division: '',
+          ptvDeployed: false,
+        });
+        startX += 50;
+        if (startX > 600) { startX = 100; startY += 60; }
+      }
+    };
+
+    addUnits(ac, 'ac', 'АЦ-40', 2);
+    addUnits(asa, 'asa', 'АСА', 3);
+    addUnits(aso, 'aso', 'АСО', 1);
+
+    localStorage.setItem('map_manualUnits', JSON.stringify(newUnits));
+    alert(`На карту добавлено: ${ac} АЦ, ${asa} АСА, ${aso} АСО. Перейдите на карту, чтобы увидеть.`);
+  };
+
   const handleSubmitFinal = async () => {
     setLoading(true);
     setError(null);
@@ -372,6 +420,7 @@ export default function PredictionPage() {
                 }}
                 onFix={() => handlePredict(stageIdx)}
                 loading={loading}
+                onPlaceForces={() => handlePlaceForces(stageIdx)}
               />
             );
           })}
