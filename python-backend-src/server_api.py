@@ -392,7 +392,7 @@ def predict_fire_parameters(model, scalers, y_scalers, input_data, stage):
         X = np.array([float(input_data[feature]) for feature in input_features[stage]]).reshape(1, -1)
         if np.any(np.isnan(X)) or np.any(np.isinf(X)):
             raise ValueError("Входные данные содержат NaN или бесконечные значения")
-        X = scalers[f'stage{stage+1}'].transform(X)
+        X = scalers[stage].transform(X)
         X = torch.tensor(X, dtype=torch.float32)
         reg_pred, cls_pred = model(X, stage)
         reg_pred = reg_pred.numpy() if reg_pred is not None else np.array([])
