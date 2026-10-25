@@ -169,6 +169,7 @@ export default function PredictionPage() {
     // --- ВАЛИДАЦИЯ СИЛ И СРЕДСТВ ---
     const minPersonnel = currentActuals.ac + currentActuals.stvols;
     if (currentActuals.personnel < minPersonnel) {
+      alert(`Недостаточно личного состава!\nДля ${currentActuals.ac} АЦ и ${currentActuals.stvols} стволов требуется минимум ${minPersonnel} человек.`);
       setError(`Недостаточно личного состава! Для ${currentActuals.ac} АЦ и ${currentActuals.stvols} стволов требуется минимум ${minPersonnel} человек (1 водитель на АЦ + 1 ствольщик на ствол). Сейчас указано: ${currentActuals.personnel}.`);
       setLoading(false);
       return;
@@ -198,13 +199,13 @@ export default function PredictionPage() {
   };
 
   const handlePlaceForces = (stageIdx: number, useActual: boolean) => {
-    let ac = 0, asa = 0, aso = 0, trains = 0, totalPersonnel = 0;
+    let ac = 0, asa = 0, aso = 0, trains = 0, totalPersonnel = 0, stvols = 0;
 
     if (useActual) {
       const actuals = stageActuals[stageIdx];
       if (!actuals) return;
       ac = actuals.ac; asa = actuals.asa; aso = actuals.aso; 
-      trains = actuals.trains; totalPersonnel = actuals.personnel;
+      trains = actuals.trains; totalPersonnel = actuals.personnel; stvols = actuals.stvols;
     } else {
       const result = stageResults[stageIdx] as Record<string, number> | null;
       if (!result) return;
@@ -213,9 +214,16 @@ export default function PredictionPage() {
       aso = result['Количество_АСО_ед'] || 0;
       trains = result['Количество_пожарных_поездов_ед'] || 0;
       totalPersonnel = result['Количество_людей_ед'] || 0;
+      stvols = result['Всего_подано_пожарных_стволов_ед'] || 0;
     }
 
     const totalVehicles = ac + asa + aso;
+    // Распределяем стволы: по 1 на машину, остаток - первым
+    let stvolsRemainder = stvols;
+    const getNozzles = () => {
+      if (stvolsRemainder > 0) { stvolsRemainder--; return 1; }
+      return 0;
+    };
     if (totalVehicles === 0 && trains === 0) {
       alert('Нет техники для расстановки на этом этапе.');
       return;
@@ -245,6 +253,7 @@ export default function PredictionPage() {
           angle: 0,
           personnel: p,
           hoses: 0,
+          nozzles: getNozzles(),
           role: useActual ? 'Фактические силы' : 'Рекомендовано ML',
           safeDistance: 200,
           division: '',

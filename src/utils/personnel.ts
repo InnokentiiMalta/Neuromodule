@@ -7,7 +7,8 @@ export interface PersonnelDistribution {
 
 export function distributePersonnel(
   vehicleType: 'ac' | 'asa' | 'aso' | 'train',
-  total: number
+  total: number,
+  overrideNozzles?: number
 ): PersonnelDistribution {
   const N = Math.max(0, Math.floor(total));
 
@@ -32,7 +33,8 @@ export function distributePersonnel(
 
   // ac, asa
   const capped = Math.min(N, 6);
-  const nozzles = Math.min(capped - 1, 2);
+  const defaultNozzles = Math.min(capped - 1, 2);
+  const nozzles = overrideNozzles !== undefined ? Math.min(overrideNozzles, capped - 1) : defaultNozzles;
   const atVehicle = capped >= 2 ? 1 : 0;
   const atBranch = capped >= 4 ? 1 : 0;
   const free = Math.max(0, capped - nozzles - atVehicle - atBranch);

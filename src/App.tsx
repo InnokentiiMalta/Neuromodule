@@ -38,6 +38,7 @@ const WAGON_TYPE_INFO: Record<WagonType, { label: string; icon: string; color: s
 interface ManualUnit extends FireUnit {
   division: string;
   ptvDeployed: boolean;
+  nozzles?: number;
 }
 
 interface DragState {
@@ -1339,7 +1340,7 @@ export default function App() {
 
   const deployPTV = useCallback((unitId: string) => {
     setManualUnits(prev => prev.map(u =>
-      u.id === unitId ? { ...u, ptvDeployed: true, hoses: 2 } : u
+      u.id === unitId ? { ...u, ptvDeployed: true, hoses: u.nozzles ?? 2 } : u
     ));
   }, []);
 
@@ -1844,7 +1845,7 @@ export default function App() {
                     for (const u of allUnits) {
                       const isManual = manualUnits.some(m => m.id === u.id);
                       const hasPTV = !isManual || (u as any).ptvDeployed;
-                      const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+                      const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles);
                       if (hasPTV) {
                         nozzles += d.nozzles;
                         people += d.nozzles + d.atVehicle + d.atBranch + d.free;
