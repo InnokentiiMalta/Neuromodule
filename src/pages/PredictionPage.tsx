@@ -235,8 +235,20 @@ export default function PredictionPage() {
     const filteredUnits = existingUnits.filter((u: any) => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы');
     const newUnits = [...filteredUnits];
 
+    // Читаем координаты очага пожара с карты
     let startX = 100;
     let startY = 100;
+    try {
+      const fireStr = localStorage.getItem('map_fireSource');
+      if (fireStr) {
+        const fire = JSON.parse(fireStr);
+        if (fire && fire.x && fire.y) {
+          // Центрируем технику вокруг очага (чуть выше него)
+          startX = Math.max(20, fire.x - 150);
+          startY = Math.max(20, fire.y - 200);
+        }
+      }
+    } catch (e) {}
 
     // Считаем людей на одну машину (остаток отдаем первым машинам)
     const basePersonnel = totalVehicles > 0 ? Math.floor(totalPersonnel / totalVehicles) : 0;

@@ -1842,6 +1842,7 @@ export default function App() {
                     const allUnits = [...(deployment?.units || []), ...manualUnits];
                     const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
                     let nozzles = 0, people = 0;
+                    const manualOnlyCount = manualUnits.filter(u => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы').length;
                     for (const u of allUnits) {
                       const isManual = manualUnits.some(m => m.id === u.id);
                       const hasPTV = !isManual || (u as any).ptvDeployed;
@@ -1877,6 +1878,9 @@ export default function App() {
                     );
                   })()}
                 </div>
+                            <div className="text-[9px] text-gray-400 text-center mb-1">
+                                Добавлено вручную: <span className="text-white font-bold">{manualOnlyCount}</span> ед.
+                            </div>
 
                 <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
                   <p className="text-[9px] font-semibold text-gray-300 mb-1">👥 Личный состав:</p>
