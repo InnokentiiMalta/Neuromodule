@@ -325,6 +325,11 @@ def _reload_model_and_scalers():
 def predict_fire_parameters(model, scalers, y_scalers, input_data, stage):
     model.eval()
     with torch.no_grad():
+        # Нормализация stage: может прийти как int, "1" или "stage1"
+        if isinstance(stage, str):
+            stage = int(stage.replace("stage", "").strip())
+        stage = int(stage)
+
         input_features = {
             0: [
                 'Время_следования_мин', 'Время_подачи_первого_ствола_мин',
@@ -396,18 +401,24 @@ def predict_fire_parameters(model, scalers, y_scalers, input_data, stage):
     # Предсказываем время, технику и людей (регрессия)
     if stage < 3:
         for i, col in enumerate(output_features[stage][:-1]):
-            val = float(y_scalers[col].inverse_transform(reg_pred[:, i:i+1])[0, 0])
-            
-            # Ограничения для времени
-            if col in ['Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
-                       'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин']:
-                val = max(1.0, min(val, 60.0))
-            # Округление и ограничения для техники и людей
-            elif col in ['Количество_основных_пожарных_автомобилей_ед', 'Количество_пожарных_поездов_ед',
-                         'Количество_АСО_ед', 'Количество_АСА_ед', 'Количество_людей_ед']:
-                val = max(0, round(val))
-                
-            result[col] = float(val) if 'Время' in col else int(val)
+            try:
+                # ОБРАТНОЕ ПРЕОБРАЗОВАНИЕ: сначала inverse_transform, потом expm1 (т.к. учили на log1p)
+                raw_val = y_scalers[col].inverse_transform(reg_pred[:, i:i+1])[0, 0]
+                val = float(np.expm1(raw_val))
+
+                # Ограничения для времени
+                if col in ['Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
+                           'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин']:
+                    val = max(1.0, min(val, 60.0))
+                # Округление и ограничения для техники и людей
+                elif col in ['Количество_основных_пожарных_автомобилей_ед', 'Количество_пожарных_поездов_ед',
+                             'Количество_АСО_ед', 'Количество_АСА_ед', 'Количество_людей_ед']:
+                    val = max(0, round(val))
+
+                result[col] = float(val) if 'Время' in col else int(val)
+            except Exception as e:
+                print(f"[PREDICT ERROR] Ошибка при обработке колонки {col}: {e}", flush=True)
+                result[col] = 0 # Заглушка, чтобы не падало
             
     result['Всего_подано_пожарных_стволов_ед'] = int(cls_pred)
     
