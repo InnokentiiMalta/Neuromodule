@@ -230,7 +230,9 @@ export default function PredictionPage() {
     }
 
     const existingUnits = JSON.parse(localStorage.getItem('map_manualUnits') || '[]');
-    const newUnits = [...existingUnits];
+    // Удаляем технику, которая была добавлена предыдущими нажатиями кнопок расстановки
+    const filteredUnits = existingUnits.filter((u: any) => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы');
+    const newUnits = [...filteredUnits];
 
     let startX = 100;
     let startY = 100;
@@ -244,6 +246,7 @@ export default function PredictionPage() {
         const p = basePersonnel + (remainder > 0 ? 1 : 0);
         if (remainder > 0) remainder--;
 
+        const n = getNozzles();
         newUnits.push({
           id: `manual-${Date.now()}-${type}-${i}`,
           type: type as any,
@@ -252,12 +255,12 @@ export default function PredictionPage() {
           y: startY,
           angle: 0,
           personnel: p,
-          hoses: 0,
-          nozzles: getNozzles(),
+          hoses: n,
+          nozzles: n,
           role: useActual ? 'Фактические силы' : 'Рекомендовано ML',
           safeDistance: 200,
           division: '',
-          ptvDeployed: false,
+          ptvDeployed: true,
         });
         startX += 50;
         if (startX > 600) { startX = 100; startY += 60; }
@@ -282,7 +285,7 @@ export default function PredictionPage() {
         role: useActual ? 'Фактические силы' : 'Рекомендовано ML',
         safeDistance: 200,
         division: '',
-        ptvDeployed: false,
+        ptvDeployed: true,
       });
       startX += 50;
     }
