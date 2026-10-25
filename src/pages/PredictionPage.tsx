@@ -220,7 +220,8 @@ export default function PredictionPage() {
     const totalVehicles = ac + asa + aso;
     // Распределяем стволы: по 1 на машину, остаток - первым
     let stvolsRemainder = stvols;
-    const getNozzles = () => {
+    const getNozzles = (canDeploy: boolean) => {
+      if (!canDeploy) return 0;
       if (stvolsRemainder > 0) { stvolsRemainder--; return 1; }
       return 0;
     };
@@ -241,12 +242,12 @@ export default function PredictionPage() {
     const basePersonnel = totalVehicles > 0 ? Math.floor(totalPersonnel / totalVehicles) : 0;
     let remainder = totalVehicles > 0 ? totalPersonnel % totalVehicles : 0;
 
-    const addUnits = (count: number, type: string, name: string) => {
+    const addUnits = (count: number, type: string, name: string, canDeployPTV: boolean) => {
       for (let i = 0; i < count; i++) {
         const p = basePersonnel + (remainder > 0 ? 1 : 0);
         if (remainder > 0) remainder--;
 
-        const n = getNozzles();
+        const n = getNozzles(canDeployPTV);
         newUnits.push({
           id: `manual-${Date.now()}-${type}-${i}`,
           type: type as any,
@@ -260,16 +261,16 @@ export default function PredictionPage() {
           role: useActual ? 'Фактические силы' : 'Рекомендовано ML',
           safeDistance: 200,
           division: '',
-          ptvDeployed: true,
+          ptvDeployed: n > 0,
         });
         startX += 50;
         if (startX > 600) { startX = 100; startY += 60; }
       }
     };
 
-    addUnits(ac, 'ac', 'АЦ-40');
-    addUnits(asa, 'asa', 'АСА');
-    addUnits(aso, 'aso', 'АСО');
+    addUnits(ac, 'ac', 'АЦ-40', true);
+    addUnits(asa, 'asa', 'АСА', true);
+    addUnits(aso, 'aso', 'АСО', false); // АСО не подает стволы
 
     // Пожарные поезда (пока добавляем как технику)
     for (let i = 0; i < trains; i++) {
