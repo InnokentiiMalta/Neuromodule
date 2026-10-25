@@ -28,6 +28,7 @@ interface StageCardProps {
     onChange: (v: number) => void;
   }>;
   onPlaceForces?: () => void;
+  onPlaceActuals?: () => void;
 }
 
 export default function StageCard({
@@ -53,6 +54,7 @@ export default function StageCard({
   showForces = true,
   customTimeFields,
   onPlaceForces,
+  onPlaceActuals,
 }: StageCardProps) {
   const isLocked = state === 'locked';
   const isFixed = state === 'fixed';
@@ -258,7 +260,15 @@ export default function StageCard({
               onClick={onPlaceForces}
               className="mt-3 w-full py-2 bg-purple-700 hover:bg-purple-600 rounded font-semibold text-xs text-white"
             >
-              📍 Расставить эти силы на карте
+              📍 Расставить рекомендованные силы
+            </button>
+          )}
+          {onPlaceActuals && (
+            <button
+              onClick={onPlaceActuals}
+              className="mt-2 w-full py-2 bg-emerald-700 hover:bg-emerald-600 rounded font-semibold text-xs text-white"
+            >
+              📍 Расставить фактические силы
             </button>
           )}
         </div>

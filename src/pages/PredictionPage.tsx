@@ -187,16 +187,27 @@ export default function PredictionPage() {
     }
   };
 
-  const handlePlaceForces = (stageIdx: number) => {
-    const result = stageResults[stageIdx] as Record<string, number> | null;
-    if (!result) return;
+  const handlePlaceForces = (stageIdx: number, useActual: boolean) => {
+    let ac = 0, asa = 0, aso = 0, trains = 0, totalPersonnel = 0;
 
-    const ac = result['Количество_основных_пожарных_автомобилей_ед'] || 0;
-    const asa = result['Количество_АСА_ед'] || 0;
-    const aso = result['Количество_АСО_ед'] || 0;
+    if (useActual) {
+      const actuals = stageActuals[stageIdx];
+      if (!actuals) return;
+      ac = actuals.ac; asa = actuals.asa; aso = actuals.aso; 
+      trains = actuals.trains; totalPersonnel = actuals.personnel;
+    } else {
+      const result = stageResults[stageIdx] as Record<string, number> | null;
+      if (!result) return;
+      ac = result['Количество_основных_пожарных_автомобилей_ед'] || 0;
+      asa = result['Количество_АСА_ед'] || 0;
+      aso = result['Количество_АСО_ед'] || 0;
+      trains = result['Количество_пожарных_поездов_ед'] || 0;
+      totalPersonnel = result['Количество_людей_ед'] || 0;
+    }
 
-    if (ac === 0 && asa === 0 && aso === 0) {
-      alert('Модель не рекомендовала технику для этого этапа.');
+    const totalVehicles = ac + asa + aso;
+    if (totalVehicles === 0 && trains === 0) {
+      alert('Нет техники для расстановки на этом этапе.');
       return;
     }
 
@@ -206,8 +217,15 @@ export default function PredictionPage() {
     let startX = 100;
     let startY = 100;
 
-    const addUnits = (count: number, type: string, name: string, personnel: number) => {
+    // Считаем людей на одну машину (остаток отдаем первым машинам)
+    const basePersonnel = totalVehicles > 0 ? Math.floor(totalPersonnel / totalVehicles) : 0;
+    let remainder = totalVehicles > 0 ? totalPersonnel % totalVehicles : 0;
+
+    const addUnits = (count: number, type: string, name: string) => {
       for (let i = 0; i < count; i++) {
+        const p = basePersonnel + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder--;
+
         newUnits.push({
           id: `manual-${Date.now()}-${type}-${i}`,
           type: type as any,
@@ -215,9 +233,9 @@ export default function PredictionPage() {
           x: startX,
           y: startY,
           angle: 0,
-          personnel: personnel,
+          personnel: p,
           hoses: 0,
-          role: 'Рекомендовано ML',
+          role: useActual ? 'Фактические силы' : 'Рекомендовано ML',
           safeDistance: 200,
           division: '',
           ptvDeployed: false,
@@ -227,12 +245,31 @@ export default function PredictionPage() {
       }
     };
 
-    addUnits(ac, 'ac', 'АЦ-40', 2);
-    addUnits(asa, 'asa', 'АСА', 3);
-    addUnits(aso, 'aso', 'АСО', 1);
+    addUnits(ac, 'ac', 'АЦ-40');
+    addUnits(asa, 'asa', 'АСА');
+    addUnits(aso, 'aso', 'АСО');
+
+    // Пожарные поезда (пока добавляем как технику)
+    for (let i = 0; i < trains; i++) {
+      newUnits.push({
+        id: `manual-train-${Date.now()}-${i}`,
+        type: 'ac' as any, 
+        name: 'Пожарный поезд',
+        x: startX,
+        y: startY,
+        angle: 0,
+        personnel: 0,
+        hoses: 0,
+        role: useActual ? 'Фактические силы' : 'Рекомендовано ML',
+        safeDistance: 200,
+        division: '',
+        ptvDeployed: false,
+      });
+      startX += 50;
+    }
 
     localStorage.setItem('map_manualUnits', JSON.stringify(newUnits));
-    alert(`На карту добавлено: ${ac} АЦ, ${asa} АСА, ${aso} АСО. Перейдите на карту, чтобы увидеть.`);
+    alert(`На карту добавлено: ${ac} АЦ, ${asa} АСА, ${aso} АСО, ${trains} поездов. Перейдите на карту.`);
   };
 
   const handleSubmitFinal = async () => {
@@ -420,7 +457,8 @@ export default function PredictionPage() {
                 }}
                 onFix={() => handlePredict(stageIdx)}
                 loading={loading}
-                onPlaceForces={() => handlePlaceForces(stageIdx)}
+                onPlaceForces={() => handlePlaceForces(stageIdx, false)}
+                onPlaceActuals={() => handlePlaceForces(stageIdx, true)}
               />
             );
           })}
