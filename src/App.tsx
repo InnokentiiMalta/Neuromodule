@@ -2871,7 +2871,7 @@ export default function App() {
                 const routing = routeHoseAlongCorridor(
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
-                  customPos?.nozzles,
+                  customPos?.nozzles ?? unit.nozzles,
                   unit.angle,
                   customPumpPositions[unit.id],
                   unitSideInfo[unit.id]
