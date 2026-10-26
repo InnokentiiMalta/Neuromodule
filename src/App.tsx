@@ -241,6 +241,12 @@ function routeHoseAlongCorridor(
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
 
+  // Если стволов нет, не рисуем рукава и разветвления
+  const finalNozzlesCount = overrideNozzles ?? sideInfo?.nozzlesCount ?? 2;
+  if (finalNozzlesCount === 0) {
+    return { path: [], branchPoint: { x: unitX, y: unitY }, nozzles: [], branchConnections: [], branchPaths: [] };
+  }
+
   const pumpPos = customPumpPos || (unitAngle !== undefined ? getPumpPosition(unitX, unitY, unitWidth, unitHeight, unitAngle) : { x: unitCenterX, y: unitCenterY });
 
   const angleToFire = Math.atan2(fireY - pumpPos.y, fireX - pumpPos.x);
