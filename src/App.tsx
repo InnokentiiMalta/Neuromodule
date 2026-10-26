@@ -2869,6 +2869,7 @@ export default function App() {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
+                const d = distributePersonnel(unit.type as any, unit.personnel, (unit as any).nozzles);
                 const routing = routeHoseAlongCorridor(
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
@@ -2876,7 +2877,7 @@ export default function App() {
                   unit.angle,
                   customPumpPositions[unit.id],
                   unitSideInfo[unit.id],
-                  (unit as ManualUnit).nozzles
+                  d.nozzles  // <--- вместо unit.nozzles
                 );
 
                 return routing.nozzles.map((nozzle, idx) => {
