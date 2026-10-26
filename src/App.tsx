@@ -235,7 +235,8 @@ function routeHoseAlongCorridor(
   customNozzles?: Array<{ x: number; y: number }>,
   unitAngle?: number,
   customPumpPos?: { x: number; y: number },
-  sideInfo?: { startIdx: number; total: number; nozzlesCount: number }
+  sideInfo?: { startIdx: number; total: number; nozzlesCount: number },
+  overrideNozzles?: number
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }>; branchPaths: Array<Array<{ x: number; y: number }>> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
@@ -324,7 +325,7 @@ function routeHoseAlongCorridor(
   const SPACING = 20;
   const startIdx = sideInfo?.startIdx ?? 0;
   const totalPositions = sideInfo?.total ?? 2;
-  const nozzlesCount = sideInfo?.nozzlesCount ?? 2;
+  const nozzlesCount = overrideNozzles ?? sideInfo?.nozzlesCount ?? 2;
 
   const startOffset = -((totalPositions - 1) * SPACING) / 2;
 
@@ -2871,10 +2872,11 @@ export default function App() {
                 const routing = routeHoseAlongCorridor(
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
-                  customPos?.nozzles ?? unit.nozzles,
+                  customPos?.nozzles,
                   unit.angle,
                   customPumpPositions[unit.id],
-                  unitSideInfo[unit.id]
+                  unitSideInfo[unit.id],
+                  (unit as ManualUnit).nozzles
                 );
 
                 return routing.nozzles.map((nozzle, idx) => {

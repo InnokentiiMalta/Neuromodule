@@ -175,7 +175,8 @@ export function calculateDeployment(
   obstacles: Obstacle[],
   resources?: AvailableResources | null,
   waterSources?: WaterSource[],
-  manualUnits?: FireUnit[]
+  manualUnits?: FireUnit[],
+  overrideNozzles?: number
 ): Deployment | null {
   if (!fireSource) return null;
 
@@ -333,7 +334,7 @@ export function calculateDeployment(
       freeFromUnits += Math.max(0, u.personnel - 1);
       continue;
     }
-    const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+    const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, overrideNozzles);
     nozzlesTotal += d.nozzles;
     atVehicleTotal += d.atVehicle;
     atBranchTotal += d.atBranch;
