@@ -2876,6 +2876,10 @@ export default function App() {
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
                 const d = distributePersonnel(unit.type as any, unit.personnel, (unit as any).nozzles);
+  // Страховка: если стволов 0, вообще не рендерим рукава для этой машины
+  if (d.nozzles === 0) {
+    return null;
+  }
                 const routing = routeHoseAlongCorridor(
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
