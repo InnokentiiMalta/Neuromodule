@@ -1346,9 +1346,16 @@ export default function App() {
   }, []);
 
   const deployPTV = useCallback((unitId: string) => {
-    setManualUnits(prev => prev.map(u =>
-      u.id === unitId ? { ...u, ptvDeployed: true, hoses: u.nozzles ?? 2 } : u
-    ));
+    setManualUnits(prev => prev.map(u => {
+      if (u.id === unitId) {
+        if (u.personnel < 2) {
+          alert('Для подачи ствола нужно минимум 2 человека (1 водитель + 1 ствольщик).');
+          return { ...u, ptvDeployed: false, hoses: 0 };
+        }
+        return { ...u, ptvDeployed: true, hoses: u.nozzles ?? 2 };
+      }
+      return u;
+    }));
   }, []);
 
   const fireWagonLabel = useMemo(() => {
@@ -2871,7 +2878,7 @@ export default function App() {
                 </g>
               ))}
 
-              {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed)].map(unit => {
+              {fireSource && [...(deployment?.units.filter(u => u.hoses > 0) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)].map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
