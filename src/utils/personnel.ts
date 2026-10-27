@@ -36,7 +36,7 @@ export function distributePersonnel(
   const defaultNozzles = Math.min(capped - 1, 2);
   const nozzles = overrideNozzles !== undefined ? Math.min(overrideNozzles, capped - 1) : defaultNozzles;
   const atVehicle = capped >= 1 ? 1 : 0;
-  const atBranch = capped >= 4 ? 1 : 0;
+  const atBranch = (nozzles > 0 && capped >= 4) ? 1 : 0; // 1 на разветвление, если есть ствол и 4+ человека
   const free = Math.max(0, capped - nozzles - atVehicle - atBranch);
   return { nozzles: Math.max(0, nozzles), atVehicle, atBranch, free };
 }
