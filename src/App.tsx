@@ -2881,8 +2881,8 @@ export default function App() {
                   }}
                   style={{ cursor: toolMode === 'select' || toolMode === 'none' ? 'move' : 'default' }}
                 >
-                  <circle cx={pos.x} cy={pos.y} r="3" fill="#ff9800" opacity="0.8" />
-                  <text x={pos.x} y={pos.y + 1.5} textAnchor="middle" fontSize="4">🧑</text>
+                  <circle cx={pos.x} cy={pos.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
+                  <text x={pos.x} y={pos.y + 2} textAnchor="middle" fontSize="6" fontWeight="bold">🧑‍🚒</text>
                 </g>
               ))}
 
