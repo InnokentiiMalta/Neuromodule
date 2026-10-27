@@ -1736,9 +1736,17 @@ export default function App() {
                               });
                             }
                             if (inManual) {
-                              setManualUnits(prev => prev.map(u =>
-                                u.id === selectedUnitId ? { ...u, personnel: val } : u
-                              ));
+                              setManualUnits(prev => prev.map(u => {
+                                if (u.id === selectedUnitId) {
+                                  const newPersonnel = val;
+                                  return { 
+                                    ...u, 
+                                    personnel: newPersonnel,
+                                    ...(newPersonnel < 2 ? { ptvDeployed: false, hoses: 0 } : {})
+                                  };
+                                }
+                                return u;
+                              }));
                             }
                           }}
                           className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
@@ -2454,7 +2462,7 @@ export default function App() {
                 );
               })}
 
-              {fireSource && manualUnits.filter(u => u.ptvDeployed).map(unit => {
+              {fireSource && manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2).map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
@@ -2761,7 +2769,7 @@ export default function App() {
                   const nozzleIndex = parseInt(elem.id.split('-').pop() || '0');
                   const allUnits = [...(deployment?.units || []), ...manualUnits];
                   const unit = allUnits.find(u => u.id === elem.unitId);
-                  if (unit && fireSource) {
+                  if (unit && fireSource && (unit.hoses > 0 || unit.personnel >= 2)) {
                     const unitWidth = unit.type === 'asa' ? 55 : 44;
                     const customPos = customPositions[unit.id];
                     const routing = routeHoseAlongCorridor(
@@ -2790,7 +2798,7 @@ export default function App() {
                 } else if (elem.type === 'branch' && elem.unitId) {
                   const allUnits = [...(deployment?.units || []), ...manualUnits];
                   const unit = allUnits.find(u => u.id === elem.unitId);
-                  if (unit && fireSource) {
+                  if (unit && fireSource && (unit.hoses > 0 || unit.personnel >= 2)) {
                     const unitWidth = unit.type === 'asa' ? 55 : 44;
                     const customPos = customPositions[unit.id];
                     const routing = routeHoseAlongCorridor(
