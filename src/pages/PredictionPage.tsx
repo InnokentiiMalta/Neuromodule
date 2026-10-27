@@ -310,6 +310,11 @@ export default function PredictionPage() {
       startX += 50;
     }
 
+// Очищаем старые позиции стволов и разветвлений для новых машин,
+    // чтобы карта использовала расчётное количество, а не застрявшие координаты
+    localStorage.removeItem('map_customPositions');
+    localStorage.removeItem('map_customPumpPositions');
+    localStorage.removeItem('map_unitSideInfo');
     localStorage.setItem('map_manualUnits', JSON.stringify(newUnits));
     alert(`На карту добавлено: ${ac} АЦ, ${asa} АСА, ${aso} АСО, ${trains} поездов. Перейдите на карту.`);
   };
