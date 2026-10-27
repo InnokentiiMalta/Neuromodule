@@ -1,6 +1,6 @@
 {
   "name": "neural-module-fire-prediction",
-  "version": "1.2.83",
+  "version": "1.2.84",
   "private": true,
   "main": "electron/main.cjs",
   "type": "module",
