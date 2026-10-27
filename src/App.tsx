@@ -2336,7 +2336,8 @@ export default function App() {
                   customPos?.nozzles,
                   unit.angle,
                   customPumpPositions[unit.id],
-                  unitSideInfo[unit.id]
+                  unitSideInfo[unit.id],
+                  unit.hoses
                 );
 
                 const connectionPoints: Array<{ x: number; y: number }> = [];
