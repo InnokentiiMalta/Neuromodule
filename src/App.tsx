@@ -468,6 +468,7 @@ export default function App() {
   const [fireType, setFireType] = useState<'wagon_body' | 'tank' | 'undercarriage' | 'cargo'>('wagon_body');
   const [deployment, setDeployment] = useLocalStorageState<Deployment | null>('map_deployment', null);
   const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
+  const hasManualPlacement = manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы');
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
   const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
@@ -527,11 +528,11 @@ export default function App() {
     });
 
     return info;
-  }, [deployment, manualUnits]);
+  }, [deployment, manualUnits, hasManualPlacement]);
 
   const freePersonsPositions = useMemo(() => {
     if (!fireSource) return [];
-    const allUnits = [...(deployment?.units || []), ...manualUnits];
+    const allUnits = hasManualPlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
     let freeCount = 0;
     for (const u of allUnits) {
       const isManual = manualUnits.some(m => m.id === u.id);
@@ -1867,7 +1868,7 @@ export default function App() {
                 <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
                 <div className="grid grid-cols-3 gap-1 mb-2">
                   {(() => {
-                    const allUnits = [...(deployment?.units || []), ...manualUnits];
+                    const allUnits = hasManualPlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
                     const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
                     let nozzles = 0, people = 0;
                     const manualOnlyCount = manualUnits.filter(u => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы').length;
@@ -2601,7 +2602,7 @@ export default function App() {
                 );
               })}
 
-              {deployment?.units.map(unit => {
+              {!hasManualPlacement && deployment?.units.map(unit => {
                 const isSelected = selectedUnitId === unit.id;
                 const centerX = unit.x + 8;
                 const centerY = unit.y + 2.5;
