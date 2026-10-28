@@ -241,11 +241,6 @@ function routeHoseAlongCorridor(
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
 
-  // Если передан overrideNozzles, игнорируем старые координаты и считаем с нуля
-  if (overrideNozzles !== undefined) {
-    customNozzles = undefined;
-  }
-
   // Если стволов нет, не рисуем рукава и разветвления
   const finalNozzlesCount = overrideNozzles ?? sideInfo?.nozzlesCount ?? 2;
   console.log('ROUTE HOSE', 'override:', overrideNozzles, 'sideInfo:', sideInfo?.nozzlesCount, 'nozzlesCount:', finalNozzlesCount, 'customNozzles:', customNozzles?.length);
@@ -2913,6 +2908,7 @@ export default function App() {
                   unitSideInfo[unit.id],
                   d.nozzles  // <--- вместо unit.nozzles
                 );
+                console.log('ROUTING', unit.name, 'nozzles:', routing.nozzles.length, 'paths:', routing.branchPaths.length, 'connections:', routing.branchConnections.length, routing);
 
                 return routing.nozzles.map((nozzle, idx) => {
                   const dx = fs.x - nozzle.x;
