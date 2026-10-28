@@ -2337,7 +2337,7 @@ export default function App() {
                   unit.angle,
                   customPumpPositions[unit.id],
                   unitSideInfo[unit.id],
-                  unit.hoses
+                  (unit as any).nozzles ?? unit.hoses
                 );
 
                 const connectionPoints: Array<{ x: number; y: number }> = [];
@@ -2891,7 +2891,7 @@ export default function App() {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
-                const d = distributePersonnel(unit.type as any, unit.personnel, unit.hoses || 0);
+                const d = distributePersonnel(unit.type as any, unit.personnel, ((unit as any).nozzles ?? unit.hoses) || 0);
   const routing = routeHoseAlongCorridor(
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,

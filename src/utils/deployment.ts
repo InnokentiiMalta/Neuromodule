@@ -334,7 +334,7 @@ export function calculateDeployment(
       freeFromUnits += Math.max(0, u.personnel - 1);
       continue;
     }
-    const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, overrideNozzles);
+    const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as any).nozzles ?? overrideNozzles);
     nozzlesTotal += d.nozzles;
     atVehicleTotal += d.atVehicle;
     atBranchTotal += d.atBranch;
