@@ -2887,8 +2887,13 @@ export default function App() {
                 </g>
               ))}
 
-              {fireSource && [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)].map(unit => {
+              {fireSource && (
+  manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы')
+    ? manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)
+    : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)]
+).map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
+                console.log('DEBUG RENDER', unit.name, 'type:', unit.type, 'nozzles:', (unit as any).nozzles, 'hoses:', unit.hoses, 'personnel:', unit.personnel);
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
                 const d = distributePersonnel(unit.type as any, unit.personnel, ((unit as any).nozzles ?? unit.hoses) || 0);
