@@ -70,6 +70,7 @@ export interface AvailableResources {
   al: number;      // Автолестницы
   asr: number;     // Машины связи
   personnel: number; // Личный состав (чел.)
+  stvols: number;    // Общее количество стволов/нозлов
 }
 
 export type ToolMode = 'none' | 'fire' | 'obstacle' | 'select' | 'water' | 'selection' | 'ruler';

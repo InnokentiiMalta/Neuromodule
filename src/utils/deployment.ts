@@ -317,7 +317,16 @@ export function calculateDeployment(
   strategy += `Безопасное расстояние: ${(safeDist * 0.5).toFixed(0)} м.`;
 
   // Calculate total personnel from resources
-  // Распределяем людей по каждой единице техники
+  // Calculate base nozzles per unit for even distribution
+let baseNozzles = 0;
+let remainder = 0;
+const totalStvols = resources?.stvols ?? 0;
+if (units.length > 0 && totalStvols > 0) {
+  baseNozzles = Math.floor(totalStvols / units.length);
+  remainder = totalStvols % units.length;
+}
+
+// Распределяем людей по каждой единице техники
   let nozzlesTotal = 0;
   let atVehicleTotal = 0;
   let atBranchTotal = 0;
@@ -334,7 +343,10 @@ export function calculateDeployment(
       freeFromUnits += Math.max(0, u.personnel - 1);
       continue;
     }
-    const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as any).nozzles ?? overrideNozzles);
+    // Calculate override nozzles: base + remainder distribution
+    let override = baseNozzles;
+    if (remainder > 0) { override++; remainder--; }
+    const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, override);
     nozzlesTotal += d.nozzles;
     atVehicleTotal += d.atVehicle;
     atBranchTotal += d.atBranch;

@@ -25,7 +25,7 @@ const OBSTACLE_DEFAULTS: Record<ObstacleType, { width: number; height: number; l
   road: { width: 120, height: 25, label: 'Дорога', icon: '🛤' },
 };
 
-const DEFAULT_RESOURCES: AvailableResources = { ac: 2, al: 0, asr: 0, personnel: 12 };
+const DEFAULT_RESOURCES: AvailableResources = { ac: 2, al: 0, asr: 0, personnel: 12, stvols: 0 };
 
 type WagonType = 'passenger' | 'freight' | 'tank' | 'platform';
 const WAGON_TYPE_INFO: Record<WagonType, { label: string; icon: string; color: string }> = {
@@ -590,6 +590,7 @@ export default function App() {
         ptvDeployed: false,
       };
       setManualUnits(prev => [...prev, newUnit]);
+      setDeployment(null);
       setPlacingUnit(null);
       return;
     }
@@ -1124,7 +1125,7 @@ export default function App() {
   }, [wagons, fireSource, obstacles, resources, waterSources]);
 
   const handleApplyRecommendations = useCallback(
-    (rec: { ac: number; al: number; asr: number; personnel: number }) => {
+    (rec: { ac: number; al: number; asr: number; personnel: number; stvols: number }) => {
       // Сбрасываем обстановку — оставляем только очаг, чтобы рекомендованная расстановка встала на чистое поле
       setManualUnits([]);
       setFireTrains([]);
@@ -1135,7 +1136,7 @@ export default function App() {
       setCustomPumpPositions({});
       setDeployment(null);
 
-      setResources({ ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel });
+      setResources({ ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel, stvols: rec.stvols });
       setUseCustomResources(true);
 
       if (fireSource) {
@@ -1143,7 +1144,7 @@ export default function App() {
           wagons,
           fireSource,
           obstacles,
-          { ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel },
+          { ac: rec.ac, al: rec.al, asr: rec.asr, personnel: rec.personnel, stvols: rec.stvols },
           waterSources,
           []
         );

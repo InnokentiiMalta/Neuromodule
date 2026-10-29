@@ -1,7 +1,7 @@
 import { usePredictionSummary } from '../hooks/usePredictionSummary';
 
 interface RecommendationPanelProps {
-  onApply: (resources: { ac: number; al: number; asr: number; personnel: number }) => void;
+  onApply: (resources: { ac: number; al: number; asr: number; personnel: number; stvols: number }) => void;
   resources: { ac: number; al: number; asr: number; personnel: number };
 }
 
@@ -336,6 +336,7 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
               al: actualSpecial > 0 ? actualSpecial : 0,
               asr: asoRecommended,
               personnel: recommendedPersonnel,
+              stvols: stvols,
             })}
             className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 rounded text-xs font-semibold"
           >
