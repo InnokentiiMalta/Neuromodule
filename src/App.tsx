@@ -2328,7 +2328,7 @@ export default function App() {
                 </g>
               ))}
 
-              {fireSource && deployment?.units.filter(u => u.hoses > 0).map(unit => {
+              {!hasManualPlacement && fireSource && deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2).map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
