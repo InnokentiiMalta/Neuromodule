@@ -463,7 +463,7 @@ export default function App() {
   const [fireType, setFireType] = useState<'wagon_body' | 'tank' | 'undercarriage' | 'cargo'>('wagon_body');
   const [deployment, setDeployment] = useLocalStorageState<Deployment | null>('map_deployment', null);
   const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
-  const hasManualPlacement = manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы');
+  const hasManualPlacement = manualUnits.length > 0;
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
   const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);

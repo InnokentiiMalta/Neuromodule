@@ -124,8 +124,7 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
         </div>
       )}
 
-      {/* Фактически на пожаре */}
-      <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-2.5">
+      {/* Фактически на пожаре */}<div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-2.5" style={{ display: 'none' }}>
         <div className="text-[10px] text-emerald-400 font-semibold mb-1">🚒 Фактически на пожаре</div>
         <div className="space-y-1 text-[11px]">
           <div className="flex justify-between">
@@ -147,9 +146,8 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
         </div>
       </div>
 
-      {/* Необходимо на текущий момент */}
-      {stvols > 0 && (
-        <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-2.5">
+      {/* Необходимо на текущий момент */}{stvols > 0 && (
+        <div className="bg-orange-900/20 border border-orange-500/30 rounded-lg p-2.5" style={{ display: 'none' }}>
           <div className="text-[10px] text-orange-400 font-semibold mb-1">🎯 Необходимо на текущий момент</div>
           <div className="text-[9px] text-orange-300/70 mb-1">Рекомендация ML на этапе «{summary.stageLabel}»</div>
           <div className="space-y-1 text-[11px]">
@@ -190,9 +188,8 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
         </div>
       )}
 
-      {/* Прогноз к следующему этапу */}
-      {stvols > 0 && summary.stage < 4 && (
-        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2.5">
+      {/* Прогноз к следующему этапу */}{stvols > 0 && summary.stage < 4 && (
+        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2.5" style={{ display: 'none' }}>
           <div className="text-[10px] text-purple-400 font-semibold mb-1">🔮 Прогноз к следующему этапу</div>
           <div className="text-[9px] text-purple-300/70 mb-1">
             Ориентир по текущей рекомендации. Будет актуализирован после следующего этапа.
@@ -233,7 +230,7 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
         summary.forecastOpenFlame !== null ||
         summary.forecastConsequences !== null ||
         summary.forecastExtinguishTotal !== null) && (
-        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2.5">
+        <div  style={{ display: 'none' }} className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2.5">
           <div className="text-[10px] text-purple-400 font-semibold mb-1">🔮 Прогноз времени</div>
           <div className="text-[9px] text-purple-300/70 mb-1">прогноз → факт</div>
           <div className="space-y-1 text-[11px]">
@@ -331,7 +328,9 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
       {/* Кнопка и подсказка — на всю ширину */}
       <div className="space-y-2">
         {stvols > 0 && (
-          <button
+        
+          <div style={{ display: 'none' }}>
+            <button
             onClick={() => onApply({
               ac: recommendedAc,
               al: actualSpecial > 0 ? actualSpecial : 0,
@@ -342,6 +341,7 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
           >
             ⚡ Заполнить рекомендациями
           </button>
+          </div>
         )}
         <p className="text-[9px] text-gray-500 leading-tight">
           Нажмите «Заполнить», затем «🚀 Расставить» — карта построит расстановку с рекомендованными силами.
