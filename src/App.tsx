@@ -583,6 +583,7 @@ export default function App() {
         y: y - 10,
         angle: 0,
         personnel: defaultPersonnel,
+        nozzles: defaultPersonnel >= 2 ? Math.min(defaultPersonnel - 1, 2) : 0,
         hoses: 0,
         role: 'Добавлен вручную',
         safeDistance: 200,
@@ -2401,14 +2402,14 @@ export default function App() {
                       </g>
                     ))}
 
-                    {routing.branchPaths.slice(0, (unit as any).nozzles || 0).map((branchPath, idx) =>
+                    {routing.branchPaths.slice(0, (unit as any).nozzles ?? 0).map((branchPath, idx) =>
                       branchPath.slice(0, -1).map((p, i) => (
                         <line key={`${idx}-${i}`} x1={p.x} y1={p.y} x2={branchPath[i + 1].x} y2={branchPath[i + 1].y}
                           stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
                       ))
                     )}
 
-                    {routing.branchConnections.slice(0, (unit as any).nozzles || 0).map((conn, idx) => (
+                    {routing.branchConnections.slice(0, (unit as any).nozzles ?? 0).map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
@@ -2430,7 +2431,7 @@ export default function App() {
                       </>
                     )}
 
-                    {routing.nozzles.slice(0, (unit as any).nozzles || 0).map((nozzle, idx) => {
+                    {routing.nozzles.slice(0, (unit as any).nozzles ?? 0).map((nozzle, idx) => {
                       const dx = fs.x - nozzle.x;
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
@@ -2537,14 +2538,14 @@ export default function App() {
                       </g>
                     ))}
 
-                    {routing.branchPaths.slice(0, (unit as any).nozzles || 0).map((branchPath, idx) =>
+                    {routing.branchPaths.slice(0, (unit as any).nozzles ?? 0).map((branchPath, idx) =>
                       branchPath.slice(0, -1).map((p, i) => (
                         <line key={`${idx}-${i}`} x1={p.x} y1={p.y} x2={branchPath[i + 1].x} y2={branchPath[i + 1].y}
                           stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
                       ))
                     )}
 
-                    {routing.branchConnections.slice(0, (unit as any).nozzles || 0).map((conn, idx) => (
+                    {routing.branchConnections.slice(0, (unit as any).nozzles ?? 0).map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
@@ -2566,7 +2567,7 @@ export default function App() {
                       </>
                     )}
 
-                    {routing.nozzles.slice(0, (unit as any).nozzles || 0).map((nozzle, idx) => {
+                    {routing.nozzles.slice(0, (unit as any).nozzles ?? 0).map((nozzle, idx) => {
                       const dx = fs.x - nozzle.x;
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
@@ -2911,7 +2912,7 @@ export default function App() {
                 );
                 console.log('ROUTING', unit.name, 'nozzles:', routing.nozzles.length, 'paths:', routing.branchPaths.length, 'connections:', routing.branchConnections.length, routing);
 
-                return routing.nozzles.slice(0, (unit as any).nozzles || 0).map((nozzle, idx) => {
+                return routing.nozzles.slice(0, (unit as any).nozzles ?? 0).map((nozzle, idx) => {
                   const dx = fs.x - nozzle.x;
                   const dy = fs.y - nozzle.y;
                   const angle = Math.atan2(dy, dx);
