@@ -2408,7 +2408,7 @@ export default function App() {
                       ))
                     )}
 
-                    {routing.branchConnections.map((conn, idx) => (
+                    {routing.branchConnections.slice(0, (unit as any).nozzles || 0).map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
@@ -2544,7 +2544,7 @@ export default function App() {
                       ))
                     )}
 
-                    {routing.branchConnections.map((conn, idx) => (
+                    {routing.branchConnections.slice(0, (unit as any).nozzles || 0).map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
                         <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
                         <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
