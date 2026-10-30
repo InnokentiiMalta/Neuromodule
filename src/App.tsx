@@ -1743,9 +1743,11 @@ export default function App() {
                               setManualUnits(prev => prev.map(u => {
                                 if (u.id === selectedUnitId) {
                                   const newPersonnel = val;
+const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                                   return { 
                                     ...u, 
                                     personnel: newPersonnel,
+                                    nozzles: newNozzles,
                                     ...(newPersonnel < 2 ? { ptvDeployed: false, hoses: 0 } : {})
                                   };
                                 }
@@ -1872,6 +1874,7 @@ export default function App() {
                     for (const u of allUnits) {
                       const isManual = manualUnits.some(m => m.id === u.id);
                       const hasPTV = !isManual || (u as any).ptvDeployed;
+                      console.log('STATS', u.name, 'personnel:', u.personnel, 'nozzles:', (u as ManualUnit).nozzles, 'hoses:', u.hoses, 'hasManualPlacement:', hasManualPlacement);
                       const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles);
                       if (hasPTV) {
                         nozzles += d.nozzles;
