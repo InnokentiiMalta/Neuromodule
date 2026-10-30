@@ -2401,7 +2401,7 @@ export default function App() {
                       </g>
                     ))}
 
-                    {routing.branchPaths.map((branchPath, idx) =>
+                    {routing.branchPaths.slice(0, (unit as any).nozzles || 0).map((branchPath, idx) =>
                       branchPath.slice(0, -1).map((p, i) => (
                         <line key={`${idx}-${i}`} x1={p.x} y1={p.y} x2={branchPath[i + 1].x} y2={branchPath[i + 1].y}
                           stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
@@ -2430,7 +2430,7 @@ export default function App() {
                       </>
                     )}
 
-                    {routing.nozzles.map((nozzle, idx) => {
+                    {routing.nozzles.slice(0, (unit as any).nozzles || 0).map((nozzle, idx) => {
                       const dx = fs.x - nozzle.x;
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
@@ -2537,7 +2537,7 @@ export default function App() {
                       </g>
                     ))}
 
-                    {routing.branchPaths.map((branchPath, idx) =>
+                    {routing.branchPaths.slice(0, (unit as any).nozzles || 0).map((branchPath, idx) =>
                       branchPath.slice(0, -1).map((p, i) => (
                         <line key={`${idx}-${i}`} x1={p.x} y1={p.y} x2={branchPath[i + 1].x} y2={branchPath[i + 1].y}
                           stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
@@ -2566,7 +2566,7 @@ export default function App() {
                       </>
                     )}
 
-                    {routing.nozzles.map((nozzle, idx) => {
+                    {routing.nozzles.slice(0, (unit as any).nozzles || 0).map((nozzle, idx) => {
                       const dx = fs.x - nozzle.x;
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
@@ -2911,7 +2911,7 @@ export default function App() {
                 );
                 console.log('ROUTING', unit.name, 'nozzles:', routing.nozzles.length, 'paths:', routing.branchPaths.length, 'connections:', routing.branchConnections.length, routing);
 
-                return routing.nozzles.map((nozzle, idx) => {
+                return routing.nozzles.slice(0, (unit as any).nozzles || 0).map((nozzle, idx) => {
                   const dx = fs.x - nozzle.x;
                   const dy = fs.y - nozzle.y;
                   const angle = Math.atan2(dy, dx);
