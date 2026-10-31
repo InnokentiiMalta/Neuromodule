@@ -499,7 +499,7 @@ export default function App() {
       id: u.id,
       type: u.type,
       personnel: u.personnel,
-      nozzlesCount: distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel).nozzles,
+      nozzlesCount: distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles).nozzles,
       centerY: u.y + 10,
     })).filter(u => u.nozzlesCount > 0);
 
@@ -536,7 +536,7 @@ export default function App() {
         freeCount += Math.max(0, u.personnel - 1);
         continue;
       }
-      const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+      const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles);
       freeCount += d.free;
     }
     // Учитываем свободных людей от пожарных поездов
@@ -1926,7 +1926,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                           freeFromUnits += Math.max(0, u.personnel - 1);
                           continue;
                         }
-                        const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel);
+                        const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles);
                         nozzles += d.nozzles;
                         atVehicle += d.atVehicle;
                         atBranch += d.atBranch;
@@ -2427,7 +2427,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                       <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                     </g>
 
-                    {distributePersonnel(unit.type as 'ac' | 'asa' | 'aso' | 'train', unit.personnel).atBranch > 0 && (
+                    {distributePersonnel(unit.type as 'ac' | 'asa' | 'aso' | 'train', unit.personnel, (unit as ManualUnit).nozzles).atBranch > 0 && (
                       <>
                         <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                         <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
@@ -2563,7 +2563,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                       <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
                     </g>
 
-                    {distributePersonnel(unit.type as 'ac' | 'asa' | 'aso' | 'train', unit.personnel).atBranch > 0 && (
+                    {distributePersonnel(unit.type as 'ac' | 'asa' | 'aso' | 'train', unit.personnel, (unit as ManualUnit).nozzles).atBranch > 0 && (
                       <>
                         <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
                         <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
