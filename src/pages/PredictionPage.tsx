@@ -257,14 +257,19 @@ export default function PredictionPage() {
       }
     } catch (e) {}
 
-    // Считаем людей на одну машину (остаток отдаем первым машинам)
-    const basePersonnel = totalVehicles > 0 ? Math.floor(totalPersonnel / totalVehicles) : 0;
-    let remainder = totalVehicles > 0 ? totalPersonnel % totalVehicles : 0;
+    // Выделяем по 3 человека на каждую АСО
+    const asoPersonnelNeeded = aso * 3;
+    const remainingPersonnel = Math.max(0, totalPersonnel - asoPersonnelNeeded);
 
-    const addUnits = (count: number, type: string, name: string, canDeployPTV: boolean) => {
+    // Остальных делим только между АЦ и АСА
+    const nonAsoVehicles = ac + asa;
+    const basePersonnel = nonAsoVehicles > 0 ? Math.floor(remainingPersonnel / nonAsoVehicles) : 0;
+    let remainder = nonAsoVehicles > 0 ? remainingPersonnel % nonAsoVehicles : 0;
+
+    const addUnits = (count: number, type: string, name: string, canDeployPTV: boolean, fixedPersonnel?: number) => {
       for (let i = 0; i < count; i++) {
-        const p = basePersonnel + (remainder > 0 ? 1 : 0);
-        if (remainder > 0) remainder--;
+        let p = fixedPersonnel !== undefined ? fixedPersonnel : basePersonnel + (remainder > 0 ? 1 : 0);
+        if (fixedPersonnel === undefined && remainder > 0) remainder--;
 
         const n = getNozzles(canDeployPTV);
         newUnits.push({
@@ -289,7 +294,7 @@ export default function PredictionPage() {
 
     addUnits(ac, 'ac', 'АЦ-40', true);
     addUnits(asa, 'asa', 'АСА', true);
-    addUnits(aso, 'aso', 'АСО', false); // АСО не подает стволы
+    addUnits(aso, 'aso', 'АСО', false, 3); // АСО получает фиксированные 3 человека
 
     // Пожарные поезда (пока добавляем как технику)
     for (let i = 0; i < trains; i++) {
