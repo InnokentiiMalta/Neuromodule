@@ -495,7 +495,7 @@ export default function App() {
   const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
 
   const fireSpread = useMemo(() => {
-    if (!fireSource) return null;
+    if (!fireSource || wagons.length === 0) return null;
     const speed = predInitialParams['Скорость_распространения_огня_м_мин'] || 2.5;
     let time = 0;
 
@@ -506,16 +506,22 @@ export default function App() {
     }
 
     const spreadMeters = speed * time;
-    const PIXELS_PER_METER = 2;
+    const PIXELS_PER_METER = 4;
     const spreadPixels = spreadMeters * PIXELS_PER_METER;
 
+    const minWagonX = Math.min(...wagons.map(w => w.x));
+    const maxWagonX = Math.max(...wagons.map(w => w.x + w.width));
+
+    const left = Math.max(minWagonX, fireSource.x - spreadPixels);
+    const right = Math.min(maxWagonX, fireSource.x + spreadPixels);
+
     return {
-      left: fireSource.x - spreadPixels,
-      right: fireSource.x + spreadPixels,
+      left: left,
+      right: right,
       y: fireSource.y,
       height: 20
     };
-  }, [fireSource, predInitialParams, predAdditionalParams, predCurrentStage]);
+  }, [fireSource, predInitialParams, predAdditionalParams, predCurrentStage, wagons]);
     const unitSideInfo = useMemo(() => {
     const allUnits = [...(deployment?.units || []), ...manualUnits];
     const activeUnits = allUnits.filter(u => u.hoses > 0 || (u as any).ptvDeployed);
