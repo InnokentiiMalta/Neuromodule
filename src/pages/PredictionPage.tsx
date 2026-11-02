@@ -179,6 +179,14 @@ export default function PredictionPage() {
     try {
       const inputData = buildInputData(stage);
       const result = await predictStage(inputData, stage);
+
+      // Проверяем темное время суток (с 18:00 до 06:00)
+      const hour = parseInt(workTime.split(':')[0], 10);
+      const isDark = hour >= 18 || hour < 6;
+      if (isDark) {
+        (result as Record<string, any>)['Количество_АСО_ед'] = Math.max(1, (result as Record<string, any>)['Количество_АСО_ед'] || 0);
+      }
+
       setStageResults(prev => {
         const newResults = [...prev];
         newResults[stage] = result as Record<string, unknown>;

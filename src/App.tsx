@@ -2622,6 +2622,27 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
+                    {unit.type === 'aso' && fireSource && (() => {
+                      const angleToFire = Math.atan2(fireSource.y - centerY, fireSource.x - centerX);
+                      const radius = 150;
+                      const startAngle = angleToFire - (Math.PI / 3);
+                      const endAngle = angleToFire + (Math.PI / 3);
+
+                      const x1 = centerX + radius * Math.cos(startAngle);
+                      const y1 = centerY + radius * Math.sin(startAngle);
+                      const x2 = centerX + radius * Math.cos(endAngle);
+                      const y2 = centerY + radius * Math.sin(endAngle);
+
+                      return (
+                        <path 
+                          d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`} 
+                          fill="rgba(255, 235, 59, 0.15)" 
+                          stroke="rgba(255, 235, 59, 0.3)" 
+                          strokeWidth="1"
+                          style={{ pointerEvents: 'none' }}
+                        />
+                      );
+                    })()}
                     <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
 
                     <polygon
@@ -2679,6 +2700,27 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
+                    {unit.type === 'aso' && fireSource && (() => {
+                      const angleToFire = Math.atan2(fireSource.y - centerY, fireSource.x - centerX);
+                      const radius = 150;
+                      const startAngle = angleToFire - (Math.PI / 3);
+                      const endAngle = angleToFire + (Math.PI / 3);
+
+                      const x1 = centerX + radius * Math.cos(startAngle);
+                      const y1 = centerY + radius * Math.sin(startAngle);
+                      const x2 = centerX + radius * Math.cos(endAngle);
+                      const y2 = centerY + radius * Math.sin(endAngle);
+
+                      return (
+                        <path 
+                          d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`} 
+                          fill="rgba(255, 235, 59, 0.15)" 
+                          stroke="rgba(255, 235, 59, 0.3)" 
+                          strokeWidth="1"
+                          style={{ pointerEvents: 'none' }}
+                        />
+                      );
+                    })()}
                     <polygon points={getFireTruckPoints(centerX + 0.5, centerY + 0.5, unit.angle)} fill="rgba(0,0,0,0.3)" />
 
                     <polygon
