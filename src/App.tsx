@@ -2071,20 +2071,6 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                 <line x1="60" y1="302" x2="940" y2="302" stroke="#aaa" strokeWidth="2" />
               </g>
 
-              {fireSpread && (
-                <rect 
-                  x={fireSpread.left} 
-                  y={fireSpread.y} 
-                  width={fireSpread.right - fireSpread.left} 
-                  height={fireSpread.height} 
-                  fill="rgba(255, 69, 0, 0.4)" 
-                  stroke="rgba(255, 69, 0, 0.8)"
-                  strokeWidth="2"
-                  style={{ pointerEvents: 'none' }}
-                  rx="3"
-                />
-              )}
-
               {wagons.map(wagon => {
                 const isOnFire = fireSource?.wagonId === wagon.id;
                 const isSelected = selectedWagonId === wagon.id;
@@ -2109,6 +2095,20 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                   </g>
                 );
               })}
+
+              {fireSpread && (
+                <rect 
+                  x={fireSpread.left} 
+                  y={fireSpread.y} 
+                  width={fireSpread.right - fireSpread.left} 
+                  height={fireSpread.height} 
+                  fill="rgba(255, 0, 0, 0.5)" 
+                  stroke="#ff4500"
+                  strokeWidth="2"
+                  style={{ pointerEvents: 'none' }}
+                  rx="3"
+                />
+              )}
 
               {fireTrains.map(train => {
                 const isSelected = selectedFireTrainId === train.id;
