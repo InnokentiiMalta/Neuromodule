@@ -468,6 +468,9 @@ export default function App() {
   const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
   const [fireTrainPTW, setFireTrainPTW] = useLocalStorageState<Record<string, boolean>>('map_fireTrainPTW', {});
+  const [predInitialParams] = useLocalStorageState<any>('prediction_initialParams', {});
+  const [predAdditionalParams] = useLocalStorageState<any>('prediction_additionalParams', {});
+  const [predCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -490,6 +493,29 @@ export default function App() {
   const svgRef = useRef<SVGSVGElement>(null);
 
   const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
+
+  const fireSpread = useMemo(() => {
+    if (!fireSource) return null;
+    const speed = predInitialParams['Скорость_распространения_огня_м_мин'] || 2.5;
+    let time = 0;
+
+    if (predCurrentStage === 0) {
+      time = (predInitialParams['Время_следования_мин'] || 0) + (predInitialParams['Время_подачи_первого_ствола_мин'] || 0);
+    } else if (predCurrentStage >= 1) {
+      time = predAdditionalParams['Время_локализации_пожара_мин'] || 0;
+    }
+
+    const spreadMeters = speed * time;
+    const PIXELS_PER_METER = 2;
+    const spreadPixels = spreadMeters * PIXELS_PER_METER;
+
+    return {
+      left: fireSource.x - spreadPixels,
+      right: fireSource.x + spreadPixels,
+      y: fireSource.y,
+      height: 20
+    };
+  }, [fireSource, predInitialParams, predAdditionalParams, predCurrentStage]);
     const unitSideInfo = useMemo(() => {
     const allUnits = [...(deployment?.units || []), ...manualUnits];
     const activeUnits = allUnits.filter(u => u.hoses > 0 || (u as any).ptvDeployed);
@@ -2044,6 +2070,20 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                 <line x1="60" y1="298" x2="940" y2="298" stroke="#aaa" strokeWidth="2" />
                 <line x1="60" y1="302" x2="940" y2="302" stroke="#aaa" strokeWidth="2" />
               </g>
+
+              {fireSpread && (
+                <rect 
+                  x={fireSpread.left} 
+                  y={fireSpread.y} 
+                  width={fireSpread.right - fireSpread.left} 
+                  height={fireSpread.height} 
+                  fill="rgba(255, 69, 0, 0.4)" 
+                  stroke="rgba(255, 69, 0, 0.8)"
+                  strokeWidth="2"
+                  style={{ pointerEvents: 'none' }}
+                  rx="3"
+                />
+              )}
 
               {wagons.map(wagon => {
                 const isOnFire = fireSource?.wagonId === wagon.id;

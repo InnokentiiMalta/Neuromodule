@@ -11,6 +11,7 @@ interface InitialParams {
   Количество_специальных_пожарных_автомобилей_ед: number;
   Количество_пожарных_поездов_ед: number;
   Всего_подано_пожарных_стволов_ед: number;
+  Скорость_распространения_огня_м_мин: number;
 }
 
 interface AdditionalParams {
@@ -91,6 +92,7 @@ export default function PredictionPage() {
     Количество_специальных_пожарных_автомобилей_ед: 0,
     Количество_пожарных_поездов_ед: 0,
     Всего_подано_пожарных_стволов_ед: 1,
+    Скорость_распространения_огня_м_мин: 2.5,
   });
 
   const [additionalParams, setAdditionalParams] = useLocalStorageState<AdditionalParams>('prediction_additionalParams', {
@@ -369,6 +371,7 @@ export default function PredictionPage() {
       Количество_специальных_пожарных_автомобилей_ед: 0,
       Количество_пожарных_поездов_ед: 0,
       Всего_подано_пожарных_стволов_ед: 1,
+      Скорость_распространения_огня_м_мин: 2.5,
     });
     setAdditionalParams({
       Время_локализации_пожара_мин: 0,
@@ -459,6 +462,16 @@ export default function PredictionPage() {
                 type="number" 
                 value={initialParams['Время_подачи_первого_ствола_мин']} 
                 onChange={(e) => setInitialParams(prev => ({ ...prev, 'Время_подачи_первого_ствола_мин': parseFloat(e.target.value) || 0 }))} 
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-300 mb-1">Скорость распространения огня (м/мин)</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                value={initialParams['Скорость_распространения_огня_м_мин']} 
+                onChange={(e) => setInitialParams(prev => ({ ...prev, 'Скорость_распространения_огня_м_мин': parseFloat(e.target.value) || 2.5 }))} 
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white" 
               />
             </div>
