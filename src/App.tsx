@@ -236,7 +236,8 @@ function routeHoseAlongCorridor(
   unitAngle?: number,
   customPumpPos?: { x: number; y: number },
   sideInfo?: { startIdx: number; total: number; nozzlesCount: number },
-  overrideNozzles?: number
+  overrideNozzles?: number,
+  fireSpread?: { left: number; right: number; y: number; height: number } | null
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }>; branchPaths: Array<Array<{ x: number; y: number }>> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
@@ -346,10 +347,14 @@ function routeHoseAlongCorridor(
   }
 
   // Генерируем nozzlesCount ствольщиков, каждый на своей позиции
+  const targetStartX = fireSpread ? fireSpread.left : fireX;
+  const targetEndX = fireSpread ? fireSpread.right : fireX;
+  const targetStep = (targetEndX - targetStartX) / Math.max(1, nozzlesCount);
+
   for (let i = 0; i < nozzlesCount; i++) {
     const posIdx = startIdx + i;
-    const x = fireX + startOffset + posIdx * SPACING;
-    defaultNozzles.push({ x, y: baseY });
+    const currentTargetX = targetStartX + targetStep * (posIdx + 0.5);
+    defaultNozzles.push({ x: currentTargetX, y: baseY });
   }
 
   for (let i = 0; i < defaultNozzles.length; i++) {
@@ -499,9 +504,9 @@ export default function App() {
     const speed = predInitialParams['Скорость_распространения_огня_м_мин'] || 2.5;
     let time = 0;
 
-    if (predCurrentStage === 0) {
+    if (predCurrentStage === 1) {
       time = (predInitialParams['Время_следования_мин'] || 0) + (predInitialParams['Время_подачи_первого_ствола_мин'] || 0);
-    } else if (predCurrentStage >= 1) {
+    } else if (predCurrentStage >= 2) {
       time = predAdditionalParams['Время_локализации_пожара_мин'] || 0;
     }
 
@@ -515,11 +520,13 @@ export default function App() {
     const left = Math.max(minWagonX, fireSource.x - spreadPixels);
     const right = Math.min(maxWagonX, fireSource.x + spreadPixels);
 
+    const fireWagon = wagons.find(w => w.id === fireSource.wagonId);
+
     return {
       left: left,
       right: right,
-      y: fireSource.y,
-      height: 20
+      y: fireWagon ? fireWagon.y : fireSource.y - 10,
+      height: fireWagon ? fireWagon.height : 20
     };
   }, [fireSource, predInitialParams, predAdditionalParams, predCurrentStage, wagons]);
     const unitSideInfo = useMemo(() => {
@@ -1091,7 +1098,9 @@ export default function App() {
             customPos?.nozzles,
             unit.angle,
             customPumpPositions[unit.id],
-            unitSideInfo[unit.id]
+            unitSideInfo[unit.id],
+            undefined,
+            fireSpread
           );
 
           routing.nozzles.forEach((nozzle, idx) => {
@@ -2390,7 +2399,8 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                   unit.angle,
                   customPumpPositions[unit.id],
                   unitSideInfo[unit.id],
-                  (unit as any).nozzles ?? unit.hoses
+                  (unit as any).nozzles ?? unit.hoses,
+                  fireSpread
                 );
 
                 const connectionPoints: Array<{ x: number; y: number }> = [];
@@ -2526,7 +2536,9 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                   customPos?.nozzles,
                   unit.angle,
                   customPumpPositions[unit.id],
-                  unitSideInfo[unit.id]
+                  unitSideInfo[unit.id],
+                  undefined,
+                  fireSpread
                 );
 
                 const connectionPoints: Array<{ x: number; y: number }> = [];
@@ -2874,7 +2886,9 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                       customPos?.nozzles,
                       unit.angle,
                       customPumpPositions[unit.id],
-                      unitSideInfo[unit.id]
+                      unitSideInfo[unit.id],
+                      undefined,
+                      fireSpread
                     );
                     if (routing.nozzles[nozzleIndex]) {
                       return (
@@ -2903,7 +2917,9 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                       customPos?.nozzles,
                       unit.angle,
                       customPumpPositions[unit.id],
-                      unitSideInfo[unit.id]
+                      unitSideInfo[unit.id],
+                      undefined,
+                      fireSpread
                     );
                     return (
                       <rect
@@ -2999,7 +3015,8 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                   unit.angle,
                   customPumpPositions[unit.id],
                   unitSideInfo[unit.id],
-                  d.nozzles  // <--- вместо unit.nozzles
+                  d.nozzles,
+                  fireSpread
                 );
                 console.log('ROUTING', unit.name, 'nozzles:', routing.nozzles.length, 'paths:', routing.branchPaths.length, 'connections:', routing.branchConnections.length, routing);
 
