@@ -507,11 +507,13 @@ export default function App() {
     if (predCurrentStage === 1) {
       time = (predInitialParams['Время_следования_мин'] || 0) + (predInitialParams['Время_подачи_первого_ствола_мин'] || 0);
     } else if (predCurrentStage >= 2) {
-      time = predAdditionalParams['Время_локализации_пожара_мин'] || 0;
+      time = (predInitialParams['Время_следования_мин'] || 0) +
+         (predInitialParams['Время_подачи_первого_ствола_мин'] || 0) +
+         (predAdditionalParams['Время_локализации_пожара_мин'] || 0);
     }
 
     const spreadMeters = speed * time;
-    const PIXELS_PER_METER = 4;
+    const PIXELS_PER_METER = 2;
     const spreadPixels = spreadMeters * PIXELS_PER_METER;
 
     const minWagonX = Math.min(...wagons.map(w => w.x));
@@ -2094,8 +2096,8 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                     <rect x={wagon.x + 2} y={wagon.y + 2} width={wagon.width} height={wagon.height} fill="rgba(0,0,0,0.3)" rx="3" />
                     <rect x={wagon.x} y={wagon.y} width={wagon.width} height={wagon.height}
                       fill={WAGON_TYPE_INFO[wagon.type].color}
-                      stroke={isOnFire ? '#ff4500' : isSelected ? '#a855f7' : '#666'}
-                      strokeWidth={isOnFire ? 2.5 : isSelected ? 2 : 1} rx="3" />
+                      stroke={isOnFire ? '#a855f7' : isSelected ? '#a855f7' : '#666'}
+                      strokeWidth={isOnFire ? 1.5 : isSelected ? 2 : 1} rx="3" />
                     {wagon.type === 'tank' && (
                       <ellipse cx={wagon.x + wagon.width / 2} cy={wagon.y + wagon.height / 2} rx={wagon.width / 2 - 6} ry={Math.max(0.5, wagon.height / 2 - 4)} fill="none" stroke="#5a7a55" strokeWidth="1.5" />
                     )}
@@ -2118,7 +2120,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                   width={fireSpread.right - fireSpread.left} 
                   height={fireSpread.height} 
                   fill="rgba(255, 0, 0, 0.5)" 
-                  stroke="#ff4500"
+                  stroke="#ff0000"
                   strokeWidth="2"
                   style={{ pointerEvents: 'none' }}
                   rx="3"
