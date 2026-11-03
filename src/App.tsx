@@ -346,16 +346,42 @@ function routeHoseAlongCorridor(
     baseY = Math.max(baseY, maxY);
   }
 
-  // Генерируем nozzlesCount ствольщиков, каждый на своей позиции
-  const targetStartX = fireSpread ? fireSpread.left : fireX;
-  const targetEndX = fireSpread ? fireSpread.right : fireX;
-  const targetStep = (targetEndX - targetStartX) / Math.max(1, nozzlesCount);
+  if (fireSpread) {
+  // Y-позиция: 5-10 метров ниже нижней кромки пожара (PIXELS_PER_METER = 2)
+  const fireBottomY = fireSpread.y + fireSpread.height;
+  const targetY = fireBottomY + 15; // 7.5 м ниже пожара
+  const edgeOffset = 15; // 7.5 м наружу от краёв
 
   for (let i = 0; i < nozzlesCount; i++) {
-    const posIdx = startIdx + i;
-    const currentTargetX = targetStartX + targetStep * (posIdx + 0.5);
-    defaultNozzles.push({ x: currentTargetX, y: baseY });
+    let currentTargetX: number;
+
+    if (nozzlesCount === 1) {
+      currentTargetX = (fireSpread.left + fireSpread.right) / 2;
+    } else if (i === 0) {
+      // Первый — за левым краем пожара
+      currentTargetX = fireSpread.left - edgeOffset;
+    } else if (i === nozzlesCount - 1) {
+      // Последний — за правым краем пожара
+      currentTargetX = fireSpread.right + edgeOffset;
+    } else {
+      // Остальные — внутри зоны пожара, равномерно
+      const insideCount = nozzlesCount - 2;
+      const insideIdx = i - 1;
+      const step = (fireSpread.right - fireSpread.left) / (insideCount + 1);
+      currentTargetX = fireSpread.left + step * (insideIdx + 1);
+    }
+
+    defaultNozzles.push({ x: currentTargetX, y: targetY });
   }
+} else {
+  // Старая логика (если нет зоны пожара)
+  const targetStartX = fireX;
+  const targetEndX = fireX;
+  const targetStep = 0;
+  for (let i = 0; i < nozzlesCount; i++) {
+    defaultNozzles.push({ x: targetStartX + targetStep * i, y: baseY });
+  }
+}
 
   for (let i = 0; i < defaultNozzles.length; i++) {
     let nozzleX = defaultNozzles[i].x;
@@ -600,12 +626,12 @@ export default function App() {
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
-    const rect = svg.getBoundingClientRect();
-    const viewBox = svg.viewBox.baseVal;
-    const x = viewBox.x + ((e.clientX - rect.left) / rect.width) * viewBox.width;
-    const y = viewBox.y + ((e.clientY - rect.top) / rect.height) * viewBox.height;
-    return { x, y };
-  }, [scale]);
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
+    return { x: svgP.x, y: svgP.y };
+  }, []);
 
   const handleSVGClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
@@ -620,8 +646,8 @@ export default function App() {
         id: `manual-${Date.now()}`,
         type: placingUnit,
         name: placingUnit === 'asa' ? 'АСА' : placingUnit === 'aso' ? 'АСО' : 'АЦ-40',
-        x: x - 22,
-        y: y - 10,
+        x: x,
+        y: y,
         angle: 0,
         personnel: defaultPersonnel,
         nozzles: defaultPersonnel >= 2 ? Math.min(defaultPersonnel - 1, 2) : 0,
