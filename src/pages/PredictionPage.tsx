@@ -267,14 +267,17 @@ export default function PredictionPage() {
       }
     } catch (e) {}
 
-    let firstWaterSource: { x: number, y: number } | null = null;
-    const waterStr = localStorage.getItem('map_waterSources');
-    if (waterStr) {
-      const ws = JSON.parse(waterStr);
-      if (ws && ws.length > 0) {
-        firstWaterSource = { x: ws[0].x, y: ws[0].y };
+    let waterSources: { x: number, y: number }[] = [];
+    try {
+      const waterStr = localStorage.getItem('map_waterSources');
+      if (waterStr) {
+        const ws = JSON.parse(waterStr);
+        if (ws && ws.length > 0) {
+          waterSources = ws.map((w: any) => ({ x: w.x, y: w.y }));
+        }
       }
-    }
+    } catch (e) {}
+    let wsIndex = 0;
 
     // Выделяем по 3 человека на каждую АСО
     const asoPersonnelNeeded = aso * 3;
@@ -291,10 +294,14 @@ export default function PredictionPage() {
         if (fixedPersonnel === undefined && remainder > 0) remainder--;
 
         const n = getNozzles(canDeployPTV);
-        // Если это первая АЦ и есть водоисточник — ставим на него
-        const isFirstAc = type === 'ac' && i === 0 && firstWaterSource;
-        const finalX = isFirstAc && firstWaterSource ? firstWaterSource.x : startX;
-        const finalY = isFirstAc && firstWaterSource ? firstWaterSource.y : startY;
+        let finalX = startX;
+        let finalY = startY;
+        // Если это АЦ или АСА, и есть свободный водоисточник — ставим на него
+        if ((type === 'ac' || type === 'asa') && wsIndex < waterSources.length) {
+          finalX = waterSources[wsIndex].x;
+          finalY = waterSources[wsIndex].y;
+          wsIndex++;
+        }
         newUnits.push({
           id: `manual-${Date.now()}-${type}-${i}`,
           type: type as any,

@@ -264,7 +264,8 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
 
       {(actualAc > 0 || actualSpecial > 0 || actualTrains > 0 || actualStvols > 0) && (
         <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-2.5">
-          <div className="text-[10px] text-blue-400 font-semibold mb-1">📋 Заявлено РТП для прогноза параметров</div>
+          <div style={{ display: 'none' }}>
+            <div className="text-[10px] text-blue-400 font-semibold mb-1">📋 Заявлено РТП для прогноза параметров</div>
           <div className="space-y-1 text-[11px]">
             {actualStvols > 0 && (
               <div className="flex justify-between">
@@ -321,6 +322,7 @@ export default function RecommendationPanel({ onApply, resources }: Recommendati
               })()}
             </div>
           )}
+          </div>
         </div>
       )}
       </div>
