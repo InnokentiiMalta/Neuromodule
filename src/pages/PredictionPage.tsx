@@ -267,6 +267,15 @@ export default function PredictionPage() {
       }
     } catch (e) {}
 
+    let firstWaterSource: { x: number, y: number } | null = null;
+    const waterStr = localStorage.getItem('map_waterSources');
+    if (waterStr) {
+      const ws = JSON.parse(waterStr);
+      if (ws && ws.length > 0) {
+        firstWaterSource = { x: ws[0].x, y: ws[0].y };
+      }
+    }
+
     // Выделяем по 3 человека на каждую АСО
     const asoPersonnelNeeded = aso * 3;
     const remainingPersonnel = Math.max(0, totalPersonnel - asoPersonnelNeeded);
@@ -282,12 +291,16 @@ export default function PredictionPage() {
         if (fixedPersonnel === undefined && remainder > 0) remainder--;
 
         const n = getNozzles(canDeployPTV);
+        // Если это первая АЦ и есть водоисточник — ставим на него
+        const isFirstAc = type === 'ac' && i === 0 && firstWaterSource;
+        const finalX = isFirstAc && firstWaterSource ? firstWaterSource.x : startX;
+        const finalY = isFirstAc && firstWaterSource ? firstWaterSource.y : startY;
         newUnits.push({
           id: `manual-${Date.now()}-${type}-${i}`,
           type: type as any,
           name: name,
-          x: startX,
-          y: startY,
+          x: finalX,
+          y: finalY,
           angle: 0,
           personnel: p,
           hoses: n,
