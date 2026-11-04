@@ -547,6 +547,7 @@ export default function App() {
 
     const left = Math.max(minWagonX, fireSource.x - spreadPixels);
     const right = Math.min(maxWagonX, fireSource.x + spreadPixels);
+    console.log('FIRE_SPREAD', 'stage:', predCurrentStage, 'time:', time, 'speed:', speed, 'spreadPixels:', spreadPixels, 'left:', left, 'right:', right);
 
     const fireWagon = wagons.find(w => w.id === fireSource.wagonId);
 
