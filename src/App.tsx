@@ -347,10 +347,15 @@ function routeHoseAlongCorridor(
   }
 
   if (fireSpread) {
-  // Y-позиция: 5-10 метров ниже нижней кромки пожара (PIXELS_PER_METER = 2)
-  const fireBottomY = fireSpread.y + fireSpread.height;
-  const targetY = fireBottomY + 15; // 7.5 м ниже пожара
-  const edgeOffset = 15; // 7.5 м наружу от краёв
+  // Определяем, с какой стороны от пожара находится машина
+  const isUnitAbove = unitY < fireSpread.y;
+  
+  // Ствольщик встает между машиной и пожаром (на стороне машины)
+  const targetY = isUnitAbove 
+    ? fireSpread.y - 15          // машина сверху → ствольщик сверху пожара
+    : fireSpread.y + fireSpread.height + 15; // машина снизу → ствольщик снизу пожара
+  
+  const edgeOffset = 15;
 
   for (let i = 0; i < nozzlesCount; i++) {
     let currentTargetX: number;
