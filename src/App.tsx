@@ -4,6 +4,7 @@ import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrain
 import html2canvas from 'html2canvas';
 import ServerStatus from './components/ServerStatus';
 import RecommendationPanel from './components/RecommendationPanel';
+import PredictionPanel from './components/PredictionPanel';
 import RetrainPanel from './components/RetrainPanel';
 import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
@@ -501,6 +502,7 @@ export default function App() {
   const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
   const hasManualPlacement = manualUnits.length > 0;
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
+  const [rightPanelTab, setRightPanelTab] = useState<'map' | 'training'>('map');
   const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
   const [fireTrainPTW, setFireTrainPTW] = useLocalStorageState<Record<string, boolean>>('map_fireTrainPTW', {});
@@ -3168,9 +3170,31 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
         </main>
 
         <aside className="w-[clamp(380px,30vw,500px)] bg-gray-800/95 border-l border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
-          <div className="p-3 overflow-y-auto flex-1 min-h-0">
-            <RecommendationPanel onApply={handleApplyRecommendations} resources={resources} />
-            <RetrainPanel />
+          {/* Табы */}
+          <div className="flex border-b border-gray-700 shrink-0">
+            <button
+              onClick={() => setRightPanelTab('map')}
+              className={`flex-1 py-2 text-sm font-semibold transition ${rightPanelTab === 'map' ? 'bg-blue-700 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              🗺 Карта
+            </button>
+            <button
+              onClick={() => setRightPanelTab('training')}
+              className={`flex-1 py-2 text-sm font-semibold transition ${rightPanelTab === 'training' ? 'bg-blue-700 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              🧠 Дообучение
+            </button>
+          </div>
+
+          {/* Содержимое вкладки */}
+          <div className="flex-1 overflow-y-auto">
+            {rightPanelTab === 'map' ? (
+              <PredictionPanel />
+            ) : (
+              <div className="p-3">
+                <RecommendationPanel onApply={handleApplyRecommendations} resources={resources} />
+              </div>
+            )}
           </div>
         </aside>
       </div>
