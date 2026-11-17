@@ -238,7 +238,9 @@ function routeHoseAlongCorridor(
   customPumpPos?: { x: number; y: number },
   sideInfo?: { startIdx: number; total: number; nozzlesCount: number },
   overrideNozzles?: number,
-  fireSpread?: { left: number; right: number; y: number; height: number } | null
+  fireSpread?: { left: number; right: number; y: number; height: number } | null,
+  nozzleIndexOffset?: number,
+  totalNozzlesAcrossAllUnits?: number
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }>; branchPaths: Array<Array<{ x: number; y: number }>> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
@@ -347,8 +349,8 @@ function routeHoseAlongCorridor(
     baseY = Math.max(baseY, maxY);
   }
 
-  if (fireSpread) {
-  // Определяем, с какой стороны от пожара находится машина
+  if (fireSpread && (totalNozzlesAcrossAllUnits || 0) > 0) {
+  // Определяем, с какой сторой от пожара находится машинаны от test
   const isUnitAbove = unitY < fireSpread.y;
   
   // Ствольщик встает между машиной и пожаром (на стороне машины)
@@ -373,7 +375,7 @@ function routeHoseAlongCorridor(
       // Остальные — внутри зоны пожара, равномерно
       const insideCount = nozzlesCount - 2;
       const insideIdx = i - 1;
-      const step = (fireSpread.right - fireSpread.left) / (insideCount + 1);
+      const step = (fireSpread.right - fireSpread.left) / Math.max(1, (totalNozzlesAcrossAllUnits ?? 1) - 1);
       currentTargetX = fireSpread.left + step * (insideIdx + 1);
     }
 
@@ -500,6 +502,16 @@ export default function App() {
   const [fireType, setFireType] = useState<'wagon_body' | 'tank' | 'undercarriage' | 'cargo'>('wagon_body');
   const [deployment, setDeployment] = useLocalStorageState<Deployment | null>('map_deployment', null);
   const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
+  const manualNozzleData = useMemo(() => {
+    const hoseUnits = manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2);
+    const total = hoseUnits.reduce((sum, u) => sum + ((u as any).nozzles || 0), 0);
+    let offset = 0;
+    return hoseUnits.map(unit => {
+      const currentOffset = offset;
+      offset += (unit as any).nozzles || 0;
+      return { unit, offset: currentOffset, total };
+    });
+  }, [manualUnits]);
   const hasManualPlacement = manualUnits.length > 0;
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
   const [rightPanelTab, setRightPanelTab] = useState<'map' | 'training'>('map');
@@ -2443,6 +2455,9 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
               ))}
 
               {!hasManualPlacement && fireSource && deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2).map(unit => {
+                const autoUnits = deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || [];
+                const deploymentOffset = autoUnits.slice(0, autoUnits.findIndex(m => m.id === unit.id)).reduce((sum, u) => sum + ((u as any).nozzles ?? u.hoses), 0);
+                const totalDeploymentNozzles = autoUnits.reduce((sum, u) => sum + ((u as any).nozzles ?? u.hoses), 0);
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
@@ -2454,7 +2469,9 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                   customPumpPositions[unit.id],
                   unitSideInfo[unit.id],
                   (unit as any).nozzles ?? unit.hoses,
-                  fireSpread
+                  fireSpread,
+                  deploymentOffset,
+                  totalDeploymentNozzles
                 );
 
                 const connectionPoints: Array<{ x: number; y: number }> = [];
@@ -2580,10 +2597,11 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                 );
               })}
 
-              {fireSource && manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2).map(unit => {
+              {manualNozzleData.map(({ unit, offset, total }) => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
+
                 const routing = routeHoseAlongCorridor(
                   unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
                   customPos?.branchPoint,
@@ -2591,17 +2609,21 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                   unit.angle,
                   customPumpPositions[unit.id],
                   unitSideInfo[unit.id],
-                  undefined,
-                  fireSpread
+                  (unit as any).nozzles || 0,
+                  fireSpread,
+                  offset,
+                  total
                 );
 
                 const connectionPoints: Array<{ x: number; y: number }> = [];
                 let totalDist = 0;
+
                 for (let i = 0; i < routing.path.length - 1; i++) {
                   const p1 = routing.path[i];
                   const p2 = routing.path[i + 1];
                   const segLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
                   if (segLen === 0) continue;
+
                   const segDx = (p2.x - p1.x) / segLen;
                   const segDy = (p2.y - p1.y) / segLen;
 
@@ -2610,55 +2632,36 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                     const nextConnDist = Math.ceil((totalDist + segDist) / 40) * 40;
                     const distInSeg = nextConnDist - totalDist;
                     if (distInSeg > segLen) break;
+
                     if (distInSeg > 0) {
                       connectionPoints.push({
                         x: p1.x + segDx * distInSeg,
                         y: p1.y + segDy * distInSeg
                       });
                     }
-                    segDist = distInSeg + 1;
+                    segDist += 40;
                   }
                   totalDist += segLen;
                 }
 
                 return (
-                  <g key={`hose-${unit.id}`}>
-                    <g
-                      onMouseDown={e => {
-                        e.stopPropagation();
-                        const { x, y } = getSVGCoords(e);
-                        setDragState({
-                          type: 'pump',
-                          id: `pump-${unit.id}`,
-                          unitId: unit.id,
-                          offsetX: x - routing.path[0].x,
-                          offsetY: y - routing.path[0].y
-                        });
-                      }}
-                      style={{ cursor: 'move' }}
-                    >
-                      <circle cx={routing.path[0].x} cy={routing.path[0].y} r="5" fill="#ff6b00" stroke="#fff" strokeWidth="1.5" opacity="0.9" />
-                      <circle cx={routing.path[0].x} cy={routing.path[0].y} r="2" fill="#fff" />
-                    </g>
+                  <g key={unit.id}>
+                    {routing.path.length > 1 && (
+                      <polyline
+                        points={routing.path.map(p => `${p.x},${p.y}`).join(' ')}
+                        fill="none"
+                        stroke="#000"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                      />
+                    )}
 
-                    {routing.path.slice(0, -1).map((point, idx) => (
-                      <line key={idx} x1={point.x} y1={point.y} x2={routing.path[idx + 1].x} y2={routing.path[idx + 1].y}
-                        stroke="#000" strokeWidth="3.5" strokeLinecap="round" />
-                    ))}
-
-                    {connectionPoints.map((point, idx) => (
+                    {connectionPoints.map((conn, idx) => (
                       <g key={`conn-${idx}`}>
-                        <circle cx={point.x} cy={point.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
-                        <circle cx={point.x} cy={point.y} r="1.5" fill="#888" />
+                        <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                        <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
                       </g>
                     ))}
-
-                    {routing.branchPaths.slice(0, (unit as any).nozzles ?? 0).map((branchPath, idx) =>
-                      branchPath.slice(0, -1).map((p, i) => (
-                        <line key={`${idx}-${i}`} x1={p.x} y1={p.y} x2={branchPath[i + 1].x} y2={branchPath[i + 1].y}
-                          stroke="#000" strokeWidth="2.5" strokeLinecap="round" />
-                      ))
-                    )}
 
                     {routing.branchConnections.map((conn, idx) => (
                       <g key={`branch-conn-${idx}`}>
@@ -2667,46 +2670,51 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                       </g>
                     ))}
 
-                    <g
-                      onMouseDown={e => handleMouseDown(e, 'branch', unit.id, unit.id)}
-                      style={{ cursor: 'move' }}
-                    >
-                      <rect x={routing.branchPoint.x - 8} y={routing.branchPoint.y - 6} width="16" height="12" fill="#1565c0" stroke="#fff" strokeWidth="1" rx="2" />
-                      <text x={routing.branchPoint.x} y={routing.branchPoint.y + 2} textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">РТ-80</text>
-                    </g>
-
-                    {distributePersonnel(unit.type as 'ac' | 'asa' | 'aso' | 'train', unit.personnel, (unit as ManualUnit).nozzles).atBranch > 0 && (
-                      <>
-                        <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="4" fill="#ffeb3b" opacity="0.6" />
-                        <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="5">🧑‍🚒</text>
-                      </>
+                    {routing.branchPaths.map((branchPath, idx) =>
+                      branchPath.slice(0, -1).map((p, i) => (
+                        <line
+                          key={`${idx}-${i}`}
+                          x1={p.x} y1={p.y}
+                          x2={branchPath[i + 1].x} y2={branchPath[i + 1].y}
+                          stroke="#000"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                        />
+                      ))
                     )}
 
-                    {routing.nozzles.slice(0, (unit as any).nozzles ?? 0).map((nozzle, idx) => {
+                    {routing.nozzles.slice(0, (unit as any).nozzles || 0).map((nozzle, idx) => {
                       const dx = fs.x - nozzle.x;
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
-                      const dist = Math.sqrt(dx * dx + dy * dy);
 
-                      const sprayLength = Math.min(dist * 0.3, 30);
-                      const sprayWidth = 8;
-                      const sprayX = nozzle.x + Math.cos(angle) * sprayLength;
-                      const sprayY = nozzle.y + Math.sin(angle) * sprayLength;
+                      if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle)) {
+                        return null;
+                      }
 
                       return (
-                        <g key={idx}>
-                          <line x1={nozzle.x} y1={nozzle.y} x2={fs.x} y2={fs.y}
-                            stroke="#4fc3f7" strokeWidth="2" opacity="0.6" strokeDasharray="4,3">
-                            <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.5s" repeatCount="indefinite" />
-                          </line>
-
-                          <path
-                            d={`M ${nozzle.x} ${nozzle.y} L ${sprayX - Math.sin(angle) * sprayWidth} ${sprayY + Math.cos(angle) * sprayWidth} L ${sprayX + Math.sin(angle) * sprayWidth} ${sprayY - Math.cos(angle) * sprayWidth} Z`}
-                            fill="#4fc3f7"
-                            opacity="0.4"
-                          >
-                            <animate attributeName="opacity" values="0.3;0.5;0.3" dur="0.8s" repeatCount="indefinite" />
-                          </path>
+                        <g
+                          key={`firefighter-top-${unit.id}-${idx}`}
+                          onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
+                          style={{ cursor: 'move' }}
+                        >
+                          <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
+                          <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
+                          <line
+                            x1={nozzle.x} y1={nozzle.y}
+                            x2={nozzle.x + Math.cos(angle) * 8}
+                            y2={nozzle.y + Math.sin(angle) * 8}
+                            stroke="#1565c0"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
+                          
+                          {(toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && (
+                            <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
+                              <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
+                            </circle>
+                          )}
                         </g>
                       );
                     })}
