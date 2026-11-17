@@ -506,9 +506,9 @@ export default function App() {
   const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
   const [fireTrainPTW, setFireTrainPTW] = useLocalStorageState<Record<string, boolean>>('map_fireTrainPTW', {});
-  const [predInitialParams] = useLocalStorageState<any>('prediction_initialParams', {});
-  const [predAdditionalParams] = useLocalStorageState<any>('prediction_additionalParams', {});
-  const [predCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
+  const [predInitialParams, setPredInitialParams] = useLocalStorageState<any>('prediction_initialParams', {});
+  const [predAdditionalParams, setPredAdditionalParams] = useLocalStorageState<any>('prediction_additionalParams', {});
+  const [predCurrentStage, setPredCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -1246,6 +1246,24 @@ export default function App() {
     setToolMode('none');
     setPlacingUnit(null);
   }, []);
+
+  const handleMapUpdate = useCallback(() => {
+    // Перечитываем manualUnits (там новая техника)
+    const freshUnits = JSON.parse(localStorage.getItem('map_manualUnits') || '[]');
+    setManualUnits(freshUnits);
+
+    // Очищаем старые позиции стволов (если они были)
+    setCustomPositions({});
+    setCustomPumpPositions({});
+
+    // Перечитываем prediction-состояния (для огня)
+    const freshInitial = JSON.parse(localStorage.getItem('prediction_initialParams') || '{}');
+    const freshAdditional = JSON.parse(localStorage.getItem('prediction_additionalParams') || '{}');
+    const freshStage = JSON.parse(localStorage.getItem('prediction_currentStage') || '0');
+    setPredInitialParams(freshInitial);
+    setPredAdditionalParams(freshAdditional);
+    setPredCurrentStage(freshStage);
+  }, [setManualUnits, setCustomPositions, setCustomPumpPositions, setPredInitialParams, setPredAdditionalParams, setPredCurrentStage]);
 
   const handleScreenshotScene = useCallback(() => {
     const svgElement = svgRef.current;
@@ -3189,7 +3207,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
           {/* Содержимое вкладки */}
           <div className="flex-1 overflow-y-auto">
             {rightPanelTab === 'map' ? (
-              <PredictionPanel />
+              <PredictionPanel onMapUpdate={handleMapUpdate} />
             ) : (
               <div className="p-3">
                 <RecommendationPanel onApply={handleApplyRecommendations} resources={resources} />

@@ -84,7 +84,7 @@ const PARAM_ORDER = [
   'Количество_пожарных_поездов_ед',
 ];
 
-export default function PredictionPage() {
+export default function PredictionPage({ onMapUpdate }: { onMapUpdate?: () => void } = {}) {
   const [initialParams, setInitialParams] = useLocalStorageState<InitialParams>('prediction_initialParams', {
     Время_следования_мин: 8,
     Время_подачи_первого_ствола_мин: 1,
@@ -351,6 +351,7 @@ export default function PredictionPage() {
     localStorage.removeItem('map_customPumpPositions');
     localStorage.removeItem('map_unitSideInfo');
     localStorage.setItem('map_manualUnits', JSON.stringify(newUnits));
+    onMapUpdate?.();
     alert(`На карту добавлено: ${ac} АЦ, ${asa} АСА, ${aso} АСО, ${trains} поездов. Перейдите на карту.`);
   };
 
