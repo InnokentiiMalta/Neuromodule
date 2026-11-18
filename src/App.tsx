@@ -238,7 +238,9 @@ function routeHoseAlongCorridor(
   customPumpPos?: { x: number; y: number },
   sideInfo?: { startIdx: number; total: number; nozzlesCount: number },
   overrideNozzles?: number,
-  fireSpread?: { left: number; right: number; y: number; height: number } | null
+  fireSpread?: { left: number; right: number; y: number; height: number } | null,
+  nozzleIndexOffset: number = 0,
+  totalNozzlesAcrossAllUnits: number = 0
 ): { path: Array<{ x: number; y: number }>; branchPoint: { x: number; y: number }; nozzles: Array<{ x: number; y: number }>; branchConnections: Array<{ x: number; y: number }>; branchPaths: Array<Array<{ x: number; y: number }>> } {
   const unitCenterX = unitX + unitWidth / 2;
   const unitCenterY = unitY + unitHeight / 2;
@@ -348,38 +350,20 @@ function routeHoseAlongCorridor(
   }
 
   if (fireSpread) {
-  // Определяем, с какой стороны от пожара находится машина
-  const isUnitAbove = unitY < fireSpread.y;
-  
-  // Ствольщик встает между машиной и пожаром (на стороне машины)
-  const targetY = isUnitAbove 
-    ? fireSpread.y - 15          // машина сверху → ствольщик сверху пожара
-    : fireSpread.y + fireSpread.height + 15; // машина снизу → ствольщик снизу пожара
-  
-  const edgeOffset = 15;
+    const isUnitAbove = unitY < fireSpread.y;
+    const targetY = isUnitAbove
+      ? fireSpread.y - 15
+      : fireSpread.y + fireSpread.height + 15;
 
-  for (let i = 0; i < nozzlesCount; i++) {
-    let currentTargetX: number;
+    const total = totalNozzlesAcrossAllUnits || nozzlesCount;
+    const step = (fireSpread.right - fireSpread.left) / Math.max(1, total - 1);
 
-    if (nozzlesCount === 1) {
-      currentTargetX = (fireSpread.left + fireSpread.right) / 2;
-    } else if (i === 0) {
-      // Первый — за левым краем пожара
-      currentTargetX = fireSpread.left - edgeOffset;
-    } else if (i === nozzlesCount - 1) {
-      // Последний — за правым краем пожара
-      currentTargetX = fireSpread.right + edgeOffset;
-    } else {
-      // Остальные — внутри зоны пожара, равномерно
-      const insideCount = nozzlesCount - 2;
-      const insideIdx = i - 1;
-      const step = (fireSpread.right - fireSpread.left) / (insideCount + 1);
-      currentTargetX = fireSpread.left + step * (insideIdx + 1);
+    for (let i = 0; i < nozzlesCount; i++) {
+      const globalIdx = (nozzleIndexOffset || 0) + i;
+      const currentTargetX = fireSpread.left + step * globalIdx;
+      defaultNozzles.push({ x: currentTargetX, y: targetY });
     }
-
-    defaultNozzles.push({ x: currentTargetX, y: targetY });
-  }
-} else {
+  } else {
   // Старая логика (если нет зоны пожара)
   const targetStartX = fireX;
   const targetEndX = fireX;
@@ -500,6 +484,18 @@ export default function App() {
   const [fireType, setFireType] = useState<'wagon_body' | 'tank' | 'undercarriage' | 'cargo'>('wagon_body');
   const [deployment, setDeployment] = useLocalStorageState<Deployment | null>('map_deployment', null);
   const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
+  const unitsToRender = useMemo(() => {
+    const baseUnits = manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы')
+      ? manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)
+      : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)];
+    const total = baseUnits.reduce((sum, u) => sum + ((u as any).nozzles || 0), 0);
+    let offset = 0;
+    return baseUnits.map(unit => {
+      const currentOffset = offset;
+      offset += ((unit as any).nozzles || 0);
+      return { unit, offset: currentOffset, total };
+    });
+  }, [manualUnits, deployment]);
   const hasManualPlacement = manualUnits.length > 0;
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
   const [rightPanelTab, setRightPanelTab] = useState<'map' | 'training'>('map');
@@ -3052,11 +3048,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                 </g>
               ))}
 
-              {fireSource && (
-  manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы')
-    ? manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)
-    : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)]
-).map(unit => {
+              {fireSource && unitsToRender.map(({ unit, offset, total }) => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 console.log('DEBUG RENDER', unit.name, 'type:', unit.type, 'nozzles:', (unit as any).nozzles, 'hoses:', unit.hoses, 'personnel:', unit.personnel);
                 const fs = fireSource!;
@@ -3070,7 +3062,9 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                   customPumpPositions[unit.id],
                   unitSideInfo[unit.id],
                   d.nozzles,
-                  fireSpread
+                  fireSpread,
+                  offset,
+                  total
                 );
                 console.log('ROUTING', unit.name, 'nozzles:', routing.nozzles.length, 'paths:', routing.branchPaths.length, 'connections:', routing.branchConnections.length, routing);
 
