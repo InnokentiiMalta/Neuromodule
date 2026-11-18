@@ -101,7 +101,7 @@ function findShortestPath(
       if (isPointInBlockingObstacle(midX, midY, obstacles, wagons)) continue;
 
       if (!lineCrossesBlockingObstacle(fromX, fromY, midX, midY, obstacles, wagons, 3) &&
-          !lineCrossesBlockingObstacle(midX, midY, toX, toY, obstacles, wagons, 3)) {
+        !lineCrossesBlockingObstacle(midX, midY, toX, toY, obstacles, wagons, 3)) {
         return [{ x: fromX, y: fromY }, { x: midX, y: midY }, { x: toX, y: toY }];
       }
     }
@@ -153,7 +153,7 @@ function lineIntersectsRect(
     const d3 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx);
     const d4 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
     return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-           ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
   };
 
   // Проверяем 4 стороны прямоугольника
@@ -186,23 +186,23 @@ function getFireTruckPoints(x: number, y: number, angle: number): string {
   const normalizedAngle = ((angle % 360) + 360) % 360;
   const isCabinRight = normalizedAngle < 90 || normalizedAngle > 270;
 
-  let points: Array<{x: number, y: number}>;
+  let points: Array<{ x: number, y: number }>;
 
   if (isCabinRight) {
     points = [
-      { x: x - truckLength/2, y: y - truckWidth/2 },
-      { x: x - truckLength/2, y: y + truckWidth/2 },
-      { x: x + truckLength/2 - 2, y: y + truckWidth/2 },
-      { x: x + truckLength/2 + 2, y: y },
-      { x: x + truckLength/2 - 2, y: y - truckWidth/2 },
+      { x: x - truckLength / 2, y: y - truckWidth / 2 },
+      { x: x - truckLength / 2, y: y + truckWidth / 2 },
+      { x: x + truckLength / 2 - 2, y: y + truckWidth / 2 },
+      { x: x + truckLength / 2 + 2, y: y },
+      { x: x + truckLength / 2 - 2, y: y - truckWidth / 2 },
     ];
   } else {
     points = [
-      { x: x - truckLength/2 - 2, y: y },
-      { x: x - truckLength/2 + 2, y: y + truckWidth/2 },
-      { x: x + truckLength/2, y: y + truckWidth/2 },
-      { x: x + truckLength/2, y: y - truckWidth/2 },
-      { x: x - truckLength/2 + 2, y: y - truckWidth/2 },
+      { x: x - truckLength / 2 - 2, y: y },
+      { x: x - truckLength / 2 + 2, y: y + truckWidth / 2 },
+      { x: x + truckLength / 2, y: y + truckWidth / 2 },
+      { x: x + truckLength / 2, y: y - truckWidth / 2 },
+      { x: x - truckLength / 2 + 2, y: y - truckWidth / 2 },
     ];
   }
 
@@ -269,9 +269,9 @@ function routeHoseAlongCorridor(
     const branchDist = Math.min(distToFire * 0.7, MAX_BRANCH_DISTANCE_FROM_UNIT);
     branchX = pumpPos.x + Math.cos(angleToFire) * branchDist;
     branchY = pumpPos.y + Math.sin(angleToFire) * branchDist;
-    
+
     const unitAboveTracks = unitCenterY < TRACK_TOP;
-    
+
     if (unitAboveTracks) {
       const minY = TRACK_TOP - MIN_BRANCH_DISTANCE_FROM_TRACKS;
       if (branchY > minY) {
@@ -283,7 +283,7 @@ function routeHoseAlongCorridor(
         branchY = maxY;
       }
     }
-    
+
     const distToPump = Math.sqrt((branchX - pumpPos.x) ** 2 + (branchY - pumpPos.y) ** 2);
     if (distToPump > MAX_BRANCH_DISTANCE_FROM_UNIT) {
       const scale = MAX_BRANCH_DISTANCE_FROM_UNIT / distToPump;
@@ -296,11 +296,11 @@ function routeHoseAlongCorridor(
       for (const obs of obstacles) {
         if (obs.type === 'road' || obs.type === 'tree_group') continue;
         if (bx >= obs.x - 4 && bx <= obs.x + obs.width + 4 &&
-            by >= obs.y - 4 && by <= obs.y + obs.height + 4) return true;
+          by >= obs.y - 4 && by <= obs.y + obs.height + 4) return true;
       }
       for (const w of wagons) {
         if (bx >= w.x - 4 && bx <= w.x + w.width + 4 &&
-            by >= w.y - 4 && by <= w.y + w.height + 4) return true;
+          by >= w.y - 4 && by <= w.y + w.height + 4) return true;
       }
       return false;
     };
@@ -350,46 +350,46 @@ function routeHoseAlongCorridor(
   }
 
   if (fireSpread && (totalNozzlesAcrossAllUnits || 0) > 0) {
-  // Определяем, с какой сторой от пожара находится машинаны от test
-  const isUnitAbove = unitY < fireSpread.y;
-  
-  // Ствольщик встает между машиной и пожаром (на стороне машины)
-  const targetY = isUnitAbove 
-    ? fireSpread.y - 15          // машина сверху → ствольщик сверху пожара
-    : fireSpread.y + fireSpread.height + 15; // машина снизу → ствольщик снизу пожара
-  
-  const edgeOffset = 15;
+    // Определяем, с какой сторой от пожара находится машинаны от test
+    const isUnitAbove = unitY < fireSpread.y;
 
-  for (let i = 0; i < nozzlesCount; i++) {
-    let currentTargetX: number;
+    // Ствольщик встает между машиной и пожаром (на стороне машины)
+    const targetY = isUnitAbove
+      ? fireSpread.y - 15          // машина сверху → ствольщик сверху пожара
+      : fireSpread.y + fireSpread.height + 15; // машина снизу → ствольщик снизу пожара
 
-    if (nozzlesCount === 1) {
-      currentTargetX = (fireSpread.left + fireSpread.right) / 2;
-    } else if (i === 0) {
-      // Первый — за левым краем пожара
-      currentTargetX = fireSpread.left - edgeOffset;
-    } else if (i === nozzlesCount - 1) {
-      // Последний — за правым краем пожара
-      currentTargetX = fireSpread.right + edgeOffset;
-    } else {
-      // Остальные — внутри зоны пожара, равномерно
-      const insideCount = nozzlesCount - 2;
-      const insideIdx = i - 1;
-      const step = (fireSpread.right - fireSpread.left) / Math.max(1, (totalNozzlesAcrossAllUnits ?? 1) - 1);
-      currentTargetX = fireSpread.left + step * (insideIdx + 1);
+    const edgeOffset = 15;
+
+    for (let i = 0; i < nozzlesCount; i++) {
+      let currentTargetX: number;
+
+      if (nozzlesCount === 1) {
+        currentTargetX = (fireSpread.left + fireSpread.right) / 2;
+      } else if (i === 0) {
+        // Первый — за левым краем пожара
+        currentTargetX = fireSpread.left - edgeOffset;
+      } else if (i === nozzlesCount - 1) {
+        // Последний — за правым краем пожара
+        currentTargetX = fireSpread.right + edgeOffset;
+      } else {
+        // Остальные — внутри зоны пожара, равномерно
+        const insideCount = nozzlesCount - 2;
+        const insideIdx = i - 1;
+        const step = (fireSpread.right - fireSpread.left) / Math.max(1, (totalNozzlesAcrossAllUnits ?? 1) - 1);
+        currentTargetX = fireSpread.left + step * (insideIdx + 1);
+      }
+
+      defaultNozzles.push({ x: currentTargetX, y: targetY });
     }
-
-    defaultNozzles.push({ x: currentTargetX, y: targetY });
+  } else {
+    // Старая логика (если нет зоны пожара)
+    const targetStartX = fireX;
+    const targetEndX = fireX;
+    const targetStep = 0;
+    for (let i = 0; i < nozzlesCount; i++) {
+      defaultNozzles.push({ x: targetStartX + targetStep * i, y: baseY });
+    }
   }
-} else {
-  // Старая логика (если нет зоны пожара)
-  const targetStartX = fireX;
-  const targetEndX = fireX;
-  const targetStep = 0;
-  for (let i = 0; i < nozzlesCount; i++) {
-    defaultNozzles.push({ x: targetStartX + targetStep * i, y: baseY });
-  }
-}
 
   for (let i = 0; i < defaultNozzles.length; i++) {
     let nozzleX = defaultNozzles[i].x;
@@ -456,12 +456,12 @@ function routeHoseAlongCorridor(
   const branchConnections: Array<{ x: number; y: number }> = [];
   const branchPaths: Array<Array<{ x: number; y: number }>> = [];
   const HOSE_SEGMENT_LENGTH = 40;
-  
+
   for (const nozzle of nozzles) {
     // Строим путь с обходом препятствий от разветвления к ствольщику
     const bp = findShortestPath(branchX, branchY, nozzle.x, nozzle.y, wagons, obstacles);
     branchPaths.push(bp);
-    
+
     // Считаем стыки рукавов вдоль этого пути
     let totalDist = 0;
     for (let i = 0; i < bp.length - 1; i++) {
@@ -471,7 +471,7 @@ function routeHoseAlongCorridor(
       if (segLen === 0) continue;
       const segDx = (p2.x - p1.x) / segLen;
       const segDy = (p2.y - p1.y) / segLen;
-      
+
       let segDist = 0;
       while (segDist < segLen) {
         const nextConnDist = Math.ceil((totalDist + segDist) / HOSE_SEGMENT_LENGTH) * HOSE_SEGMENT_LENGTH;
@@ -489,8 +489,9 @@ function routeHoseAlongCorridor(
       totalDist += segLen;
     }
   }
-  
-  return { path, branchPoint: { x: branchX, y: branchY }, nozzles, branchConnections, branchPaths };}
+
+  return { path, branchPoint: { x: branchX, y: branchY }, nozzles, branchConnections, branchPaths };
+}
 
 export default function App() {
   const [wagons, setWagons] = useLocalStorageState<Wagon[]>('map_wagons', generateDefaultWagons());
@@ -553,8 +554,8 @@ export default function App() {
       time = (predInitialParams['Время_следования_мин'] || 0) + (predInitialParams['Время_подачи_первого_ствола_мин'] || 0);
     } else if (predCurrentStage >= 2) {
       time = (predInitialParams['Время_следования_мин'] || 0) +
-         (predInitialParams['Время_подачи_первого_ствола_мин'] || 0) +
-         (predAdditionalParams['Время_локализации_пожара_мин'] || 0);
+        (predInitialParams['Время_подачи_первого_ствола_мин'] || 0) +
+        (predAdditionalParams['Время_локализации_пожара_мин'] || 0);
     }
 
     const spreadMeters = speed * time;
@@ -577,7 +578,7 @@ export default function App() {
       height: fireWagon ? fireWagon.height : 20
     };
   }, [fireSource, predInitialParams, predAdditionalParams, predCurrentStage, wagons]);
-    const unitSideInfo = useMemo(() => {
+  const unitSideInfo = useMemo(() => {
     const allUnits = [...(deployment?.units || []), ...manualUnits];
     const activeUnits = allUnits.filter(u => u.hoses > 0 || (u as any).ptvDeployed);
 
@@ -1114,7 +1115,7 @@ export default function App() {
       allUnits.forEach(unit => {
         const unitWidth = unit.type === 'asa' ? 55 : 44;
         if (unit.x >= minX && unit.x + unitWidth <= maxX &&
-            unit.y >= minY && unit.y + 20 <= maxY) {
+          unit.y >= minY && unit.y + 20 <= maxY) {
           newSelected.push({
             type: 'unit',
             id: unit.id,
@@ -1126,7 +1127,7 @@ export default function App() {
 
       obstacles.forEach(obs => {
         if (obs.x >= minX && obs.x + obs.width <= maxX &&
-            obs.y >= minY && obs.y + obs.height <= maxY) {
+          obs.y >= minY && obs.y + obs.height <= maxY) {
           newSelected.push({
             type: 'obstacle',
             id: obs.id,
@@ -1153,7 +1154,7 @@ export default function App() {
 
           routing.nozzles.forEach((nozzle, idx) => {
             if (nozzle.x >= minX && nozzle.x <= maxX &&
-                nozzle.y >= minY && nozzle.y <= maxY) {
+              nozzle.y >= minY && nozzle.y <= maxY) {
               newSelected.push({
                 type: 'firefighter',
                 id: `${unit.id}-${idx}`,
@@ -1165,7 +1166,7 @@ export default function App() {
           });
 
           if (routing.branchPoint.x >= minX && routing.branchPoint.x <= maxX &&
-              routing.branchPoint.y >= minY && routing.branchPoint.y <= maxY) {
+            routing.branchPoint.y >= minY && routing.branchPoint.y <= maxY) {
             newSelected.push({
               type: 'branch',
               id: unit.id,
@@ -1628,18 +1629,18 @@ export default function App() {
                 setScale(1);
                 setToolMode('none');
                 ['prediction_initialParams', 'prediction_additionalParams', 'prediction_currentStage',
-                 'prediction_stageResults', 'prediction_workDate', 'prediction_workTime',
-                 'prediction_finalSubmitted',
-                 'map_wagons', 'map_fireSource', 'map_obstacles', 'map_deployment',
-                 'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
-                 'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
-                 'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
+                  'prediction_stageResults', 'prediction_workDate', 'prediction_workTime',
+                  'prediction_finalSubmitted',
+                  'map_wagons', 'map_fireSource', 'map_obstacles', 'map_deployment',
+                  'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
+                  'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
+                  'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
               }}
               className="px-3 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-xs font-semibold"
             >
               🔄 Новый пожар
             </button>
-              <button onClick={handleScreenshotScene} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">📷 Скриншот обстановки</button>
+            <button onClick={handleScreenshotScene} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">📷 Скриншот обстановки</button>
             <button onClick={handleScreenshotFullScreen} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold">🖥 Скриншот экрана</button>
           </div>
         </div>
@@ -1850,9 +1851,9 @@ export default function App() {
                               setManualUnits(prev => prev.map(u => {
                                 if (u.id === selectedUnitId) {
                                   const newPersonnel = val;
-const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
-                                  return { 
-                                    ...u, 
+                                  const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
+                                  return {
+                                    ...u,
                                     personnel: newPersonnel,
                                     nozzles: newNozzles,
                                     ...(newPersonnel < 2 ? { ptvDeployed: false, hoses: 0 } : {})
@@ -1970,119 +1971,119 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
               </div>
             )}
 
-              <div className="p-2.5 bg-green-900/20 rounded-lg border border-green-500/30">
-                <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
-                <div className="grid grid-cols-3 gap-1 mb-2">
+            <div className="p-2.5 bg-green-900/20 rounded-lg border border-green-500/30">
+              <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
+              <div className="grid grid-cols-3 gap-1 mb-2">
+                {(() => {
+                  const allUnits = hasManualPlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
+                  const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
+                  let nozzles = 0, people = 0;
+                  const manualOnlyCount = manualUnits.filter(u => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы').length;
+                  for (const u of allUnits) {
+                    const isManual = manualUnits.some(m => m.id === u.id);
+                    const hasPTV = !isManual || (u as any).ptvDeployed;
+                    console.log('STATS', u.name, 'personnel:', u.personnel, 'nozzles:', (u as ManualUnit).nozzles, 'hoses:', u.hoses, 'hasManualPlacement:', hasManualPlacement);
+                    const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles);
+                    if (hasPTV) {
+                      nozzles += d.nozzles;
+                      people += d.nozzles + d.atVehicle + d.atBranch + d.free;
+                    } else {
+                      // Не развёрнутая вручную техника — только экипаж у авто + свободные
+                      people += u.personnel;
+                    }
+                  }
+                  for (const t of activeTrains) {
+                    const d = distributePersonnel('train', t.personnel);
+                    nozzles += d.nozzles;
+                    people += d.nozzles + d.atVehicle + d.atBranch + d.free;
+                  }
+                  return (
+                    <>
+                      <div className="bg-gray-700/80 rounded p-1 text-center">
+                        <div className="text-sm font-bold">{allUnits.length + activeTrains.length}</div>
+                        <div className="text-[8px] text-gray-400">Техника</div>
+                      </div>
+                      <div className="bg-gray-700/80 rounded p-1 text-center">
+                        <div className="text-sm font-bold">{people}</div>
+                        <div className="text-[8px] text-gray-400">Л/с всего</div>
+                      </div>
+                      <div className="bg-gray-700/80 rounded p-1 text-center">
+                        <div className="text-sm font-bold">{nozzles}</div>
+                        <div className="text-[8px] text-gray-400">Стволов</div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+              <div className="text-[9px] text-gray-400 text-center mb-1">
+                Добавлено вручную: <span className="text-white font-bold">{manualUnits.filter(u => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы').length}</span> ед.
+              </div>
+
+              <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
+                <p className="text-[9px] font-semibold text-gray-300 mb-1">👥 Личный состав:</p>
+                <div className="space-y-0.5 text-[8px] text-gray-400">
                   {(() => {
-                    const allUnits = hasManualPlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
+                    const allUnits = [...(deployment?.units || []), ...manualUnits];
                     const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
-                    let nozzles = 0, people = 0;
-                    const manualOnlyCount = manualUnits.filter(u => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы').length;
+                    let nozzles = 0, atVehicle = 0, atBranch = 0, freeFromUnits = 0;
                     for (const u of allUnits) {
                       const isManual = manualUnits.some(m => m.id === u.id);
                       const hasPTV = !isManual || (u as any).ptvDeployed;
-                      console.log('STATS', u.name, 'personnel:', u.personnel, 'nozzles:', (u as ManualUnit).nozzles, 'hoses:', u.hoses, 'hasManualPlacement:', hasManualPlacement);
-                      const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles);
-                      if (hasPTV) {
-                        nozzles += d.nozzles;
-                        people += d.nozzles + d.atVehicle + d.atBranch + d.free;
-                      } else {
-                        // Не развёрнутая вручную техника — только экипаж у авто + свободные
-                        people += u.personnel;
+                      if (!hasPTV) {
+                        atVehicle += 1;
+                        freeFromUnits += Math.max(0, u.personnel - 1);
+                        continue;
                       }
+                      const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles);
+                      nozzles += d.nozzles;
+                      atVehicle += d.atVehicle;
+                      atBranch += d.atBranch;
+                      freeFromUnits += d.free;
                     }
                     for (const t of activeTrains) {
                       const d = distributePersonnel('train', t.personnel);
                       nozzles += d.nozzles;
-                      people += d.nozzles + d.atVehicle + d.atBranch + d.free;
+                      atVehicle += d.atVehicle;
+                      atBranch += d.atBranch;
+                      freeFromUnits += d.free;
                     }
                     return (
                       <>
-                        <div className="bg-gray-700/80 rounded p-1 text-center">
-                          <div className="text-sm font-bold">{allUnits.length + activeTrains.length}</div>
-                          <div className="text-[8px] text-gray-400">Техника</div>
-                        </div>
-                        <div className="bg-gray-700/80 rounded p-1 text-center">
-                          <div className="text-sm font-bold">{people}</div>
-                          <div className="text-[8px] text-gray-400">Л/с всего</div>
-                        </div>
-                        <div className="bg-gray-700/80 rounded p-1 text-center">
-                          <div className="text-sm font-bold">{nozzles}</div>
-                          <div className="text-[8px] text-gray-400">Стволов</div>
-                        </div>
+                        <p>• Ствольщики: {nozzles} чел.</p>
+                        <p>• У техники: {atVehicle} чел.</p>
+                        <p>• На разветвлениях: {atBranch} чел.</p>
+                        <p>• Свободные: {freeFromUnits} чел.</p>
+                        <p className="border-t border-gray-600/40 mt-1 pt-1 text-gray-300">
+                          Итого на карте: <span className="font-mono text-white">{nozzles + atVehicle + atBranch + freeFromUnits}</span> чел.
+                        </p>
                       </>
                     );
                   })()}
                 </div>
-                            <div className="text-[9px] text-gray-400 text-center mb-1">
-                                Добавлено вручную: <span className="text-white font-bold">{manualUnits.filter(u => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы').length}</span> ед.
-                            </div>
-
-                <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
-                  <p className="text-[9px] font-semibold text-gray-300 mb-1">👥 Личный состав:</p>
-                  <div className="space-y-0.5 text-[8px] text-gray-400">
-                    {(() => {
-                      const allUnits = [...(deployment?.units || []), ...manualUnits];
-                      const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
-                      let nozzles = 0, atVehicle = 0, atBranch = 0, freeFromUnits = 0;
-                      for (const u of allUnits) {
-                        const isManual = manualUnits.some(m => m.id === u.id);
-                        const hasPTV = !isManual || (u as any).ptvDeployed;
-                        if (!hasPTV) {
-                          atVehicle += 1;
-                          freeFromUnits += Math.max(0, u.personnel - 1);
-                          continue;
-                        }
-                        const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles);
-                        nozzles += d.nozzles;
-                        atVehicle += d.atVehicle;
-                        atBranch += d.atBranch;
-                        freeFromUnits += d.free;
-                      }
-                      for (const t of activeTrains) {
-                        const d = distributePersonnel('train', t.personnel);
-                        nozzles += d.nozzles;
-                        atVehicle += d.atVehicle;
-                        atBranch += d.atBranch;
-                        freeFromUnits += d.free;
-                      }
-                      return (
-                        <>
-                          <p>• Ствольщики: {nozzles} чел.</p>
-                          <p>• У техники: {atVehicle} чел.</p>
-                          <p>• На разветвлениях: {atBranch} чел.</p>
-                          <p>• Свободные: {freeFromUnits} чел.</p>
-                          <p className="border-t border-gray-600/40 mt-1 pt-1 text-gray-300">
-                            Итого на карте: <span className="font-mono text-white">{nozzles + atVehicle + atBranch + freeFromUnits}</span> чел.
-                          </p>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
-                  <p className="text-[9px] font-semibold text-gray-300 mb-1">🚒 Техника:</p>
-                  <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                    {deployment?.units?.map((unit, idx) => (
-                      <div key={unit.id} className="text-[8px] text-gray-400 flex justify-between">
-                        <span>{idx + 1}. {unit.name}</span>
-                        <span className="text-gray-500">{unit.role}</span>
-                      </div>
-                    ))}
-                    {manualUnits.map((unit, idx) => (
-                      <div key={unit.id} className="text-[8px] text-blue-300 flex justify-between">
-                        <span>{(deployment?.units?.length ?? 0) + idx + 1}. {unit.name}</span>
-                        <span className={unit.ptvDeployed ? "text-blue-400" : "text-gray-500"}>
-                          {unit.role === 'Рекомендовано ML' ? 'Рекомендация' : unit.role === 'Фактические силы' ? 'Факт' : 'Вручную'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <p className="text-[9px] text-gray-400">{deployment?.strategy ?? ''}</p>
               </div>
+
+              <div className="mb-2 p-1.5 bg-gray-700/50 rounded border border-gray-600/30">
+                <p className="text-[9px] font-semibold text-gray-300 mb-1">🚒 Техника:</p>
+                <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                  {deployment?.units?.map((unit, idx) => (
+                    <div key={unit.id} className="text-[8px] text-gray-400 flex justify-between">
+                      <span>{idx + 1}. {unit.name}</span>
+                      <span className="text-gray-500">{unit.role}</span>
+                    </div>
+                  ))}
+                  {manualUnits.map((unit, idx) => (
+                    <div key={unit.id} className="text-[8px] text-blue-300 flex justify-between">
+                      <span>{(deployment?.units?.length ?? 0) + idx + 1}. {unit.name}</span>
+                      <span className={unit.ptvDeployed ? "text-blue-400" : "text-gray-500"}>
+                        {unit.role === 'Рекомендовано ML' ? 'Рекомендация' : unit.role === 'Фактические силы' ? 'Факт' : 'Вручную'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-[9px] text-gray-400">{deployment?.strategy ?? ''}</p>
+            </div>
           </div>
         </aside>
 
@@ -2090,7 +2091,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
           <div className="flex-1 bg-gray-800 rounded-xl border border-gray-700 overflow-hidden relative">
             <svg
               ref={svgRef}
-              viewBox={`${500 - 500/scale + panOffset.x} ${300 - 300/scale + panOffset.y} ${1000/scale} ${600/scale}`}
+              viewBox={`${500 - 500 / scale + panOffset.x} ${300 - 300 / scale + panOffset.y} ${1000 / scale} ${600 / scale}`}
               className="w-full h-full"
               onClick={handleSVGClick}
               onClickCapture={() => { if (showAddTechMenu) setShowAddTechMenu(false); }}
@@ -2178,12 +2179,12 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
               })}
 
               {fireSpread && (
-                <rect 
-                  x={fireSpread.left} 
-                  y={fireSpread.y} 
-                  width={fireSpread.right - fireSpread.left} 
-                  height={fireSpread.height} 
-                  fill="rgba(255, 0, 0, 0.5)" 
+                <rect
+                  x={fireSpread.left}
+                  y={fireSpread.y}
+                  width={fireSpread.right - fireSpread.left}
+                  height={fireSpread.height}
+                  fill="rgba(255, 0, 0, 0.5)"
                   stroke="#ff0000"
                   strokeWidth="2"
                   style={{ pointerEvents: 'none' }}
@@ -2709,7 +2710,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                             strokeLinecap="round"
                           />
                           <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
-                          
+
                           {(toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && (
                             <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
                               <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
@@ -2754,10 +2755,10 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                       const y2 = centerY + radius * Math.sin(endAngle);
 
                       return (
-                        <path 
-                          d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`} 
-                          fill="rgba(255, 235, 59, 0.15)" 
-                          stroke="rgba(255, 235, 59, 0.3)" 
+                        <path
+                          d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`}
+                          fill="rgba(255, 235, 59, 0.15)"
+                          stroke="rgba(255, 235, 59, 0.3)"
                           strokeWidth="1"
                           style={{ pointerEvents: 'none' }}
                         />
@@ -2832,10 +2833,10 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                       const y2 = centerY + radius * Math.sin(endAngle);
 
                       return (
-                        <path 
-                          d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`} 
-                          fill="rgba(255, 235, 59, 0.15)" 
-                          stroke="rgba(255, 235, 59, 0.3)" 
+                        <path
+                          d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`}
+                          fill="rgba(255, 235, 59, 0.15)"
+                          stroke="rgba(255, 235, 59, 0.3)"
                           strokeWidth="1"
                           style={{ pointerEvents: 'none' }}
                         />
@@ -3060,68 +3061,143 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                 </g>
               ))}
 
-              {fireSource && (
-  manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы')
-    ? manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)
-    : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)]
-).map(unit => {
-                const unitWidth = unit.type === 'asa' ? 55 : 44;
-                console.log('DEBUG RENDER', unit.name, 'type:', unit.type, 'nozzles:', (unit as any).nozzles, 'hoses:', unit.hoses, 'personnel:', unit.personnel);
-                const fs = fireSource!;
-                const customPos = customPositions[unit.id];
-                const d = distributePersonnel(unit.type as any, unit.personnel, ((unit as any).nozzles ?? unit.hoses) || 0);
-  const routing = routeHoseAlongCorridor(
-                  unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
-                  customPos?.branchPoint,
-                  customPos?.nozzles,
-                  unit.angle,
-                  customPumpPositions[unit.id],
-                  unitSideInfo[unit.id],
-                  d.nozzles,
-                  fireSpread
-                );
-                console.log('ROUTING', unit.name, 'nozzles:', routing.nozzles.length, 'paths:', routing.branchPaths.length, 'connections:', routing.branchConnections.length, routing);
+              {fireSource && (() => {
+                const targetUnits = manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы')
+                  ? manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)
+                  : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)];
 
-                return routing.nozzles.slice(0, (unit as any).nozzles ?? 0).map((nozzle, idx) => {
-                  const dx = fs.x - nozzle.x;
-                  const dy = fs.y - nozzle.y;
-                  const angle = Math.atan2(dy, dx);
+                const totalNozzles = targetUnits.reduce((sum, u) => sum + ((u as any).nozzles || 0), 0);
 
-                  if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle)) {
-                    return null;
+                return targetUnits.map((unit, unitIndex) => {
+                  const offsetForUnit = targetUnits.slice(0, unitIndex).reduce((sum, u) => sum + ((u as any).nozzles || 0), 0);
+
+                  const unitWidth = unit.type === 'asa' ? 55 : 44;
+                  const fs = fireSource!;
+                  const customPos = customPositions[unit.id];
+                  const d = distributePersonnel(unit.type as any, unit.personnel, ((unit as any).nozzles ?? unit.hoses) || 0);
+
+                  const routing = routeHoseAlongCorridor(
+                    unit.x, unit.y, unitWidth, 20, fs.x, fs.y, wagons, obstacles,
+                    customPos?.branchPoint,
+                    customPos?.nozzles,
+                    unit.angle,
+                    customPumpPositions[unit.id],
+                    unitSideInfo[unit.id],
+                    d.nozzles,
+                    fireSpread,
+                    offsetForUnit,
+                    totalNozzles
+                  );
+
+                  const connectionPoints: Array<{ x: number; y: number }> = [];
+                  let totalDist = 0;
+                  for (let i = 0; i < routing.path.length - 1; i++) {
+                    const p1 = routing.path[i];
+                    const p2 = routing.path[i + 1];
+                    const segLen = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+                    if (segLen === 0) continue;
+                    const segDx = (p2.x - p1.x) / segLen;
+                    const segDy = (p2.y - p1.y) / segLen;
+
+                    let segDist = 0;
+                    while (segDist < segLen) {
+                      const nextConnDist = Math.ceil((totalDist + segDist) / 40) * 40;
+                      const distInSeg = nextConnDist - totalDist;
+                      if (distInSeg > segLen) break;
+                      if (distInSeg > 0) {
+                        connectionPoints.push({
+                          x: p1.x + segDx * distInSeg,
+                          y: p1.y + segDy * distInSeg
+                        });
+                      }
+                      segDist += 40;
+                    }
+                    totalDist += segLen;
                   }
 
                   return (
-                    <g
-                      key={`firefighter-top-${unit.id}-${idx}`}
-                      onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
-                      style={{ cursor: 'move' }}
-                    >
-                      <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
-
-                      <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
-
-                      <line
-                        x1={nozzle.x}
-                        y1={nozzle.y}
-                        x2={nozzle.x + Math.cos(angle) * 8}
-                        y2={nozzle.y + Math.sin(angle) * 8}
-                        stroke="#1565c0"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-
-                      <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
-
-                      {(toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && (
-                        <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
-                          <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
-                        </circle>
+                    <g key={unit.id}>
+                      {/* 1. Основной рукав */}
+                      {routing.path.length > 1 && (
+                        <polyline
+                          points={routing.path.map(p => `${p.x},${p.y}`).join(' ')}
+                          fill="none"
+                          stroke="#000"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                        />
                       )}
+
+                      {/* 2. Стыки на основном рукаве */}
+                      {connectionPoints.map((conn, idx) => (
+                        <g key={`conn-${idx}`}>
+                          <circle cx={conn.x} cy={conn.y} r="3" fill="#333" stroke="#666" strokeWidth="1" />
+                          <circle cx={conn.x} cy={conn.y} r="1.5" fill="#888" />
+                        </g>
+                      ))}
+
+                      {/* 3. Разветвление PT-80 */}
+                      {routing.branchPoint && (
+                        <g>
+                          <rect x={routing.branchPoint.x - 10} y={routing.branchPoint.y - 5} width={20} height={10} fill="#2196f3" rx="2" />
+                          <text x={routing.branchPoint.x} y={routing.branchPoint.y + 3} textAnchor="middle" fill="#fff" fontSize="6">PT-80</text>
+                          <circle cx={routing.branchPoint.x} cy={routing.branchPoint.y - 12} r="5" fill="#ffeb3b" opacity="0.6" />
+                          <text x={routing.branchPoint.x} y={routing.branchPoint.y - 10} textAnchor="middle" fontSize="6">🧑‍🚒</text>
+                        </g>
+                      )}
+
+                      {/* 4. Рукава от разветвления к ствольщикам */}
+                      {routing.branchPaths.map((branchPath, idx) =>
+                        branchPath.slice(0, -1).map((p, i) => (
+                          <line
+                            key={`${idx}-${i}`}
+                            x1={p.x} y1={p.y}
+                            x2={branchPath[i + 1].x} y2={branchPath[i + 1].y}
+                            stroke="#000"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                          />
+                        ))
+                      )}
+
+                      {/* 5. Ствольщики */}
+                      {routing.nozzles.slice(0, (unit as any).nozzles || 0).map((nozzle, idx) => {
+                        const dx = fs.x - nozzle.x;
+                        const dy = fs.y - nozzle.y;
+                        const angle = Math.atan2(dy, dx);
+
+                        if (isNaN(nozzle.x) || isNaN(nozzle.y) || isNaN(angle)) return null;
+
+                        return (
+                          <g
+                            key={`firefighter-top-${unit.id}-${idx}`}
+                            onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
+                            style={{ cursor: 'move' }}
+                          >
+                            <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
+                            <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
+                            <line
+                              x1={nozzle.x} y1={nozzle.y}
+                              x2={nozzle.x + Math.cos(angle) * 8}
+                              y2={nozzle.y + Math.sin(angle) * 8}
+                              stroke="#1565c0"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                            <text x={nozzle.x} y={nozzle.y + 3} textAnchor="middle" fill="#fff" fontSize="7" fontWeight="bold">🧑‍🚒</text>
+                            {(toolMode === 'select' || toolMode === 'none' || toolMode === 'selection') && (
+                              <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#ffeb3b" strokeWidth="1" opacity="0.8">
+                                <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
+                              </circle>
+                            )}
+                          </g>
+                        );
+                      })}
                     </g>
                   );
                 });
-              })}
+              })()}
+              
             </svg>
 
             {/* Компас — фиксированный */}
@@ -3155,12 +3231,12 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                 <span className="text-[10px] text-gray-200 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
                   {toolMode === 'none' ? 'Просмотр (клик на объект для выбора)' :
-                   toolMode === 'fire' ? 'Установка очага пожара' :
-                   toolMode === 'obstacle' ? 'Размещение препятствий' :
-                   toolMode === 'water' ? 'Размещение водоисточника' :
-                   toolMode === 'selection' ? '⬚ Выделение области' :
-                   toolMode === 'ruler' ? '📏 Линейка (кликните 2 точки)' :
-                   'Перемещение объектов'}
+                    toolMode === 'fire' ? 'Установка очага пожара' :
+                      toolMode === 'obstacle' ? 'Размещение препятствий' :
+                        toolMode === 'water' ? 'Размещение водоисточника' :
+                          toolMode === 'selection' ? '⬚ Выделение области' :
+                            toolMode === 'ruler' ? '📏 Линейка (кликните 2 точки)' :
+                              'Перемещение объектов'}
                 </span>
               </div>
             )}
