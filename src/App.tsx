@@ -327,7 +327,6 @@ function routeHoseAlongCorridor(
   }
   const path = findShortestPath(pumpPos.x, pumpPos.y, branchX, branchY, wagons, obstacles);
 
-  const nozzles: Array<{ x: number; y: number }> = [];
   const MIN_DISTANCE_FROM_TRACKS = 6;
   const unitAboveTracks = unitCenterY < TRACK_TOP;
 
@@ -404,18 +403,10 @@ function routeHoseAlongCorridor(
     defaultNozzles[i] = { x: nozzleX, y: nozzleY };
   }
 
-  if (customNozzles && customNozzles.length > 0) {
-    for (let i = 0; i < defaultNozzles.length; i++) {
-      const custom = customNozzles[i];
-      if (custom && (custom.x !== 0 || custom.y !== 0)) {
-        nozzles.push({ x: custom.x, y: custom.y });
-      } else {
-        nozzles.push(defaultNozzles[i]);
-      }
-    }
-  } else {
-    nozzles.push(...defaultNozzles);
-  }
+  // Используем старые координаты, ТОЛЬКО если их количество совпадает с расчетным.
+  // Если пользователь изменил экипаж (или мы расставили силы заново), берем новые расчетные координаты.
+  const useCustomNozzles = customNozzles && customNozzles.length === nozzlesCount;
+  const nozzles = useCustomNozzles ? customNozzles : defaultNozzles;
 
   const MIN_DISTANCE_BETWEEN_NOZZLES = 8;
   if (nozzles.length >= 2) {
