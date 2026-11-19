@@ -227,7 +227,8 @@ export default function PredictionPage({ onMapUpdate }: { onMapUpdate?: () => vo
       stvols = result['Всего_подано_пожарных_стволов_ед'] || 0;
     }
 
-    const totalVehicles = ac + asa + aso;
+    // Стволы делим только между АЦ и АСА (АСО не подает стволы)
+    const totalVehicles = ac + asa;
     
     // Распределяем стволы (в том числе по несколько на одну машину, если их больше)
     const baseNozzlesPerVehicle = totalVehicles > 0 ? Math.floor(stvols / totalVehicles) : 0;
