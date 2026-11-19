@@ -350,6 +350,7 @@ function routeHoseAlongCorridor(
   }
 
   if (fireSpread) {
+    console.log('HOSE_DEBUG', 'unit:', unitX, unitY, 'nozzlesCount:', nozzlesCount, 'offset:', nozzleIndexOffset, 'total:', totalNozzlesAcrossAllUnits);
     const isUnitAbove = unitY < fireSpread.y;
     const targetY = isUnitAbove
       ? fireSpread.y - 15
@@ -499,6 +500,7 @@ export default function App() {
   const hasManualPlacement = manualUnits.length > 0;
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
   const [rightPanelTab, setRightPanelTab] = useState<'map' | 'training'>('map');
+  const [resetCounter, setResetCounter] = useState(0);
   const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
   const [fireTrainPTW, setFireTrainPTW] = useLocalStorageState<Record<string, boolean>>('map_fireTrainPTW', {});
@@ -3201,7 +3203,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
           {/* Содержимое вкладки */}
           <div className="flex-1 overflow-y-auto">
             {rightPanelTab === 'map' ? (
-              <PredictionPanel onMapUpdate={handleMapUpdate} />
+              <PredictionPanel key={resetCounter} onMapUpdate={handleMapUpdate} onReset={() => setResetCounter(prev => prev + 1)} />
             ) : (
               <div className="p-3">
                 <RecommendationPanel onApply={handleApplyRecommendations} resources={resources} />

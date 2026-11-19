@@ -84,7 +84,7 @@ const PARAM_ORDER = [
   'Количество_пожарных_поездов_ед',
 ];
 
-export default function PredictionPanel({ onMapUpdate }: { onMapUpdate?: () => void } = {}) {
+export default function PredictionPanel({ onMapUpdate, onReset }: { onMapUpdate?: () => void; onReset?: () => void } = {}) {
   const [initialParams, setInitialParams] = useLocalStorageState<InitialParams>('prediction_initialParams', {
     Время_следования_мин: 8,
     Время_подачи_первого_ствола_мин: 1,
@@ -416,6 +416,7 @@ export default function PredictionPanel({ onMapUpdate }: { onMapUpdate?: () => v
      'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
      'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
      'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
+    onReset?.();
   };
 
   const formatValue = (v: unknown): string => {
