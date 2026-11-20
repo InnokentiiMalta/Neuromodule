@@ -478,8 +478,8 @@ export default function App() {
   const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
   const unitsToRender = useMemo(() => {
     const baseUnits = manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы')
-      ? manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)
-      : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2)];
+      ? manualUnits.filter(u => u.ptvDeployed && u.personnel >= 3)
+      : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 3)];
     const total = baseUnits.reduce((sum, u) => sum + ((u as any).nozzles || 0), 0);
     let offset = 0;
     return baseUnits.map(unit => {
@@ -492,6 +492,7 @@ export default function App() {
   const [placingUnit, setPlacingUnit] = useState<FireUnit['type'] | null>(null);
   const [rightPanelTab, setRightPanelTab] = useState<'map' | 'training'>('map');
   const [resetCounter, setResetCounter] = useState(0);
+  const [panelResetKey, setPanelResetKey] = useState(0);
   const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
   const [fireTrainPTW, setFireTrainPTW] = useLocalStorageState<Record<string, boolean>>('map_fireTrainPTW', {});
@@ -647,7 +648,7 @@ export default function App() {
         y: y,
         angle: 0,
         personnel: defaultPersonnel,
-        nozzles: defaultPersonnel >= 2 ? Math.min(defaultPersonnel - 1, 2) : 0,
+        nozzles: Math.max(0, defaultPersonnel - 2),
         hoses: 0,
         role: 'Добавлен вручную',
         safeDistance: 200,
@@ -1436,9 +1437,9 @@ export default function App() {
   const deployPTV = useCallback((unitId: string) => {
     setManualUnits(prev => prev.map(u => {
       if (u.id === unitId) {
-        if (u.personnel < 2) {
-          alert('Для подачи ствола нужно минимум 2 человека (1 водитель + 1 ствольщик).');
-          return { ...u, ptvDeployed: false, hoses: 0 };
+        if (u.personnel < 3) {
+          alert('Для подачи ствола нужно минимум 3 человека (1 водитель + 2 ствольщика).');
+          return { ...u, ptvDeployed: false, nozzles: 0, hoses: 0 };
         }
         return { ...u, ptvDeployed: true, hoses: u.nozzles ?? 2 };
       }
@@ -1607,10 +1608,12 @@ export default function App() {
                 ['prediction_initialParams', 'prediction_additionalParams', 'prediction_currentStage',
                  'prediction_stageResults', 'prediction_workDate', 'prediction_workTime',
                  'prediction_finalSubmitted',
+                  'prediction_stageActuals', 'prediction_currentActuals',
                  'map_wagons', 'map_fireSource', 'map_obstacles', 'map_deployment',
                  'map_manualUnits', 'map_fireTrains', 'map_waterSources', 'map_resources',
                  'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
                  'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
+                setPanelResetKey(k => k + 1);
               }}
               className="px-3 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-xs font-semibold"
             >
@@ -1827,16 +1830,17 @@ export default function App() {
                               setManualUnits(prev => prev.map(u => {
                                 if (u.id === selectedUnitId) {
                                   const newPersonnel = val;
-const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
+                                  const newNozzles = Math.max(0, newPersonnel - 2);
                                   return { 
                                     ...u, 
                                     personnel: newPersonnel,
                                     nozzles: newNozzles,
-                                    ...(newPersonnel < 2 ? { ptvDeployed: false, hoses: 0 } : {})
+                                    hoses: newNozzles,
                                   };
                                 }
                                 return u;
                               }));
+                              setCustomPositions(prev => { const next = { ...prev }; delete next[selectedUnitId!]; return next; });
                             }
                           }}
                           className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
@@ -2431,7 +2435,8 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                 </g>
               ))}
 
-              {!hasManualPlacement && fireSource && deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2).map(unit => {
+              {/* ОТКЛЮЧЕНО: дубликат deployment-ветки unitsToRender (~стр. 3046) */}
+{false && !hasManualPlacement && fireSource && deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2).map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
@@ -2533,7 +2538,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                       </>
                     )}
 
-                    {routing.nozzles.slice(0, (unit as any).nozzles ?? 0).map((nozzle, idx) => {
+                    {routing.nozzles.map((nozzle, idx) => {
                       const dx = fs.x - nozzle.x;
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
@@ -2569,7 +2574,8 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                 );
               })}
 
-              {fireSource && manualUnits.filter(u => u.ptvDeployed && u.personnel >= 2).map(unit => {
+              {/* ОТКЛЮЧЕНО: дубликат блока unitsToRender (~стр. 3046) */}
+{false && fireSource && manualUnits.filter(u => u.ptvDeployed && u.personnel >= 3).map(unit => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
@@ -2671,7 +2677,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                       </>
                     )}
 
-                    {routing.nozzles.slice(0, (unit as any).nozzles ?? 0).map((nozzle, idx) => {
+                    {routing.nozzles.map((nozzle, idx) => {
                       const dx = fs.x - nozzle.x;
                       const dy = fs.y - nozzle.y;
                       const angle = Math.atan2(dy, dx);
@@ -3061,7 +3067,7 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
                 );
                 console.log('ROUTING', unit.name, 'nozzles:', routing.nozzles.length, 'paths:', routing.branchPaths.length, 'connections:', routing.branchConnections.length, routing);
 
-                return routing.nozzles.slice(0, (unit as any).nozzles ?? 0).map((nozzle, idx) => {
+                return routing.nozzles.map((nozzle, idx) => {
                   const dx = fs.x - nozzle.x;
                   const dy = fs.y - nozzle.y;
                   const angle = Math.atan2(dy, dx);
@@ -3194,10 +3200,10 @@ const newNozzles = newPersonnel >= 2 ? Math.min(newPersonnel - 1, 2) : 0;
           {/* Содержимое вкладки */}
           <div className="flex-1 overflow-y-auto">
             {rightPanelTab === 'map' ? (
-              <PredictionPanel key={resetCounter} onMapUpdate={handleMapUpdate} onReset={() => setResetCounter(prev => prev + 1)} />
+              <PredictionPanel key={`${resetCounter}-${panelResetKey}`} onMapUpdate={handleMapUpdate} onReset={() => setPanelResetKey(prev => prev + 1)} />
             ) : (
               <div className="p-3">
-                <RecommendationPanel onApply={handleApplyRecommendations} resources={resources} />
+                <RecommendationPanel key={panelResetKey} onApply={handleApplyRecommendations} resources={resources} />
               </div>
             )}
           </div>
