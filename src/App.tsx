@@ -519,6 +519,7 @@ export default function App() {
   const [panStart, setPanStart] = useState<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const [rulerPoints, setRulerPoints] = useState<Array<{ x: number; y: number }>>([]);
   const svgRef = useRef<SVGSVGElement>(null);
+  const dragNozzlesRef = useRef<Array<{ x: number; y: number }> | null>(null);
 
   const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
 
@@ -847,6 +848,22 @@ export default function App() {
 
     if (!dragState) return;
 
+    if (dragState.type === 'firefighter') {
+  const parentUnitId = dragState.unitId ?? '';
+  const dashAt = dragState.id.lastIndexOf('-');
+  const nozzleIdx = Number(dragState.id.slice(dashAt + 1));
+  const snapshot = dragNozzlesRef.current;
+  if (!parentUnitId || !snapshot || !Number.isInteger(nozzleIdx) || nozzleIdx < 0 || nozzleIdx >= snapshot.length) return;
+  const nextNozzles = snapshot.map((p, i) =>
+    i === nozzleIdx ? { x: x, y: y } : { x: p.x, y: p.y }
+  );
+  setCustomPositions(prev => ({
+    ...prev,
+    [parentUnitId]: { ...prev[parentUnitId], nozzles: nextNozzles },
+  }));
+  return;
+    }
+
     if (dragState.type === 'obstacle') {
       let newX = x - dragState.offsetX;
       let newY = y - dragState.offsetY;
@@ -913,62 +930,6 @@ export default function App() {
           branchPoint: { x: branchX, y: branchY }
         }
       }));
-    } else if (dragState.type === 'firefighter' && dragState.unitId) {
-      const nozzleIndex = parseInt(dragState.id.split('-').pop() || '0');
-
-      setCustomPositions(prev => {
-        const positions = prev[dragState.unitId!] || {};
-        const nozzles = positions.nozzles || [];
-        const newNozzles = [...nozzles];
-
-        if (newNozzles.length === 0) {
-          const allUnits = [...(deployment?.units || []), ...manualUnits];
-          const unit = allUnits.find(u => u.id === dragState.unitId);
-
-          if (unit && fireSource) {
-            const unitWidth = unit.type === 'asa' ? 55 : 44;
-            const unitCenterX = unit.x + unitWidth / 2;
-            const unitCenterY = unit.y + 10;
-            const angleToFire = Math.atan2(fireSource.y - unitCenterY, fireSource.x - unitCenterX);
-
-            const nozzleAngles = [angleToFire - 0.4, angleToFire + Math.PI + 0.4];
-            for (const angle of nozzleAngles) {
-              const nozzleX = fireSource.x + Math.cos(angle) * 12;
-              const nozzleY = fireSource.y + Math.sin(angle) * 12;
-              newNozzles.push({ x: nozzleX, y: nozzleY });
-            }
-          } else {
-            return prev;
-          }
-        }
-
-        if (nozzleIndex < newNozzles.length) {
-          let nozzleX = x;
-          let nozzleY = y;
-
-          if (fireSource) {
-            const distFromFire = Math.sqrt((nozzleX - fireSource.x) ** 2 + (nozzleY - fireSource.y) ** 2);
-            if (distFromFire > 700) {
-              const angle = Math.atan2(nozzleY - fireSource.y, nozzleX - fireSource.x);
-              nozzleX = fireSource.x + Math.cos(angle) * 700;
-              nozzleY = fireSource.y + Math.sin(angle) * 700;
-            }
-          }
-
-          nozzleX = Math.max(10, Math.min(990, nozzleX));
-          nozzleY = Math.max(10, Math.min(590, nozzleY));
-
-          newNozzles[nozzleIndex] = { x: nozzleX, y: nozzleY };
-        }
-
-        return {
-          ...prev,
-          [dragState.unitId!]: {
-            ...positions,
-            nozzles: newNozzles
-          }
-        };
-      });
     } else if (dragState.type === 'trainBranchAbove' && dragState.unitId) {
       let branchX = x;
       let branchY = y;
@@ -1074,6 +1035,7 @@ export default function App() {
   }, [dragState, getSVGCoords, deployment, customPositions, manualUnits, fireSource, isSelecting, selectionBox, selectedElements, customPumpPositions, panStart, setPanOffset]);
 
   const handleMouseUp = useCallback(() => {
+    dragNozzlesRef.current = null;
     if (panStart) {
       setPanStart(null);
       return;
@@ -3081,7 +3043,10 @@ export default function App() {
                   return (
                     <g
                       key={`firefighter-top-${unit.id}-${idx}`}
-                      onMouseDown={e => handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id)}
+                      onMouseDown={e => {
+  dragNozzlesRef.current = routing.nozzles.map(p => ({ x: p.x, y: p.y }));
+  handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id);
+}}
                       style={{ cursor: 'move' }}
                     >
                       <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
