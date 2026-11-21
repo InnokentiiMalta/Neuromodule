@@ -1,3 +1,5 @@
+import { computeCrewComposition } from './crew';
+
 export interface PersonnelDistribution {
   nozzles: number;        // ствольщики
   atVehicle: number;      // у автомобиля
@@ -12,31 +14,22 @@ export function distributePersonnel(
 ): PersonnelDistribution {
   const N = Math.max(0, Math.floor(total));
 
-  if (vehicleType === 'aso') {
-    return {
-      nozzles: 0,
-      atVehicle: N >= 1 ? 1 : 0,
-      atBranch: 0,
-      free: N >= 2 ? N - 1 : 0,
-    };
-  }
-
   if (vehicleType === 'train') {
     const capped = Math.min(N, 16);
     const nozzles = Math.min(capped - 1, 4);
     const atVehicle = capped >= 2 ? 1 : 0;
-    // Один человек на разветвлении при 6, второй — при 7+
     const atBranch = capped >= 7 ? 2 : (capped >= 6 ? 1 : 0);
     const free = Math.max(0, capped - nozzles - atVehicle - atBranch);
     return { nozzles, atVehicle, atBranch, free };
   }
 
-  // ac, asa
-  const capped = Math.min(N, 6);
-  const defaultNozzles = Math.min(capped - 1, 2);
-  const nozzles = overrideNozzles !== undefined ? Math.min(overrideNozzles, capped - 1) : defaultNozzles;
-  const atVehicle = capped >= 1 ? 1 : 0;
-  const atBranch = (nozzles > 0 && capped >= 4) ? 1 : 0; // 1 на разветвление, если есть ствол и 4+ человека
+  const capped = vehicleType === 'aso' ? N : Math.min(N, 6);
+  const c = computeCrewComposition(vehicleType, capped);
+  const nozzles = overrideNozzles !== undefined
+    ? Math.max(0, Math.min(overrideNozzles, c.nozzles))
+    : c.nozzles;
+  const atVehicle = c.driver;
+  const atBranch = nozzles > 0 ? c.branchOperator : 0;
   const free = Math.max(0, capped - nozzles - atVehicle - atBranch);
-  return { nozzles: Math.max(0, nozzles), atVehicle, atBranch, free };
+  return { nozzles, atVehicle, atBranch, free };
 }

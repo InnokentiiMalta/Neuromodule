@@ -10,6 +10,32 @@ import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
 import { useLocalStorageState } from './hooks/useLocalStorageState';
 import { distributePersonnel } from './utils/personnel';
+import { computeCrewComposition, seededRandom } from './utils/crew';
+
+const PX_PER_M = 2;
+
+function scatterFreePerson(
+  seed: string, fireX: number, fireY: number,
+  zone: { left: number; right: number; top: number; bottom: number } | null
+): { x: number; y: number } {
+  const maxR = 150 * PX_PER_M;
+  const minGap = 10 * PX_PER_M;
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const a = seededRandom(`${seed}:${attempt}:a`) * Math.PI * 2;
+    const r = Math.sqrt(seededRandom(`${seed}:${attempt}:r`)) * maxR;
+    const x = fireX + Math.cos(a) * r;
+    const y = fireY + Math.sin(a) * r;
+    if (x < 12 || x > 988 || y < 12 || y > 588) continue;
+    if (zone) {
+      const dx = Math.max(zone.left - x, 0, x - zone.right);
+      const dy = Math.max(zone.top - y, 0, y - zone.bottom);
+      if (Math.hypot(dx, dy) < minGap) continue;
+    } else if (Math.hypot(x - fireX, y - fireY) < minGap) continue;
+    return { x, y };
+  }
+  const a = seededRandom(`${seed}:fallback`) * Math.PI * 2;
+  return { x: fireX + Math.cos(a) * maxR * 0.85, y: fireY + Math.sin(a) * maxR * 0.85 };
+}
 
 const WAGON_GAP = 6;
 const TRACK_Y = 300;
@@ -477,9 +503,14 @@ export default function App() {
   const [deployment, setDeployment] = useLocalStorageState<Deployment | null>('map_deployment', null);
   const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
   const unitsToRender = useMemo(() => {
+    const manualReady = manualUnits.filter(u => u.ptvDeployed && ((u as any).nozzles || 0) > 0);
+    const deployReady = (deployment?.units || [])
+      .filter(u => u.hoses > 0)
+      .map(u => ({ ...u, nozzles: distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel).nozzles }))
+      .filter(u => u.nozzles > 0);
     const baseUnits = manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы')
-      ? manualUnits.filter(u => u.ptvDeployed && u.personnel >= 3)
-      : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 3) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 3)];
+      ? manualReady
+      : [...deployReady, ...manualReady];
     const total = baseUnits.reduce((sum, u) => sum + ((u as any).nozzles || 0), 0);
     let offset = 0;
     return baseUnits.map(unit => {
@@ -598,29 +629,21 @@ export default function App() {
     for (const u of allUnits) {
       const isManual = manualUnits.some(m => m.id === u.id);
       const hasPTV = !isManual || (u as any).ptvDeployed;
-      if (!hasPTV) {
-        freeCount += Math.max(0, u.personnel - 1);
-        continue;
-      }
-      const d = distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles);
-      freeCount += d.free;
+      if (!hasPTV) { freeCount += Math.max(0, u.personnel - 1); continue; }
+      freeCount += distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles).free;
     }
-    // Учитываем свободных людей от пожарных поездов
     const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
     for (const t of activeTrains) {
-      const d = distributePersonnel('train', t.personnel);
-      freeCount += d.free;
+      freeCount += distributePersonnel('train', t.personnel).free;
     }
     if (freeCount === 0) return [];
-    return generatePersonnelPositions(
-      fireSource.x,
-      fireSource.y,
-      freeCount,
-      allUnits as any,
-      obstacles,
-      wagons
-    );
-  }, [fireSource, deployment, manualUnits, obstacles, wagons, fireTrains, fireTrainPTW]);
+    const positions: { x: number; y: number }[] = [];
+    const zone = fireSpread ? { left: fireSpread.left, right: fireSpread.right, top: fireSpread.y, bottom: fireSpread.y + fireSpread.height } : null;
+    for (let idx = 0; idx < freeCount; idx++) {
+      positions.push(scatterFreePerson(`free-${idx}`, fireSource.x, fireSource.y, zone));
+    }
+    return positions;
+  }, [fireSource, fireSpread, deployment, manualUnits, obstacles, wagons, fireTrains, fireTrainPTW]);
 
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
     const svg = svgRef.current;
@@ -1377,11 +1400,24 @@ export default function App() {
 
   const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
     const newName = newType === 'asa' ? 'АСА' : newType === 'aso' ? 'АСО' : 'АЦ-40';
-    const newPersonnel = newType === 'asa' ? 5 : newType === 'aso' ? 3 : 7;
+    const newPersonnel = newType === 'asa' ? 5 : newType === 'aso' ? 3 : 6;
 
-    setManualUnits(prev => prev.map(u =>
-      u.id === unitId ? { ...u, type: newType, name: newName, personnel: newPersonnel } : u
-    ));
+    setManualUnits(prev => prev.map(u => {
+      if (u.id !== unitId) return u;
+      const crew = computeCrewComposition(newType, newPersonnel);
+      return {
+        ...u,
+        type: newType,
+        name: newName,
+        personnel: newPersonnel,
+        nozzles: crew.nozzles,
+        hoses: crew.nozzles,
+        ptvDeployed: crew.canDeployPTV,
+      };
+    }));
+
+    setCustomPositions(prev => { const next = { ...prev }; delete next[unitId]; return next; });
+    setCustomPumpPositions(prev => { const next = { ...prev }; delete next[unitId]; return next; });
 
     if (fireSource) {
       const newDeployment = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources, manualUnits);
@@ -1792,12 +1828,13 @@ export default function App() {
                               setManualUnits(prev => prev.map(u => {
                                 if (u.id === selectedUnitId) {
                                   const newPersonnel = val;
-                                  const newNozzles = Math.max(0, newPersonnel - 2);
-                                  return { 
-                                    ...u, 
+                                  const crew = computeCrewComposition(u.type, newPersonnel);
+                                  return {
+                                    ...u,
                                     personnel: newPersonnel,
-                                    nozzles: newNozzles,
-                                    hoses: newNozzles,
+                                    nozzles: crew.nozzles,
+                                    hoses: crew.nozzles,
+                                    ptvDeployed: crew.canDeployPTV,
                                   };
                                 }
                                 return u;

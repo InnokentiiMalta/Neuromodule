@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { computeCrewComposition } from '../utils/crew';
 import { Link } from 'react-router-dom';
 import { predictStage, sendFinalData, getDataStatus } from '../api/backend';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
@@ -294,7 +295,7 @@ export default function PredictionPage({ onMapUpdate }: { onMapUpdate?: () => vo
         let p = fixedPersonnel !== undefined ? fixedPersonnel : basePersonnel + (remainder > 0 ? 1 : 0);
         if (fixedPersonnel === undefined && remainder > 0) remainder--;
 
-        const n = Math.min(getNozzles(canDeployPTV), Math.max(0, p - 2));
+        const n = Math.min(getNozzles(canDeployPTV), computeCrewComposition(type, p).nozzles);
         let finalX = startX;
         let finalY = startY;
         // Если это АЦ или АСА, и есть свободный водоисточник — ставим на него
