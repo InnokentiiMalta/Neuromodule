@@ -479,7 +479,7 @@ export default function App() {
   const unitsToRender = useMemo(() => {
     const baseUnits = manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы')
       ? manualUnits.filter(u => u.ptvDeployed && u.personnel >= 3)
-      : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 2) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 3)];
+      : [...(deployment?.units.filter(u => u.hoses > 0 && u.personnel >= 3) || []), ...manualUnits.filter(u => u.ptvDeployed && u.personnel >= 3)];
     const total = baseUnits.reduce((sum, u) => sum + ((u as any).nozzles || 0), 0);
     let offset = 0;
     return baseUnits.map(unit => {
@@ -2574,8 +2574,8 @@ export default function App() {
                 );
               })}
 
-              {/* ОТКЛЮЧЕНО: дубликат блока unitsToRender (~стр. 3046) */}
-{false && fireSource && manualUnits.filter(u => u.ptvDeployed && u.personnel >= 3).map(unit => {
+              {/* Слой рукавов: единый источник unitsToRender — offset/total как в верхнем слое ствольщиков */}
+{fireSource && unitsToRender.map(({ unit, offset: nozzleOffset, total: nozzleTotal }) => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;
                 const fs = fireSource!;
                 const customPos = customPositions[unit.id];
@@ -2586,8 +2586,10 @@ export default function App() {
                   unit.angle,
                   customPumpPositions[unit.id],
                   unitSideInfo[unit.id],
-                  undefined,
-                  fireSpread
+                  (unit as any).nozzles || 0,
+                  fireSpread,
+                  nozzleOffset,
+                  nozzleTotal
                 );
 
                 const connectionPoints: Array<{ x: number; y: number }> = [];
