@@ -8,7 +8,7 @@ export interface PersonnelDistribution {
 }
 
 export function distributePersonnel(
-  vehicleType: 'ac' | 'asa' | 'aso' | 'train',
+  vehicleType: 'ac' | 'asa' | 'aso' | 'train' | 'aux',
   total: number,
   overrideNozzles?: number
 ): PersonnelDistribution {
@@ -23,7 +23,7 @@ export function distributePersonnel(
     return { nozzles, atVehicle, atBranch, free };
   }
 
-  const capped = vehicleType === 'aso' ? N : Math.min(N, 6);
+  const capped = vehicleType === 'aso' || vehicleType === 'aux' ? N : Math.min(N, 6);
   const c = computeCrewComposition(vehicleType, capped);
   const nozzles = overrideNozzles !== undefined
     ? Math.max(0, Math.min(overrideNozzles, c.nozzles))

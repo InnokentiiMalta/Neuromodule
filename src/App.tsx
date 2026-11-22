@@ -625,24 +625,27 @@ export default function App() {
   const freePersonsPositions = useMemo(() => {
     if (!fireSource) return [];
     const allUnits = hasManualPlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
-    let freeCount = 0;
+    const slots: Array<{ kind: 'fire' | 'aux' }> = [];
     for (const u of allUnits) {
       const isManual = manualUnits.some(m => m.id === u.id);
       const hasPTV = !isManual || (u as any).ptvDeployed;
-      if (!hasPTV) { freeCount += Math.max(0, u.personnel - 1); continue; }
-      freeCount += distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel, (u as ManualUnit).nozzles).free;
+      const freeN = !hasPTV
+        ? Math.max(0, u.personnel - 1)
+        : distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train' | 'aux', u.personnel, (u as ManualUnit).nozzles).free;
+      const kind: 'fire' | 'aux' = u.type === 'aux' ? 'aux' : 'fire';
+      for (let i = 0; i < freeN; i++) slots.push({ kind });
     }
     const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
     for (const t of activeTrains) {
-      freeCount += distributePersonnel('train', t.personnel).free;
+      const n = distributePersonnel('train', t.personnel).free;
+      for (let i = 0; i < n; i++) slots.push({ kind: 'fire' });
     }
-    if (freeCount === 0) return [];
-    const positions: { x: number; y: number }[] = [];
+    if (slots.length === 0) return [];
     const zone = fireSpread ? { left: fireSpread.left, right: fireSpread.right, top: fireSpread.y, bottom: fireSpread.y + fireSpread.height } : null;
-    for (let idx = 0; idx < freeCount; idx++) {
-      positions.push(scatterFreePerson(`free-${idx}`, fireSource.x, fireSource.y, zone));
-    }
-    return positions;
+    return slots.map((s, idx) => ({
+      ...scatterFreePerson(`free-${idx}`, fireSource.x, fireSource.y, zone),
+      kind: s.kind,
+    }));
   }, [fireSource, fireSpread, deployment, manualUnits, obstacles, wagons, fireTrains, fireTrainPTW]);
 
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
@@ -1404,8 +1407,8 @@ export default function App() {
   }, [wagons, fireSource, obstacles, resources, waterSources, manualUnits]);
 
   const changeUnitType = useCallback((unitId: string, newType: FireUnit['type']) => {
-    const newName = newType === 'asa' ? 'АСА' : newType === 'aso' ? 'АСО' : 'АЦ-40';
-    const newPersonnel = newType === 'asa' ? 5 : newType === 'aso' ? 3 : 6;
+    const newName = newType === 'asa' ? 'АСА' : newType === 'aso' ? 'АСО' : newType === 'aux' ? 'Вспомогательная техника' : 'АЦ-40';
+    const newPersonnel = newType === 'asa' ? 5 : newType === 'aso' ? 3 : newType === 'aux' ? 2 : 6;
 
     setManualUnits(prev => prev.map(u => {
       if (u.id !== unitId) return u;
@@ -1782,21 +1785,65 @@ export default function App() {
                   <h3 className="text-[11px] font-semibold text-cyan-400">
                     {[...(deployment?.units || []), ...manualUnits].find(u => u.id === selectedUnitId)?.name}
                   </h3>
+                  {(() => {
+                    const unit = [...(deployment?.units || []), ...manualUnits].find(u => u.id === selectedUnitId);
+                    return unit?.type === 'aux' ? (
+                      <span title="Экипаж вспомогательной машины: 1 водитель, остальные — свободные. Стволы и рукава не подаются." className="ml-2 text-amber-300 cursor-help">👷</span>
+                    ) : null;
+                  })()}
                   <button onClick={() => setSelectedUnitId(null)} className="text-[9px] text-cyan-400">✕</button>
                 </div>
                 <div className="space-y-2">
                   <div>
                     <label className="text-[9px] text-gray-400 block mb-0.5">Тип техники:</label>
                     <div className="grid grid-cols-2 gap-1">
-                      {(['ac', 'asa', 'aso'] as const).map(type => (
+                      {(['ac', 'asa', 'aso', 'aux'] as const).map(type => (
                         <button key={type} onClick={() => changeUnitType(selectedUnitId, type)} className={`px-1.5 py-1 rounded text-[9px] font-medium ${[...(deployment?.units || []), ...manualUnits].find(u => u.id === selectedUnitId)?.type === type ? 'bg-cyan-600' : 'bg-gray-700 hover:bg-gray-600'}`}>
-                          {type === 'asa' ? 'АСА' : type === 'aso' ? 'АСО' : 'АЦ'}
+                          {type === 'asa' ? 'АСА' : type === 'aso' ? 'АСО' : type === 'aux' ? 'Вспом.' : 'АЦ'}
                         </button>
                       ))}
                     </div>
                   </div>
                   <div>
+                    <label className="text-[9px] text-gray-400 block mb-0.5">Описание:</label>
+                    <input
+                      type="text"
+                      placeholder="Описание техники"
+                      value={[...(deployment?.units || []), ...manualUnits].find(u => u.id === selectedUnitId)?.name || ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const inDeployment = deployment?.units.some(u => u.id === selectedUnitId);
+                        const inManual = manualUnits.some(u => u.id === selectedUnitId);
+                        if (inDeployment && deployment) {
+                          setDeployment({
+                            ...deployment,
+                            units: deployment.units.map(u =>
+                              u.id === selectedUnitId ? { ...u, name: val } : u
+                            ),
+                          });
+                        }
+                        if (inManual) {
+                          setManualUnits(prev => prev.map(u => {
+                            if (u.id === selectedUnitId) return { ...u, name: val };
+                            return u;
+                          }));
+                        }
+                      }}
+                      className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
+                    />
+                  </div>
+                  <div>
                     <label className="text-[9px] text-gray-400 block mb-0.5">Подразделение:</label>
+                    <input
+                      type="text"
+                      placeholder="Напр.: ПЧ-12"
+                      value={(manualUnits.find(u => u.id === selectedUnitId) as ManualUnit | undefined)?.division || ''}
+                      onChange={e => updateUnitDivision(selectedUnitId, e.target.value)}
+                      className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-gray-400 block mb-0.5">Принадлежность:</label>
                     <input
                       type="text"
                       placeholder="Напр.: ПЧ-12"
@@ -3032,7 +3079,9 @@ export default function App() {
                 </g>
               )}
 
-              {freePersonsPositions.map((pos, idx) => (
+              {freePersonsPositions.map((pos, idx) => {
+                const isAux = (pos as any).kind === 'aux';
+                return (
                 <g
                   key={`personnel-${idx}`}
                   onMouseDown={e => {
@@ -3049,10 +3098,11 @@ export default function App() {
                   }}
                   style={{ cursor: toolMode === 'select' || toolMode === 'none' ? 'move' : 'default' }}
                 >
-                  <circle cx={pos.x} cy={pos.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
-                  <text x={pos.x} y={pos.y + 2} textAnchor="middle" fontSize="6" fontWeight="bold">🧑‍🚒</text>
+                  <circle cx={pos.x} cy={pos.y} r="5" fill={isAux ? '#ffe0b2' : '#e3f2fd'} stroke={isAux ? '#e65100' : '#1565c0'} strokeWidth="1.5" />
+                  <text x={pos.x} y={pos.y + 2} textAnchor="middle" fontSize="6" fontWeight="bold">{isAux ? '👷' : '🧑‍🚒'}</text>
                 </g>
-              ))}
+                );
+              })}
 
               {fireSource && unitsToRender.map(({ unit, offset, total }) => {
                 const unitWidth = unit.type === 'asa' ? 55 : 44;

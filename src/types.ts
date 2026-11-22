@@ -38,7 +38,7 @@ export type WaterSourceType = 'pond' | 'river';
 
 export interface FireUnit {
   id: string;
-  type: 'ac' | 'asa' | 'aso';
+  type: 'ac' | 'asa' | 'aso' | 'aux';
   name: string;
   x: number;
   y: number;

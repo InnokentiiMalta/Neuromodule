@@ -14,7 +14,7 @@ export function computeCrewComposition(type: string, personnel: number): CrewCom
 
   const driver = 1;
 
-  if (type === 'aso') {
+  if (type === 'aso' || type === 'aux') {
     return { driver, nozzles: 0, branchOperator: 0, free: p - driver, canDeployPTV: false };
   }
 
@@ -33,7 +33,7 @@ export function seededRandom(seed: string): number {
   return ((h >>> 0) % 1000000) / 1000000;
 }
 
-export const UNIT_LIMITS = { ac: 20, asa: 10, aso: 5, train: 1 } as const;
+export const UNIT_LIMITS = { ac: 20, asa: 10, aso: 5, train: 1, aux: 20 } as const;
 
 export function clampUnitCount(type: keyof typeof UNIT_LIMITS, value: number): number {
   const max = UNIT_LIMITS[type] ?? 99;

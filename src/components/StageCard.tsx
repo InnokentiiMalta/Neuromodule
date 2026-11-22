@@ -1,4 +1,5 @@
 import { StageActuals } from '../pages/PredictionPage';
+import { useState } from 'react';
 import { UNIT_LIMITS, clampUnitCount } from '../utils/crew';
 
 interface StageCardProps {
@@ -62,6 +63,20 @@ export default function StageCard({
   const isActive = state === 'active';
   const inputsDisabled = isLocked || isFixed || loading;
 
+  const [limitMsg, setLimitMsg] = useState<string | null>(null);
+
+  const applyCount = (
+    key: 'ac' | 'asa' | 'aso' | 'train',
+    field: 'ac' | 'asa' | 'aso' | 'trains',
+    label: string,
+    raw: string
+  ) => {
+    const num = Math.floor(Number(raw) || 0);
+    const max = UNIT_LIMITS[key];
+    setLimitMsg(num > max ? `${label}: максимум ${max} ед. Значение ограничено до ${max}.` : null);
+    onActualsChange({ ...current, [field]: clampUnitCount(key, num) });
+  };
+
   const statusBadge =
     isLocked ? (
       <span className="text-[10px] px-2 py-0.5 rounded bg-gray-700 text-gray-400">🔒 Заблокировано</span>
@@ -89,49 +104,49 @@ export default function StageCard({
       {showForces && (
         <div className="grid grid-cols-3 gap-3 mb-3">
         <div>
-          <label className="block text-xs text-gray-400 mb-1">АЦ-40 (ед.)</label>
+          <label className="block text-xs text-gray-400 mb-1">АЦ-40 (ед., ≤{UNIT_LIMITS.ac})</label>
           <input
             type="number"
             min="0"
             max={UNIT_LIMITS.ac}
             value={isFixed && actuals ? actuals.ac : current.ac}
-            onChange={(e) => onActualsChange({ ...current, ac: clampUnitCount('ac', Number(e.target.value)) })}
+            onChange={(e) => applyCount('ac', 'ac', 'АЦ-40', e.target.value)}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-400 mb-1">АСА (ед.)</label>
+          <label className="block text-xs text-gray-400 mb-1">АСА (ед., ≤{UNIT_LIMITS.asa})</label>
           <input
             type="number"
             min="0"
             max={UNIT_LIMITS.asa}
             value={isFixed && actuals ? actuals.asa : current.asa}
-            onChange={(e) => onActualsChange({ ...current, asa: clampUnitCount('asa', Number(e.target.value)) })}
+            onChange={(e) => applyCount('asa', 'asa', 'АСА', e.target.value)}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-400 mb-1">АСО (ед.)</label>
+          <label className="block text-xs text-gray-400 mb-1">АСО (ед., ≤{UNIT_LIMITS.aso})</label>
           <input
             type="number"
             min="0"
             max={UNIT_LIMITS.aso}
             value={isFixed && actuals ? actuals.aso : current.aso}
-            onChange={(e) => onActualsChange({ ...current, aso: clampUnitCount('aso', Number(e.target.value)) })}
+            onChange={(e) => applyCount('aso', 'aso', 'АСО', e.target.value)}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Пожарных поездов (ед.)</label>
+          <label className="block text-xs text-gray-400 mb-1">Пожарных поездов (ед., ≤{UNIT_LIMITS.train})</label>
           <input
             type="number"
             min="0"
             max={UNIT_LIMITS.train}
             value={isFixed && actuals ? actuals.trains : current.trains}
-            onChange={(e) => onActualsChange({ ...current, trains: clampUnitCount('train', Number(e.target.value)) })}
+            onChange={(e) => applyCount('train', 'trains', 'Пожарных поездов', e.target.value)}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
           />
@@ -158,6 +173,11 @@ export default function StageCard({
             disabled={inputsDisabled}
           />
         </div>
+        {limitMsg && (
+          <div className="col-span-3 text-[10px] text-amber-300 bg-amber-900/30 border border-amber-600/40 rounded px-2 py-1">
+            ⚠️ {limitMsg}
+          </div>
+        )}
       </div>
       )}
 
