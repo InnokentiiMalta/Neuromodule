@@ -1227,6 +1227,10 @@ export default function App() {
     const freshUnits = JSON.parse(localStorage.getItem('map_manualUnits') || '[]');
     setManualUnits(freshUnits);
 
+    // Синхронизируем пожарные поезда (появляются после расстановки сил на странице прогноза)
+    setFireTrains(JSON.parse(localStorage.getItem('map_fireTrains') || '[]'));
+    setFireTrainPTW(JSON.parse(localStorage.getItem('map_fireTrainPTW') || '{}'));
+
     // Очищаем старые позиции стволов (если они были)
     setCustomPositions({});
     setCustomPumpPositions({});
@@ -1238,7 +1242,7 @@ export default function App() {
     setPredInitialParams(freshInitial);
     setPredAdditionalParams(freshAdditional);
     setPredCurrentStage(freshStage);
-  }, [setManualUnits, setCustomPositions, setCustomPumpPositions, setPredInitialParams, setPredAdditionalParams, setPredCurrentStage]);
+  }, [setManualUnits, setCustomPositions, setCustomPumpPositions, setFireTrains, setFireTrainPTW, setPredInitialParams, setPredAdditionalParams, setPredCurrentStage]);
 
   const handleScreenshotScene = useCallback(() => {
     const svgElement = svgRef.current;

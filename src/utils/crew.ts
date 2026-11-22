@@ -32,3 +32,11 @@ export function seededRandom(seed: string): number {
   }
   return ((h >>> 0) % 1000000) / 1000000;
 }
+
+export const UNIT_LIMITS = { ac: 20, asa: 10, aso: 5, train: 1 } as const;
+
+export function clampUnitCount(type: keyof typeof UNIT_LIMITS, value: number): number {
+  const max = UNIT_LIMITS[type] ?? 99;
+  const n = Math.floor(Number(value) || 0);
+  return Math.max(0, Math.min(max, n));
+}

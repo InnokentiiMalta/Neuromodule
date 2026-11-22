@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { computeCrewComposition } from '../utils/crew';
+import { computeCrewComposition, clampUnitCount } from '../utils/crew';
 
 import { predictStage, sendFinalData, getDataStatus } from '../api/backend';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import StageCard from '../components/StageCard';
+import { Wagon } from '../types';
 
 interface InitialParams {
   Время_следования_мин: number;
@@ -228,8 +229,13 @@ export default function PredictionPanel({ onMapUpdate, onReset }: { onMapUpdate?
       stvols = result['Всего_подано_пожарных_стволов_ед'] || 0;
     }
 
+    // Клампинг количества техники по лимитам
+    const acCount = clampUnitCount('ac', ac);
+    const asaCount = clampUnitCount('asa', asa);
+    const asoCount = clampUnitCount('aso', aso);
+
     // Стволы делим только между АЦ и АСА (АСО не подает стволы)
-    const totalVehicles = ac + asa;
+    const totalVehicles = acCount + asaCount;
     
     // Распределяем стволы (в том числе по несколько на одну машину, если их больше)
     const baseNozzlesPerVehicle = totalVehicles > 0 ? Math.floor(stvols / totalVehicles) : 0;
@@ -251,7 +257,7 @@ export default function PredictionPanel({ onMapUpdate, onReset }: { onMapUpdate?
 
     const existingUnits = JSON.parse(localStorage.getItem('map_manualUnits') || '[]');
     // Удаляем технику, которая была добавлена предыдущими нажатиями кнопок расстановки
-    const filteredUnits = existingUnits.filter((u: any) => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы');
+    const filteredUnits = existingUnits.filter((u: any) => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы' && u.type !== 'train');
     const newUnits = [...filteredUnits];
 
     // Читаем координаты очага пожара с карты
@@ -324,28 +330,10 @@ export default function PredictionPanel({ onMapUpdate, onReset }: { onMapUpdate?
       }
     };
 
-    addUnits(ac, 'ac', 'АЦ-40', true);
-    addUnits(asa, 'asa', 'АСА', true);
-    addUnits(aso, 'aso', 'АСО', false, 3); // АСО получает фиксированные 3 человека
+    addUnits(acCount, 'ac', 'АЦ-40', true);
+    addUnits(asaCount, 'asa', 'АСА', true);
+    addUnits(asoCount, 'aso', 'АСО', false, 3); // АСО получает фиксированные 3 человека
 
-    // Пожарные поезда (пока добавляем как технику)
-    for (let i = 0; i < trains; i++) {
-      newUnits.push({
-        id: `manual-train-${Date.now()}-${i}`,
-        type: 'ac' as any, 
-        name: 'Пожарный поезд',
-        x: startX,
-        y: startY,
-        angle: 0,
-        personnel: 0,
-        hoses: 0,
-        role: useActual ? 'Фактические силы' : 'Рекомендовано ML',
-        safeDistance: 200,
-        division: '',
-        ptvDeployed: true,
-      });
-      startX += 50;
-    }
 
 // Очищаем старые позиции стволов и разветвлений для новых машин,
     // чтобы карта использовала расчётное количество, а не застрявшие координаты
@@ -353,8 +341,36 @@ export default function PredictionPanel({ onMapUpdate, onReset }: { onMapUpdate?
     localStorage.removeItem('map_customPumpPositions');
     localStorage.removeItem('map_unitSideInfo');
     localStorage.setItem('map_manualUnits', JSON.stringify(newUnits));
+
+    // Пожарный поезд — хранится отдельно (не в manualUnits), перезаписывается при каждом нажатии
+    const trainCount = clampUnitCount('train', trains);
+    const mainWagons: Wagon[] = JSON.parse(localStorage.getItem('map_wagons') || '[]');
+    const mainRightEdge = mainWagons.length > 0
+      ? Math.max(...mainWagons.map(w => w.x + w.width))
+      : 700;
+    const trainStartX = Math.min(mainRightEdge + 100, 990 - 3 * 56);
+    const trainWagons: Wagon[] = [];
+    for (let i = 0; i < 3; i++) {
+      const isTank = i === 1;
+      trainWagons.push({
+        id: i + 1,
+        x: trainStartX + i * 56,
+        y: 296.5,
+        width: 50,
+        height: 7,
+        type: isTank ? 'tank' : 'freight',
+        label: isTank ? `Цистерна ПП ${i + 1}` : `Вагон ПП ${i + 1}`,
+      });
+    }
+    const trainList = trainCount > 0 ? [{ id: `train-${Date.now()}`, wagons: trainWagons, personnel: 2 }] : [];
+    localStorage.setItem('map_fireTrains', JSON.stringify(trainList));
+    localStorage.setItem(
+      'map_fireTrainPTW',
+      JSON.stringify(trainCount > 0 ? { [trainList[0]!.id]: true } : {})
+    );
+
     onMapUpdate?.();
-    alert(`На карту добавлено: ${ac} АЦ, ${asa} АСА, ${aso} АСО, ${trains} поездов. Перейдите на карту.`);
+    alert(`На карту добавлено: ${acCount} АЦ, ${asaCount} АСА, ${asoCount} АСО, ${trainCount} поездов. Перейдите на карту.`);
   };
 
   const handleSubmitFinal = async () => {

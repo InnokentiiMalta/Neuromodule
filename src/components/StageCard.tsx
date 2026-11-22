@@ -1,4 +1,5 @@
 import { StageActuals } from '../pages/PredictionPage';
+import { UNIT_LIMITS, clampUnitCount } from '../utils/crew';
 
 interface StageCardProps {
   stageIndex: number;
@@ -92,8 +93,9 @@ export default function StageCard({
           <input
             type="number"
             min="0"
+            max={UNIT_LIMITS.ac}
             value={isFixed && actuals ? actuals.ac : current.ac}
-            onChange={(e) => onActualsChange({ ...current, ac: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+            onChange={(e) => onActualsChange({ ...current, ac: clampUnitCount('ac', Number(e.target.value)) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
           />
@@ -103,8 +105,9 @@ export default function StageCard({
           <input
             type="number"
             min="0"
+            max={UNIT_LIMITS.asa}
             value={isFixed && actuals ? actuals.asa : current.asa}
-            onChange={(e) => onActualsChange({ ...current, asa: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+            onChange={(e) => onActualsChange({ ...current, asa: clampUnitCount('asa', Number(e.target.value)) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
           />
@@ -114,8 +117,9 @@ export default function StageCard({
           <input
             type="number"
             min="0"
+            max={UNIT_LIMITS.aso}
             value={isFixed && actuals ? actuals.aso : current.aso}
-            onChange={(e) => onActualsChange({ ...current, aso: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+            onChange={(e) => onActualsChange({ ...current, aso: clampUnitCount('aso', Number(e.target.value)) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
           />
@@ -125,8 +129,9 @@ export default function StageCard({
           <input
             type="number"
             min="0"
+            max={UNIT_LIMITS.train}
             value={isFixed && actuals ? actuals.trains : current.trains}
-            onChange={(e) => onActualsChange({ ...current, trains: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+            onChange={(e) => onActualsChange({ ...current, trains: clampUnitCount('train', Number(e.target.value)) })}
             className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm disabled:opacity-50"
             disabled={inputsDisabled}
           />
