@@ -745,6 +745,7 @@ export default function App() {
         });
         if (clickedUnit) {
           setSelectedUnitId(clickedUnit.id);
+          setSelectedFireTrainId(null);
           setSelectedWagonId(null);
         } else {
           setSelectedWagonId(null);
@@ -1521,6 +1522,7 @@ export default function App() {
             <Link
               to="/prediction"
               className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-xs font-semibold"
+              style={{ display: 'none' }}
             >
               📊 Прогнозирование
             </Link>
@@ -1866,7 +1868,7 @@ export default function App() {
               </div>
             )}
 
-            {selectedFireTrainId && (
+            {selectedFireTrainId && fireTrains.some(t => t.id === selectedFireTrainId) && (
               <div className="p-2.5 bg-red-900/20 rounded-lg border border-red-500/30">
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="text-[11px] font-semibold text-red-400">🚂 Пожарный поезд</h3>

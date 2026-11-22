@@ -444,6 +444,55 @@ export default function PredictionPanel({ onMapUpdate, onReset }: { onMapUpdate?
     return String(v);
   };
 
+  const buildSummaryRows = (): string[][] => {
+    const stageNames = ['1 РТП', 'Локализация', 'Ликвидация открытого горения', 'Полная ликвидация'];
+    const timeKeys: (string | null)[] = [null, 'Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин', 'Время_ликвидации_последствий_пожара_мин'];
+    const header = ['Этап','Стволов прогноз','Стволов факт','АЦ прогноз','АЦ факт','АСО прогноз','АСО факт','АСА прогноз','АСА факт','Поезд прогноз','Поезд факт','Л/С прогноз','Л/С факт','Время прогноз, мин','Время факт, мин'];
+    const rows: string[][] = [header];
+    for (let i = 0; i < 4; i++) {
+      const r = (stageResults[i] || {}) as Record<string, number>;
+      const a = stageActuals[i];
+      const tk = timeKeys[i];
+      const fSrc = i >= 1 ? (stageResults[i - 1] || {}) as Record<string, number> : null;
+      const ap = additionalParams as unknown as Record<string, number>;
+      rows.push([
+        stageNames[i],
+        r['Всего_подано_пожарных_стволов_ед'] ?? '',
+        a?.stvols ?? '',
+        r['Количество_основных_пожарных_автомобилей_ед'] ?? '',
+        a?.ac ?? '',
+        r['Количество_АСО_ед'] ?? '',
+        a?.aso ?? '',
+        r['Количество_АСА_ед'] ?? '',
+        a?.asa ?? '',
+        r['Количество_пожарных_поездов_ед'] ?? '',
+        a?.trains ?? '',
+        r['Количество_людей_ед'] ?? '',
+        a?.personnel ?? '',
+        tk && fSrc ? (fSrc[tk] ?? '') : '',
+        tk ? (ap[tk] ?? '') : '',
+      ].map(v => String(v)));
+    }
+    return rows;
+  };
+
+  const handleExportSummaryCsv = () => {
+    const csv = '\uFEFF' + buildSummaryRows().map(r => r.join(';')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `itog_pozhara_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopySummary = async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummaryRows().map(r => r.join('\t')).join('\n'));
+    } catch { /* буфер недоступен — молча */ }
+  };
+
   return (
     <div className="space-y-3 p-2">
       {/* Дата и время работ */}
@@ -528,7 +577,8 @@ export default function PredictionPanel({ onMapUpdate, onReset }: { onMapUpdate?
             const timeValue = stageIdx === 0 ? 0 : (additionalParams[stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] || 0);
 
             const forecastForce = stageResults[stageIdx]?.['Всего_подано_пожарных_стволов_ед'] as number | undefined;
-            const forecastTime = stageIdx < 3 ? (stageResults[stageIdx]?.[stageIdx === 0 ? 'Время_локализации_пожара_мин' : stageIdx === 1 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] as number | undefined) : undefined;
+            const stageTimeKey = stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : stageIdx === 3 ? 'Время_ликвидации_последствий_пожара_мин' : null;
+            const forecastTime = stageTimeKey ? (stageResults[stageIdx - 1]?.[stageTimeKey] as number | undefined) : undefined;
 
             const stageResult = stageResults[stageIdx] as Record<string, number> | null;
             const forecastAc = stageResult?.['Количество_основных_пожарных_автомобилей_ед'];
@@ -577,30 +627,39 @@ export default function PredictionPanel({ onMapUpdate, onReset }: { onMapUpdate?
 
         {currentStage >= 4 && (
           <div className="mt-4 mb-4 bg-gray-900 rounded-lg p-4 border border-blue-700/50">
-            <h3 className="text-sm font-semibold text-blue-300 mb-3">📊 Итоговый анализ пожара</h3>
-            <p className="text-[10px] text-gray-400 mb-2">
-              П/Ф — Прогноз или Рекомендация / Фактическое значение
-            </p>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-1 shrink-0">
+                <h3 className="text-sm font-semibold text-blue-300 mb-0">📊 Итоговый анализ пожара</h3>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <button onClick={handleExportSummaryCsv} title="Скачать CSV" className="px-2 py-0.5 text-[10px] bg-emerald-700 hover:bg-emerald-600 rounded">📥 CSV</button>
+                <button onClick={handleCopySummary} title="Скопировать таблицу" className="px-2 py-0.5 text-[10px] bg-gray-700 hover:bg-gray-600 rounded">📋</button>
+              </div>
+            </div>
+            <div className="flex gap-3 text-[9px] text-gray-400 mb-1.5">
+              <span><span className="text-purple-300">■</span> прогноз / рекомендация</span>
+              <span><span className="text-emerald-300">■</span> факт</span>
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left border-collapse">
+              <table className="w-full text-[9px] tabular-nums text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gray-600 text-gray-400">
-                    <th className="py-2 px-1">Этап</th>
-                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">Стволы (П/Ф)</th>
-                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">АЦ (П/Ф)</th>
-                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">АСО (П/Ф)</th>
-                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">АСА (П/Ф)</th>
-                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">Поезд (П/Ф)</th>
-                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">Л/С (П/Ф)</th>
-                    <th className="py-2 px-1" title="Прогноз или Рекомендация / Фактическое значение">Время (П/Ф)</th>
+                    <th className="py-0.5 px-1 text-left whitespace-nowrap">Этап</th>
+                    <th className="py-0.5 px-1 text-right whitespace-nowrap">Стволов</th>
+                    <th className="py-0.5 px-1 text-right whitespace-nowrap">АЦ</th>
+                    <th className="py-0.5 px-1 text-right whitespace-nowrap">АСО</th>
+                    <th className="py-0.5 px-1 text-right whitespace-nowrap">АСА</th>
+                    <th className="py-0.5 px-1 text-right whitespace-nowrap">ПП</th>
+                    <th className="py-0.5 px-1 text-right whitespace-nowrap">Л/С</th>
+                    <th className="py-0.5 px-1 text-right whitespace-nowrap">Время</th>
                   </tr>
                 </thead>
                 <tbody className="text-gray-300">
                   {[
                     { idx: 0, label: '📍 1 РТП', timeKey: 'Время_локализации_пожара_мин' },
-                    { idx: 1, label: '🎯 Локализация', timeKey: 'Время_локализации_пожара_мин' },
-                    { idx: 2, label: '🔥 Ликвидация открытого горения', timeKey: 'Время_ликвидации_открытого_горения_мин' },
-                    { idx: 3, label: '✅ Полная ликвидация', timeKey: 'Время_ликвидации_последствий_пожара_мин' },
+                    { idx: 1, label: '🎯 Локал.', timeKey: 'Время_локализации_пожара_мин' },
+                    { idx: 2, label: '🔥 Ликв. ОГ', timeKey: 'Время_ликвидации_открытого_горения_мин' },
+                    { idx: 3, label: '✅ Полная', timeKey: 'Время_ликвидации_последствий_пожара_мин' },
                   ].map((row) => {
                     const fRes = stageResults[row.idx] as Record<string, number> | null;
                     const a = stageActuals[row.idx];
@@ -612,54 +671,57 @@ export default function PredictionPanel({ onMapUpdate, onReset }: { onMapUpdate?
                     const fTrains = fRes?.['Количество_пожарных_поездов_ед'];
                     const fPersonnel = fRes?.['Количество_людей_ед'];
                     
-                    const fTime = fRes?.[row.timeKey] as number | undefined;
-                    const aTime = additionalParams[row.timeKey as keyof typeof additionalParams];
+                    const timeKey = row.idx === 1 ? 'Время_локализации_пожара_мин' : row.idx === 2 ? 'Время_ликвидации_открытого_горения_мин' : row.idx === 3 ? 'Время_ликвидации_последствий_пожара_мин' : null;
+                    const forecastSource = row.idx >= 1 ? (stageResults[row.idx - 1] as Record<string, number> | null) : null;
+                    const fTime = timeKey && forecastSource ? (forecastSource[timeKey] as number | undefined) : undefined;
+                    const aTime = timeKey ? (additionalParams[timeKey as keyof typeof additionalParams] as number | undefined) : undefined;
 
                     return (
-                      <tr key={row.idx} className="border-b border-gray-700/50 text-xs">
-                        <td className="py-2 px-1 text-gray-200 whitespace-nowrap">{row.label}</td>
+                      <tr key={row.idx} className="border-b border-gray-700/50 text-[9px]">
+                        <td className="py-0.5 px-1 text-gray-200 whitespace-nowrap">{row.label}</td>
                         
-                        <td className="py-2 px-1 whitespace-nowrap">
+                        <td className="py-0.5 px-1 text-right whitespace-nowrap">
                           <span className="text-purple-300">{fStvols != null ? `${fStvols}` : '—'}</span>
                           <span className="text-gray-500 mx-1">/</span>
                           <span className="text-emerald-300">{a ? `${a.stvols}` : '—'}</span>
                         </td>
                         
-                        <td className="py-2 px-1 whitespace-nowrap">
+                        <td className="py-0.5 px-1 text-right whitespace-nowrap">
                           <span className="text-purple-300">{fAc != null ? `${fAc}` : '—'}</span>
                           <span className="text-gray-500 mx-1">/</span>
                           <span className="text-emerald-300">{a ? `${a.ac}` : '—'}</span>
                         </td>
                         
-                        <td className="py-2 px-1 whitespace-nowrap">
+                        <td className="py-0.5 px-1 text-right whitespace-nowrap">
                           <span className="text-purple-300">{fAso != null ? `${fAso}` : '—'}</span>
                           <span className="text-gray-500 mx-1">/</span>
                           <span className="text-emerald-300">{a ? `${a.aso}` : '—'}</span>
                         </td>
 
-                        <td className="py-2 px-1 whitespace-nowrap">
+                        <td className="py-0.5 px-1 text-right whitespace-nowrap">
                           <span className="text-purple-300">{fAsa != null ? `${fAsa}` : '—'}</span>
                           <span className="text-gray-500 mx-1">/</span>
                           <span className="text-emerald-300">{a ? `${a.asa}` : '—'}</span>
                         </td>
 
-                        <td className="py-2 px-1 whitespace-nowrap">
+                        <td className="py-0.5 px-1 text-right whitespace-nowrap">
                           <span className="text-purple-300">{fTrains != null ? `${fTrains}` : '—'}</span>
                           <span className="text-gray-500 mx-1">/</span>
                           <span className="text-emerald-300">{a ? `${a.trains}` : '—'}</span>
                         </td>
 
-                        <td className="py-2 px-1 whitespace-nowrap">
+                        <td className="py-0.5 px-1 text-right whitespace-nowrap">
                           <span className="text-purple-300">{fPersonnel != null ? `${fPersonnel}` : '—'}</span>
                           <span className="text-gray-500 mx-1">/</span>
                           <span className="text-emerald-300">{a ? `${a.personnel}` : '—'}</span>
                         </td>
 
-                        <td className="py-2 px-1 whitespace-nowrap">
+                        <td className="py-0.5 px-1 text-right whitespace-nowrap">
                           <span className="text-purple-300">{fTime != null ? `${fTime.toFixed(1)}` : '—'}</span>
                           <span className="text-gray-500 mx-1">/</span>
-                          <span className="text-emerald-300">{aTime > 0 ? `${aTime}` : '—'}</span>
+                          <span className="text-emerald-300">{aTime != null && aTime > 0 ? `${aTime}` : '—'}</span>
                         </td>
+
                       </tr>
                     );
                   })}

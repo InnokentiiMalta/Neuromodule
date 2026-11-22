@@ -534,7 +534,8 @@ export default function PredictionPage({ onMapUpdate }: { onMapUpdate?: () => vo
             const timeValue = stageIdx === 0 ? 0 : (additionalParams[stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] || 0);
 
             const forecastForce = stageResults[stageIdx]?.['Всего_подано_пожарных_стволов_ед'] as number | undefined;
-            const forecastTime = stageIdx < 3 ? (stageResults[stageIdx]?.[stageIdx === 0 ? 'Время_локализации_пожара_мин' : stageIdx === 1 ? 'Время_ликвидации_открытого_горения_мин' : 'Время_ликвидации_последствий_пожара_мин'] as number | undefined) : undefined;
+            const stageTimeKey = stageIdx === 1 ? 'Время_локализации_пожара_мин' : stageIdx === 2 ? 'Время_ликвидации_открытого_горения_мин' : stageIdx === 3 ? 'Время_ликвидации_последствий_пожара_мин' : null;
+            const forecastTime = stageTimeKey ? (stageResults[stageIdx - 1]?.[stageTimeKey] as number | undefined) : undefined;
 
             const stageResult = stageResults[stageIdx] as Record<string, number> | null;
             const forecastAc = stageResult?.['Количество_основных_пожарных_автомобилей_ед'];
