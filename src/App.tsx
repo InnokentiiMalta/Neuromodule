@@ -502,15 +502,14 @@ export default function App() {
   const [fireType, setFireType] = useState<'wagon_body' | 'tank' | 'undercarriage' | 'cargo'>('wagon_body');
   const [deployment, setDeployment] = useLocalStorageState<Deployment | null>('map_deployment', null);
   const [manualUnits, setManualUnits] = useLocalStorageState<ManualUnit[]>('map_manualUnits', []);
+  const hasRolePlacement = manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы');
   const unitsToRender = useMemo(() => {
     const manualReady = manualUnits.filter(u => u.ptvDeployed && ((u as any).nozzles || 0) > 0);
     const deployReady = (deployment?.units || [])
       .filter(u => u.hoses > 0)
       .map(u => ({ ...u, nozzles: distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel).nozzles }))
       .filter(u => u.nozzles > 0);
-    const baseUnits = manualUnits.some(u => u.role === 'Рекомендовано ML' || u.role === 'Фактические силы')
-      ? manualReady
-      : [...deployReady, ...manualReady];
+    const baseUnits = hasRolePlacement ? manualReady : [...deployReady, ...manualReady];
     const total = baseUnits.reduce((sum, u) => sum + ((u as any).nozzles || 0), 0);
     let offset = 0;
     return baseUnits.map(unit => {
@@ -624,7 +623,7 @@ export default function App() {
 
   const freePersonsPositions = useMemo(() => {
     if (!fireSource) return [];
-    const allUnits = hasManualPlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
+    const allUnits = hasRolePlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
     const slots: Array<{ kind: 'fire' | 'aux' }> = [];
     for (const u of allUnits) {
       const isManual = manualUnits.some(m => m.id === u.id);
@@ -675,12 +674,12 @@ export default function App() {
         y: y,
         angle: 0,
         personnel: defaultPersonnel,
-        nozzles: Math.max(0, defaultPersonnel - 2),
-        hoses: 0,
+        nozzles: computeCrewComposition(placingUnit, defaultPersonnel).nozzles,
+        hoses: computeCrewComposition(placingUnit, defaultPersonnel).nozzles,
         role: 'Добавлен вручную',
         safeDistance: 200,
         division: '',
-        ptvDeployed: false,
+        ptvDeployed: computeCrewComposition(placingUnit, defaultPersonnel).canDeployPTV,
       };
       setManualUnits(prev => [...prev, newUnit]);
       setDeployment(null);
@@ -1993,9 +1992,13 @@ export default function App() {
                   {manualUnits.map(unit => (
                     <div key={unit.id} className="flex items-center justify-between bg-gray-700/60 rounded px-2 py-1">
                       <span className="text-[10px] text-gray-300">{unit.name}</span>
-                      <span className={`text-[9px] ${unit.ptvDeployed ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {unit.ptvDeployed ? '✓ ПТВ' : '⚠ Без ПТВ'}
-                      </span>
+                      {unit.type === 'aux' ? (
+                        <span className="text-amber-300 text-[9px]">👷 вспом.</span>
+                      ) : (
+                        <span className={`text-[9px] ${unit.ptvDeployed ? 'text-green-400' : 'text-yellow-400'}`}>
+                          {unit.ptvDeployed ? '✓ ПТВ' : '⚠ Без ПТВ'}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2007,7 +2010,7 @@ export default function App() {
                 <h3 className="text-[11px] font-semibold text-green-400 mb-1.5">✅ Расстановка</h3>
                 <div className="grid grid-cols-3 gap-1 mb-2">
                   {(() => {
-                    const allUnits = hasManualPlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
+                    const allUnits = hasRolePlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
                     const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
                     let nozzles = 0, people = 0;
                     const manualOnlyCount = manualUnits.filter(u => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы').length;
