@@ -16,6 +16,16 @@ interface InitialParams {
   Скорость_распространения_огня_м_мин: number;
 }
 
+const DEFAULT_INITIAL_PARAMS: InitialParams = {
+  Время_следования_мин: 8,
+  Время_подачи_первого_ствола_мин: 1,
+  Количество_основных_пожарных_автомобилей_ед: 2,
+  Количество_специальных_пожарных_автомобилей_ед: 0,
+  Количество_пожарных_поездов_ед: 0,
+  Всего_подано_пожарных_стволов_ед: 1,
+  Скорость_распространения_огня_м_мин: 2.5,
+};
+
 interface AdditionalParams {
   Время_локализации_пожара_мин: number;
   Время_ликвидации_открытого_горения_мин: number;
@@ -87,15 +97,7 @@ const PARAM_ORDER = [
 ];
 
 export default function PredictionPage({ onMapUpdate }: { onMapUpdate?: () => void } = {}) {
-  const [initialParams, setInitialParams] = useLocalStorageState<InitialParams>('prediction_initialParams', {
-    Время_следования_мин: 8,
-    Время_подачи_первого_ствола_мин: 1,
-    Количество_основных_пожарных_автомобилей_ед: 2,
-    Количество_специальных_пожарных_автомобилей_ед: 0,
-    Количество_пожарных_поездов_ед: 0,
-    Всего_подано_пожарных_стволов_ед: 1,
-    Скорость_распространения_огня_м_мин: 2.5,
-  });
+  const [initialParams, setInitialParams] = useLocalStorageState<InitialParams>('prediction_initialParams', DEFAULT_INITIAL_PARAMS);
 
   const [additionalParams, setAdditionalParams] = useLocalStorageState<AdditionalParams>('prediction_additionalParams', {
     Время_локализации_пожара_мин: 0,
@@ -146,7 +148,14 @@ export default function PredictionPage({ onMapUpdate }: { onMapUpdate?: () => vo
   };
 
   const buildInputData = (stage: number) => {
-    const data: Record<string, number> = { ...initialParams };
+    const storedInitial = (() => {
+      try { return JSON.parse(localStorage.getItem('prediction_initialParams') || 'null'); } catch { return null; }
+    })();
+    const data: Record<string, number> = {
+      ...DEFAULT_INITIAL_PARAMS,
+      ...(storedInitial || {}),
+      ...initialParams,
+    };
 
     data['Количество_основных_пожарных_автомобилей_ед'] = currentActuals.ac;
     data['Количество_специальных_пожарных_автомобилей_ед'] = currentActuals.asa + currentActuals.aso;
@@ -154,13 +163,13 @@ export default function PredictionPage({ onMapUpdate }: { onMapUpdate?: () => vo
     data['Всего_подано_пожарных_стволов_ед'] = currentActuals.stvols;
 
     if (stage >= 1) {
-      data['Время_локализации_пожара_мин'] = additionalParams['Время_локализации_пожара_мин'];
+      data['Время_локализации_пожара_мин'] = additionalParams['Время_локализации_пожара_мин'] ?? 0;
     }
     if (stage >= 2) {
-      data['Время_ликвидации_открытого_горения_мин'] = additionalParams['Время_ликвидации_открытого_горения_мин'];
+      data['Время_ликвидации_открытого_горения_мин'] = additionalParams['Время_ликвидации_открытого_горения_мин'] ?? 0;
     }
     if (stage >= 3) {
-      data['Время_ликвидации_последствий_пожара_мин'] = additionalParams['Время_ликвидации_последствий_пожара_мин'];
+      data['Время_ликвидации_последствий_пожара_мин'] = additionalParams['Время_ликвидации_последствий_пожара_мин'] ?? 0;
     }
 
     return data;

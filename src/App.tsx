@@ -4,7 +4,7 @@ import { calculateDeployment, generateDefaultWagons, getIdealResources, getTrain
 import html2canvas from 'html2canvas';
 import ServerStatus from './components/ServerStatus';
 import RecommendationPanel from './components/RecommendationPanel';
-import PredictionPanel from './components/PredictionPanel';
+import PredictionPanel, { DEFAULT_INITIAL_PARAMS } from './components/PredictionPanel';
 import RetrainPanel from './components/RetrainPanel';
 import { APP_VERSION } from './version';
 import { Link } from 'react-router-dom';
@@ -13,6 +13,12 @@ import { distributePersonnel } from './utils/personnel';
 import { computeCrewComposition, seededRandom } from './utils/crew';
 
 const PX_PER_M = 2;
+
+const DEFAULT_ADDITIONAL_PARAMS = {
+  Время_локализации_пожара_мин: 0,
+  Время_ликвидации_открытого_горения_мин: 0,
+  Время_ликвидации_последствий_пожара_мин: 0,
+};
 
 function scatterFreePerson(
   seed: string, fireX: number, fireY: number,
@@ -526,8 +532,8 @@ export default function App() {
   const [fireTrains, setFireTrains] = useLocalStorageState<FireTrain[]>('map_fireTrains', []);
   const [selectedFireTrainId, setSelectedFireTrainId] = useState<string | null>(null);
   const [fireTrainPTW, setFireTrainPTW] = useLocalStorageState<Record<string, boolean>>('map_fireTrainPTW', {});
-  const [predInitialParams, setPredInitialParams] = useLocalStorageState<any>('prediction_initialParams', {});
-  const [predAdditionalParams, setPredAdditionalParams] = useLocalStorageState<any>('prediction_additionalParams', {});
+  const [predInitialParams, setPredInitialParams] = useLocalStorageState<any>('prediction_initialParams', DEFAULT_INITIAL_PARAMS);
+  const [predAdditionalParams, setPredAdditionalParams] = useLocalStorageState<any>('prediction_additionalParams', DEFAULT_ADDITIONAL_PARAMS);
   const [predCurrentStage, setPredCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
@@ -1239,11 +1245,11 @@ export default function App() {
     setCustomPumpPositions({});
 
     // Перечитываем prediction-состояния (для огня)
-    const freshInitial = JSON.parse(localStorage.getItem('prediction_initialParams') || '{}');
-    const freshAdditional = JSON.parse(localStorage.getItem('prediction_additionalParams') || '{}');
+    const freshInitial = JSON.parse(localStorage.getItem('prediction_initialParams') || 'null');
+    const freshAdditional = JSON.parse(localStorage.getItem('prediction_additionalParams') || 'null');
     const freshStage = JSON.parse(localStorage.getItem('prediction_currentStage') || '0');
-    setPredInitialParams(freshInitial);
-    setPredAdditionalParams(freshAdditional);
+    setPredInitialParams(freshInitial && Object.keys(freshInitial).length > 0 ? freshInitial : DEFAULT_INITIAL_PARAMS);
+    setPredAdditionalParams(freshAdditional && Object.keys(freshAdditional).length > 0 ? freshAdditional : DEFAULT_ADDITIONAL_PARAMS);
     setPredCurrentStage(freshStage);
   }, [setManualUnits, setCustomPositions, setCustomPumpPositions, setFireTrains, setFireTrainPTW, setPredInitialParams, setPredAdditionalParams, setPredCurrentStage]);
 
