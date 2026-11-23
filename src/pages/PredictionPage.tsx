@@ -238,18 +238,16 @@ export default function PredictionPage({ onMapUpdate }: { onMapUpdate?: () => vo
     const totalVehicles = acCount + asaCount;
     
     // Распределяем стволы (в том числе по несколько на одну машину, если их больше)
-    const baseNozzlesPerVehicle = totalVehicles > 0 ? Math.floor(stvols / totalVehicles) : 0;
-    let nozzlesRemainder = totalVehicles > 0 ? stvols % totalVehicles : 0;
+    const supplyTotal = acCount + asaCount;
+const nozzlePlan: number[] = new Array(supplyTotal + asoCount).fill(0);
+const firstPass = Math.min(stvols, supplyTotal, 4);
+for (let i = 0; i < firstPass; i++) nozzlePlan[i] = 1;
+let extra = Math.max(0, Math.min(stvols, 8) - firstPass);
+for (let i = 0; i < firstPass && extra > 0; i++) { nozzlePlan[i] += 1; extra--; }
+let planCursor = 0;
     
-    const getNozzles = (canDeploy: boolean) => {
-      if (!canDeploy) return 0;
-      let n = baseNozzlesPerVehicle;
-      if (nozzlesRemainder > 0) {
-        n++;
-        nozzlesRemainder--;
-      }
-      return n;
-    };
+    
+    
     if (totalVehicles === 0 && trains === 0) {
       alert('Нет техники для расстановки на этом этапе.');
       return;
@@ -301,7 +299,9 @@ export default function PredictionPage({ onMapUpdate }: { onMapUpdate?: () => vo
         let p = fixedPersonnel !== undefined ? fixedPersonnel : basePersonnel + (remainder > 0 ? 1 : 0);
         if (fixedPersonnel === undefined && remainder > 0) remainder--;
 
-        const n = Math.min(getNozzles(canDeployPTV), computeCrewComposition(type, p).nozzles);
+        const planned = nozzlePlan[planCursor] ?? 0;
+        planCursor++;
+        const n = Math.min(planned, computeCrewComposition(type, p).nozzles);
         let finalX = startX;
         let finalY = startY;
         // Если это АЦ или АСА, и есть свободный водоисточник — ставим на него

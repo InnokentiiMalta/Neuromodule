@@ -507,7 +507,7 @@ export default function App() {
     const manualReady = manualUnits.filter(u => u.ptvDeployed && ((u as any).nozzles || 0) > 0);
     const deployReady = (deployment?.units || [])
       .filter(u => u.hoses > 0)
-      .map(u => ({ ...u, nozzles: distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train', u.personnel).nozzles }))
+      .map(u => ({ ...u, nozzles: u.nozzles ?? distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train' | 'aux', u.personnel).nozzles }))
       .filter(u => u.nozzles > 0);
     const baseUnits = hasRolePlacement ? manualReady : [...deployReady, ...manualReady];
     const total = baseUnits.reduce((sum, u) => sum + ((u as any).nozzles || 0), 0);
@@ -1426,10 +1426,7 @@ export default function App() {
     setCustomPositions(prev => { const next = { ...prev }; delete next[unitId]; return next; });
     setCustomPumpPositions(prev => { const next = { ...prev }; delete next[unitId]; return next; });
 
-    if (fireSource) {
-      const newDeployment = calculateDeployment(wagons, fireSource, obstacles, resources, waterSources, manualUnits);
-      setDeployment(newDeployment);
-    }
+    if (manualUnits.some(u => u.id === unitId)) setDeployment(null);
     setSelectedUnitId(null);
   }, [deployment]);
 
@@ -1841,16 +1838,6 @@ export default function App() {
                       className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
                     />
                   </div>
-                  <div>
-                    <label className="text-[9px] text-gray-400 block mb-0.5">Принадлежность:</label>
-                    <input
-                      type="text"
-                      placeholder="Напр.: ПЧ-12"
-                      value={(manualUnits.find(u => u.id === selectedUnitId) as ManualUnit | undefined)?.division || ''}
-                      onChange={e => updateUnitDivision(selectedUnitId, e.target.value)}
-                      className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
-                    />
-                  </div>
                   {(() => {
                     const allUnits = [...(deployment?.units || []), ...manualUnits];
                     const unit = allUnits.find(u => u.id === selectedUnitId);
@@ -1893,6 +1880,35 @@ export default function App() {
                               }));
                               setCustomPositions(prev => { const next = { ...prev }; delete next[selectedUnitId!]; return next; });
                             }
+                          }}
+                          className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
+                        />
+                      </div>
+                    );
+                  })()}
+                  {(() => {
+                    const unit = [...(deployment?.units || []), ...manualUnits].find(u => u.id === selectedUnitId);
+                    if (!unit || unit.type === 'aso' || unit.type === 'aux') return null;
+                    const maxN = computeCrewComposition(unit.type, unit.personnel).nozzles;
+                    const cur = unit.nozzles ?? maxN;
+                    return (
+                      <div>
+                        <label className="text-[9px] text-gray-400 block mb-0.5">Стволов (макс. {maxN}):</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={maxN}
+                          value={cur}
+                          onChange={e => {
+                            const v = Math.max(0, Math.min(maxN, Math.floor(Number(e.target.value) || 0)));
+                            const inManual = manualUnits.some(u => u.id === selectedUnitId);
+                            if (inManual) {
+                              setManualUnits(prev => prev.map(u => u.id === selectedUnitId ? { ...u, nozzles: v, hoses: v, ptvDeployed: v > 0 } : u));
+                            }
+                            if (deployment && deployment.units.some(u => u.id === selectedUnitId)) {
+                              setDeployment({ ...deployment, units: deployment.units.map(u => u.id === selectedUnitId ? { ...u, nozzles: v, hoses: v } : u) });
+                            }
+                            setCustomPositions(prev => { const next = { ...prev }; delete next[selectedUnitId!]; return next; });
                           }}
                           className="w-full px-2 py-1 bg-gray-700 rounded text-[10px] border border-gray-600"
                         />

@@ -40,6 +40,7 @@ export interface FireUnit {
   id: string;
   type: 'ac' | 'asa' | 'aso' | 'aux';
   name: string;
+  nozzles?: number;
   x: number;
   y: number;
   angle: number;
