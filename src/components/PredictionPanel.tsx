@@ -382,6 +382,40 @@ let planCursor = 0;
     alert(`На карту добавлено: ${acCount} АЦ, ${asaCount} АСА, ${asoCount} АСО, ${trainCount} поездов. Перейдите на карту.`);
   };
 
+  const handleRollback = (stageIndex: number) => {
+    const timeKeys: (string | null)[] = [
+      null,
+      'Время_локализации_пожара_мин',
+      'Время_ликвидации_открытого_горения_мин',
+      'Время_ликвидации_последствий_пожара_мин',
+    ];
+    const saved = stageActuals[stageIndex];
+    const nextCurrent = saved ?? currentActuals;
+    const nextActuals = stageActuals.map((a, i) => (i >= stageIndex ? null : a));
+    const nextResults = stageResults.map((r, i) => (i >= stageIndex ? null : r));
+    const nextAdditional = { ...additionalParams } as Record<string, number>;
+    for (let i = stageIndex + 1; i < 4; i++) {
+      const k = timeKeys[i];
+      if (k) nextAdditional[k] = 0;
+    }
+
+    setCurrentActuals(nextCurrent);
+    setStageActuals(nextActuals);
+    setStageResults(nextResults);
+    setAdditionalParams(nextAdditional as unknown as typeof additionalParams);
+    setCurrentStage(stageIndex);
+    setFinalSubmitted(false);
+
+    localStorage.setItem('prediction_currentActuals', JSON.stringify(nextCurrent));
+    localStorage.setItem('prediction_stageActuals', JSON.stringify(nextActuals));
+    localStorage.setItem('prediction_stageResults', JSON.stringify(nextResults));
+    localStorage.setItem('prediction_additionalParams', JSON.stringify(nextAdditional));
+    localStorage.setItem('prediction_currentStage', JSON.stringify(stageIndex));
+    localStorage.setItem('prediction_finalSubmitted', 'false');
+
+    onMapUpdate?.();
+  };
+
   const handleSubmitFinal = async () => {
     setLoading(true);
     setError(null);
@@ -624,6 +658,7 @@ let planCursor = 0;
                 loading={loading}
                 onPlaceForces={() => handlePlaceForces(stageIdx, false)}
                 onPlaceActuals={() => handlePlaceForces(stageIdx, true)}
+                onRollback={handleRollback}
               />
             );
           })}

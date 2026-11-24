@@ -2,6 +2,8 @@ import { StageActuals } from '../pages/PredictionPage';
 import { useState } from 'react';
 import { UNIT_LIMITS, clampUnitCount } from '../utils/crew';
 
+const STAGE_TITLES = ['Прибытие 1 РТП', 'Локализация', 'Ликвидация открытого горения', 'Полная ликвидация'];
+
 interface StageCardProps {
   stageIndex: number;
   stageLabel: string;
@@ -31,6 +33,7 @@ interface StageCardProps {
   }>;
   onPlaceForces?: () => void;
   onPlaceActuals?: () => void;
+  onRollback?: (stageIndex: number) => void;
 }
 
 export default function StageCard({
@@ -57,6 +60,7 @@ export default function StageCard({
   customTimeFields,
   onPlaceForces,
   onPlaceActuals,
+  onRollback,
 }: StageCardProps) {
   const isLocked = state === 'locked';
   const isFixed = state === 'fixed';
@@ -64,6 +68,7 @@ export default function StageCard({
   const inputsDisabled = isLocked || isFixed || loading;
 
   const [limitMsg, setLimitMsg] = useState<string | null>(null);
+  const [confirmRollback, setConfirmRollback] = useState(false);
 
   const applyCount = (
     key: 'ac' | 'asa' | 'aso' | 'train',
@@ -100,6 +105,42 @@ export default function StageCard({
         <h2 className="text-lg font-semibold">{stageLabel}</h2>
         {statusBadge}
       </div>
+
+      {isFixed && onRollback && (
+        <div className="mb-3">
+          {!confirmRollback ? (
+            <button
+              onClick={() => setConfirmRollback(true)}
+              className="w-full px-3 py-1.5 text-[11px] bg-amber-700/40 hover:bg-amber-600/60 border border-amber-600/50 text-amber-200 rounded"
+            >
+              ✏️ Корректировать этот этап
+            </button>
+          ) : (
+            <div className="p-2.5 rounded border border-amber-500/60 bg-amber-900/25">
+              <p className="text-[11px] text-amber-200 font-semibold mb-1">⚠️ Откат к этому этапу</p>
+              <p className="text-[10px] text-amber-100/90 mb-2">
+                Будут сброшены все введённые и зафиксированные данные этого и последующих этапов:{' '}
+                <span className="font-semibold">{STAGE_TITLES.slice(stageIndex).join(', ')}</span>.
+                Площадь пожара пересчитается, вручную перетащенные позиции стволов и разветвлений сбросятся. Отменить это действие нельзя.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setConfirmRollback(false); onRollback(stageIndex); }}
+                  className="flex-1 px-3 py-1.5 text-[11px] bg-red-700 hover:bg-red-600 rounded font-semibold"
+                >
+                  Сбросить и корректировать
+                </button>
+                <button
+                  onClick={() => setConfirmRollback(false)}
+                  className="px-3 py-1.5 text-[11px] bg-gray-700 hover:bg-gray-600 rounded"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {showForces && (
         <div className="grid grid-cols-3 gap-3 mb-3">
