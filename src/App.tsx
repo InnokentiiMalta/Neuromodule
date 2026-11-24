@@ -1236,6 +1236,10 @@ export default function App() {
     const freshUnits = JSON.parse(localStorage.getItem('map_manualUnits') || '[]');
     setManualUnits(freshUnits);
 
+    setDeployment(JSON.parse(localStorage.getItem('map_deployment') || 'null'));
+    setSelectedUnitId(null);
+    setSelectedFireTrainId(null);
+
     // Синхронизируем пожарные поезда (появляются после расстановки сил на странице прогноза)
     setFireTrains(JSON.parse(localStorage.getItem('map_fireTrains') || '[]'));
     setFireTrainPTW(JSON.parse(localStorage.getItem('map_fireTrainPTW') || '{}'));
@@ -1251,7 +1255,7 @@ export default function App() {
     setPredInitialParams(freshInitial && Object.keys(freshInitial).length > 0 ? freshInitial : DEFAULT_INITIAL_PARAMS);
     setPredAdditionalParams(freshAdditional && Object.keys(freshAdditional).length > 0 ? freshAdditional : DEFAULT_ADDITIONAL_PARAMS);
     setPredCurrentStage(freshStage);
-  }, [setManualUnits, setCustomPositions, setCustomPumpPositions, setFireTrains, setFireTrainPTW, setPredInitialParams, setPredAdditionalParams, setPredCurrentStage]);
+  }, [setManualUnits, setCustomPositions, setCustomPumpPositions, setFireTrains, setFireTrainPTW, setPredInitialParams, setPredAdditionalParams, setPredCurrentStage, setDeployment, setSelectedUnitId, setSelectedFireTrainId]);
 
   const handleScreenshotScene = useCallback(() => {
     const svgElement = svgRef.current;

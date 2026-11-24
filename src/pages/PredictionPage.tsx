@@ -393,16 +393,16 @@ let planCursor = 0;
     const nextCurrent = saved ?? currentActuals;
     const nextActuals = stageActuals.map((a, i) => (i >= stageIndex ? null : a));
     const nextResults = stageResults.map((r, i) => (i >= stageIndex ? null : r));
-    const nextAdditional = { ...additionalParams } as Record<string, number>;
+    const nextAdditional = { ...additionalParams };
     for (let i = stageIndex + 1; i < 4; i++) {
       const k = timeKeys[i];
-      if (k) nextAdditional[k] = 0;
+      if (k) (nextAdditional as any)[k] = 0;
     }
 
     setCurrentActuals(nextCurrent);
     setStageActuals(nextActuals);
     setStageResults(nextResults);
-    setAdditionalParams(nextAdditional as unknown as typeof additionalParams);
+    setAdditionalParams(nextAdditional);
     setCurrentStage(stageIndex);
     setFinalSubmitted(false);
 
@@ -412,6 +412,16 @@ let planCursor = 0;
     localStorage.setItem('prediction_additionalParams', JSON.stringify(nextAdditional));
     localStorage.setItem('prediction_currentStage', JSON.stringify(stageIndex));
     localStorage.setItem('prediction_finalSubmitted', 'false');
+
+    const existingUnits: any[] = JSON.parse(localStorage.getItem('map_manualUnits') || '[]');
+    const keptUnits = existingUnits.filter(u => u.role !== 'Рекомендовано ML' && u.role !== 'Фактические силы');
+    localStorage.setItem('map_manualUnits', JSON.stringify(keptUnits));
+    localStorage.removeItem('map_deployment');
+    localStorage.setItem('map_fireTrains', JSON.stringify([]));
+    localStorage.setItem('map_fireTrainPTW', JSON.stringify({}));
+    localStorage.removeItem('map_customPositions');
+    localStorage.removeItem('map_customPumpPositions');
+    localStorage.removeItem('map_unitSideInfo');
 
     onMapUpdate?.();
   };
