@@ -1623,6 +1623,12 @@ export default function App() {
                  'map_useCustomResources', 'map_customPositions', 'map_customPumpPositions',
                  'map_fireTrainPTW', 'map_scale'].forEach(k => localStorage.removeItem(k));
                 setPanelResetKey(k => k + 1);
+                setPredInitialParams(DEFAULT_INITIAL_PARAMS);
+                setPredAdditionalParams(DEFAULT_ADDITIONAL_PARAMS);
+                setPredCurrentStage(0);
+                setSelectedUnitId(null);
+                setSelectedFireTrainId(null);
+                setSelectedWagonId(null);
               }}
               className="px-3 py-1.5 bg-red-700 hover:bg-red-600 rounded-lg text-xs font-semibold"
             >
