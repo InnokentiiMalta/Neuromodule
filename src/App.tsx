@@ -911,7 +911,9 @@ export default function App() {
       const freeIdx = Number(dragState.id.slice(dashAt + 1));
       const snapshot = dragFreeRef.current;
       if (!parentUnitId || !snapshot || !Number.isInteger(freeIdx) || freeIdx < 0 || freeIdx >= snapshot.length) return;
-      const nextFree = snapshot.map((p, i) => (i === freeIdx ? { x, y } : { x: p.x, y: p.y }));
+      const nx = x - dragState.offsetX;
+      const ny = y - dragState.offsetY;
+      const nextFree = snapshot.map((p, i) => (i === freeIdx ? { x: nx, y: ny } : { x: p.x, y: p.y }));
       setCustomPositions(prev => ({ ...prev, [parentUnitId]: { ...prev[parentUnitId], freePersons: nextFree } }));
       return;
     }
@@ -3184,7 +3186,14 @@ export default function App() {
                     dragFreeRef.current = freePersonsPositions
                       .filter(p => p.unitId === pos.unitId)
                       .map(p => ({ x: p.x, y: p.y }));
-                    handleMouseDown(e, 'freePerson', `${pos.unitId}-${pos.freeIdx}`, pos.unitId);
+                    const { x, y } = getSVGCoords(e);
+                    setDragState({
+                      type: 'freePerson',
+                      id: `${pos.unitId}-${pos.freeIdx}`,
+                      unitId: pos.unitId,
+                      offsetX: x - pos.x,
+                      offsetY: y - pos.y,
+                    });
                   }}
                   style={{ cursor: toolMode === 'select' || toolMode === 'none' ? 'move' : 'default' }}
                 >
