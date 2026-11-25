@@ -539,6 +539,8 @@ export default function App() {
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedNozzle, setSelectedNozzle] = useState<{ unitId: string; idx: number } | null>(null);
   const [selectedFreePerson, setSelectedFreePerson] = useState<{ unitId: string; idx: number } | null>(null);
+  const highlightedUnitId = selectedUnitId ?? selectedFreePerson?.unitId ?? selectedNozzle?.unitId ?? null;
+  const unitRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [customPumpPositions, setCustomPumpPositions] = useLocalStorageState<Record<string, { x: number; y: number }>>('map_customPumpPositions', {});
@@ -1570,6 +1572,12 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedUnitId, selectedFireTrainId, deployment, selectedNozzle, selectedFreePerson, setDeployment, setFireTrains, setCustomPositions]);
 
+  useEffect(() => {
+    if (!highlightedUnitId) return;
+    const el = unitRowRefs.current[highlightedUnitId];
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [highlightedUnitId]);
+
   return (
     <div className="h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
       <header className="bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700 px-4 py-2 shadow-lg flex-shrink-0">
@@ -2078,18 +2086,32 @@ export default function App() {
               <div className="p-2.5 bg-blue-900/20 rounded-lg border border-blue-500/30">
                 <h3 className="text-[11px] font-semibold text-blue-400 mb-1.5">📌 Добавленная техника</h3>
                 <div className="space-y-1">
-                  {manualUnits.map(unit => (
-                    <div key={unit.id} className="flex items-center justify-between bg-gray-700/60 rounded px-2 py-1">
-                      <span className="text-[10px] text-gray-300">{unit.name}</span>
-                      {unit.type === 'aux' ? (
-                        <span className="text-amber-300 text-[9px]">👷 вспом.</span>
-                      ) : (
-                        <span className={`text-[9px] ${unit.ptvDeployed ? 'text-green-400' : 'text-yellow-400'}`}>
-                          {unit.ptvDeployed ? '✓ ПТВ' : '⚠ Без ПТВ'}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                  {manualUnits.map(unit => {
+                    const isHi = unit.id === highlightedUnitId;
+                    return (
+                      <div
+                        key={unit.id}
+                        ref={el => { unitRowRefs.current[unit.id] = el; }}
+                        onClick={() => {
+                          setSelectedNozzle(null);
+                          setSelectedFreePerson(null);
+                          setSelectedFireTrainId(null);
+                          setSelectedWagonId(null);
+                          setSelectedUnitId(unit.id);
+                        }}
+                        className={`flex items-center justify-between rounded px-2 py-1 cursor-pointer border transition-colors ${isHi ? 'bg-cyan-600/30 border-cyan-400/70' : 'bg-gray-700/60 border-transparent hover:bg-gray-600/70'}`}
+                      >
+                        <span className={`text-[10px] ${isHi ? 'text-cyan-100 font-semibold' : 'text-gray-300'}`}>{unit.name}</span>
+                        {unit.type === 'aux' ? (
+                          <span className="text-amber-300 text-[9px]">👷 вспом.</span>
+                        ) : (
+                          <span className={`text-[9px] ${unit.ptvDeployed ? 'text-green-400' : 'text-yellow-400'}`}>
+                            {unit.ptvDeployed ? '✓ ПТВ' : '⚠ Без ПТВ'}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 <p className="text-[9px] text-gray-400 mt-2 italic">Выберите машину для расстановки ПТВ</p>
               </div>
@@ -2866,6 +2888,10 @@ export default function App() {
                     key={unit.id}
                     onClick={(e) => {
                       e.stopPropagation();
+                      setSelectedNozzle(null);
+                      setSelectedFreePerson(null);
+                      setSelectedFireTrainId(null);
+                      setSelectedWagonId(null);
                       setSelectedUnitId(isSelected ? null : unit.id);
                     }}
                     onMouseDown={e => {
@@ -2875,6 +2901,19 @@ export default function App() {
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
+                    {highlightedUnitId === unit.id && (
+                      <rect
+                        x={unit.x - 6}
+                        y={unit.y - 6}
+                        width={28}
+                        height={17}
+                        rx={6}
+                        fill="none"
+                        stroke="#22d3ee"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 3"
+                      />
+                    )}
                     {unit.type === 'aso' && fireSource && (() => {
                       const angleToFire = Math.atan2(fireSource.y - centerY, fireSource.x - centerX);
                       const radius = 150;
@@ -2944,6 +2983,10 @@ export default function App() {
                     key={unit.id}
                     onClick={(e) => {
                       e.stopPropagation();
+                      setSelectedNozzle(null);
+                      setSelectedFreePerson(null);
+                      setSelectedFireTrainId(null);
+                      setSelectedWagonId(null);
                       setSelectedUnitId(isSelected ? null : unit.id);
                     }}
                     onMouseDown={e => {
@@ -2953,6 +2996,19 @@ export default function App() {
                     }}
                     style={{ cursor: isSelected ? 'move' : 'pointer' }}
                   >
+                    {highlightedUnitId === unit.id && (
+                      <rect
+                        x={unit.x - 6}
+                        y={unit.y - 6}
+                        width={28}
+                        height={17}
+                        rx={6}
+                        fill="none"
+                        stroke="#22d3ee"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 3"
+                      />
+                    )}
                     {unit.type === 'aso' && fireSource && (() => {
                       const angleToFire = Math.atan2(fireSource.y - centerY, fireSource.x - centerX);
                       const radius = 150;
