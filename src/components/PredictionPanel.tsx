@@ -254,6 +254,36 @@ for (let i = 0; i < firstPass; i++) nozzlePlan[i] = 1;
 let extra = Math.max(0, Math.min(stvols, 8) - firstPass);
 for (let i = 0; i < firstPass && extra > 0; i++) { nozzlePlan[i] += 1; extra--; }
 let planCursor = 0;
+    const unitCount = supplyTotal + asoCount;
+    const crewPlan: number[] = new Array(unitCount).fill(0);
+    for (let i = 0; i < supplyTotal; i++) crewPlan[i] = nozzlePlan[i] + 1;
+    for (let i = supplyTotal; i < unitCount; i++) crewPlan[i] = 3;
+
+    const trainReserve = 2 * clampUnitCount('train', trains);
+    let pool = Math.max(0, totalPersonnel - trainReserve);
+    let needSum = crewPlan.reduce((a, b) => a + b, 0);
+
+    while (needSum > pool) {
+      let idx = -1;
+      for (let i = supplyTotal - 1; i >= 0; i--) { if (nozzlePlan[i] > 0) { idx = i; break; } }
+      if (idx < 0) break;
+      nozzlePlan[idx]--; crewPlan[idx]--; needSum--;
+    }
+    for (let i = unitCount - 1; i >= 0 && needSum > pool; i--) {
+      const take = Math.min(crewPlan[i], needSum - pool);
+      crewPlan[i] -= take; needSum -= take;
+      if (crewPlan[i] <= 1) nozzlePlan[i] = 0;
+    }
+
+    let left = Math.max(0, pool - needSum);
+    for (let i = 0; i < supplyTotal && left > 0; i++) {
+      if (nozzlePlan[i] === 0) { crewPlan[i]++; left--; }
+    }
+    let spreadCursor = 0;
+    while (left > 0 && supplyTotal > 0) {
+      crewPlan[spreadCursor % supplyTotal]++; left--; spreadCursor++;
+    }
+
     
     
     
@@ -300,13 +330,10 @@ let planCursor = 0;
 
     // Остальных делим только между АЦ и АСА
     const nonAsoVehicles = ac + asa;
-    const basePersonnel = nonAsoVehicles > 0 ? Math.floor(remainingPersonnel / nonAsoVehicles) : 0;
-    let remainder = nonAsoVehicles > 0 ? remainingPersonnel % nonAsoVehicles : 0;
 
     const addUnits = (count: number, type: string, name: string, canDeployPTV: boolean, fixedPersonnel?: number) => {
       for (let i = 0; i < count; i++) {
-        let p = fixedPersonnel !== undefined ? fixedPersonnel : basePersonnel + (remainder > 0 ? 1 : 0);
-        if (fixedPersonnel === undefined && remainder > 0) remainder--;
+        const p = fixedPersonnel !== undefined ? fixedPersonnel : (crewPlan[planCursor] ?? 0);
 
         const planned = nozzlePlan[planCursor] ?? 0;
         planCursor++;
