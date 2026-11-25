@@ -75,7 +75,7 @@ interface ManualUnit extends FireUnit {
 }
 
 interface DragState {
-  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'personnel' | 'pump' | 'trainBranchAbove' | 'trainBranchBelow' | 'trainFirefighter';
+  type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'personnel' | 'pump' | 'trainBranchAbove' | 'trainBranchBelow' | 'trainFirefighter' | 'freePerson';
   id: string;
   unitId?: string;
   offsetX: number;
@@ -89,6 +89,7 @@ interface CustomPositions {
     trainBranchAbove?: { x: number; y: number };
     trainBranchBelow?: { x: number; y: number };
     trainNozzles?: Array<{ x: number; y: number }>;
+    freePersons?: Array<{ x: number; y: number }>;
   };
 }
 
@@ -536,6 +537,8 @@ export default function App() {
   const [predAdditionalParams, setPredAdditionalParams] = useLocalStorageState<any>('prediction_additionalParams', DEFAULT_ADDITIONAL_PARAMS);
   const [predCurrentStage, setPredCurrentStage] = useLocalStorageState<number>('prediction_currentStage', 0);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [selectedNozzle, setSelectedNozzle] = useState<{ unitId: string; idx: number } | null>(null);
+  const [selectedFreePerson, setSelectedFreePerson] = useState<{ unitId: string; idx: number } | null>(null);
   const [selectedWagonId, setSelectedWagonId] = useState<number | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [customPumpPositions, setCustomPumpPositions] = useLocalStorageState<Record<string, { x: number; y: number }>>('map_customPumpPositions', {});
@@ -556,6 +559,7 @@ export default function App() {
   const [rulerPoints, setRulerPoints] = useState<Array<{ x: number; y: number }>>([]);
   const svgRef = useRef<SVGSVGElement>(null);
   const dragNozzlesRef = useRef<Array<{ x: number; y: number }> | null>(null);
+  const dragFreeRef = useRef<Array<{ x: number; y: number }> | null>(null);
 
   const idealResources = useMemo(() => fireSource ? getIdealResources(fireSource) : null, [fireSource]);
 
@@ -630,7 +634,7 @@ export default function App() {
   const freePersonsPositions = useMemo(() => {
     if (!fireSource) return [];
     const allUnits = hasRolePlacement ? manualUnits : [...(deployment?.units || []), ...manualUnits];
-    const slots: Array<{ kind: 'fire' | 'aux' }> = [];
+    const slots: Array<{ kind: 'fire' | 'aux'; unitId: string; freeIdx: number }> = [];
     for (const u of allUnits) {
       const isManual = manualUnits.some(m => m.id === u.id);
       const hasPTV = !isManual || (u as any).ptvDeployed;
@@ -638,20 +642,23 @@ export default function App() {
         ? Math.max(0, u.personnel - 1)
         : distributePersonnel(u.type as 'ac' | 'asa' | 'aso' | 'train' | 'aux', u.personnel, (u as ManualUnit).nozzles).free;
       const kind: 'fire' | 'aux' = u.type === 'aux' ? 'aux' : 'fire';
-      for (let i = 0; i < freeN; i++) slots.push({ kind });
+      for (let i = 0; i < freeN; i++) slots.push({ kind, unitId: u.id, freeIdx: i });
     }
     const activeTrains = fireTrains.filter(t => fireTrainPTW[t.id]);
     for (const t of activeTrains) {
       const n = distributePersonnel('train', t.personnel).free;
-      for (let i = 0; i < n; i++) slots.push({ kind: 'fire' });
+      for (let i = 0; i < n; i++) slots.push({ kind: 'fire', unitId: t.id, freeIdx: i });
     }
     if (slots.length === 0) return [];
     const zone = fireSpread ? { left: fireSpread.left, right: fireSpread.right, top: fireSpread.y, bottom: fireSpread.y + fireSpread.height } : null;
-    return slots.map((s, idx) => ({
-      ...scatterFreePerson(`free-${idx}`, fireSource.x, fireSource.y, zone),
-      kind: s.kind,
-    }));
-  }, [fireSource, fireSpread, deployment, manualUnits, obstacles, wagons, fireTrains, fireTrainPTW]);
+    return slots.map(s => {
+      const stored = (customPositions as any)[s.unitId]?.freePersons as Array<{ x: number; y: number }> | undefined;
+      const p = stored && stored[s.freeIdx]
+        ? stored[s.freeIdx]
+        : scatterFreePerson(`${s.unitId}-free-${s.freeIdx}`, fireSource.x, fireSource.y, zone);
+      return { x: p.x, y: p.y, kind: s.kind, unitId: s.unitId, freeIdx: s.freeIdx };
+    });
+  }, [fireSource, fireSpread, deployment, manualUnits, obstacles, wagons, fireTrains, fireTrainPTW, customPositions]);
 
   const getSVGCoords = useCallback((e: React.MouseEvent) => {
     const svg = svgRef.current;
@@ -753,6 +760,8 @@ export default function App() {
         });
         if (clickedUnit) {
           setSelectedUnitId(clickedUnit.id);
+          setSelectedNozzle(null);
+          setSelectedFreePerson(null);
           setSelectedFireTrainId(null);
           setSelectedWagonId(null);
         } else {
@@ -763,7 +772,7 @@ export default function App() {
     }
   }, [toolMode, wagons, fireIntensity, fireType, obstacleType, getSVGCoords, dragState, placingUnit, deployment, manualUnits, waterSourceType, rulerPoints, panStart]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, type: 'unit' | 'nozzle' | 'obstacle' | 'branch' | 'firefighter' | 'trainBranchAbove' | 'trainBranchBelow' | 'trainFirefighter', id: string, unitId?: string) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, type: DragState['type'], id: string, unitId?: string) => {
     if (toolMode !== 'select' && toolMode !== 'none') {
       if (type !== 'firefighter' && type !== 'branch' && type !== 'trainFirefighter' && type !== 'trainBranchAbove' && type !== 'trainBranchBelow') return;
     }
@@ -894,6 +903,17 @@ export default function App() {
     [parentUnitId]: { ...prev[parentUnitId], nozzles: nextNozzles },
   }));
   return;
+    }
+
+    if (dragState.type === 'freePerson') {
+      const parentUnitId = dragState.unitId ?? '';
+      const dashAt = dragState.id.lastIndexOf('-');
+      const freeIdx = Number(dragState.id.slice(dashAt + 1));
+      const snapshot = dragFreeRef.current;
+      if (!parentUnitId || !snapshot || !Number.isInteger(freeIdx) || freeIdx < 0 || freeIdx >= snapshot.length) return;
+      const nextFree = snapshot.map((p, i) => (i === freeIdx ? { x, y } : { x: p.x, y: p.y }));
+      setCustomPositions(prev => ({ ...prev, [parentUnitId]: { ...prev[parentUnitId], freePersons: nextFree } }));
+      return;
     }
 
     if (dragState.type === 'obstacle') {
@@ -1068,6 +1088,7 @@ export default function App() {
 
   const handleMouseUp = useCallback(() => {
     dragNozzlesRef.current = null;
+    dragFreeRef.current = null;
     if (panStart) {
       setPanStart(null);
       return;
@@ -1483,6 +1504,40 @@ export default function App() {
         return;
       }
 
+      if (selectedNozzle) {
+        e.preventDefault();
+        const { unitId, idx } = selectedNozzle;
+        const decNozzle = (u: any) => {
+          const cur = u.nozzles ?? distributePersonnel(u.type, u.personnel).nozzles;
+          const n = Math.max(0, cur - 1);
+          return { ...u, nozzles: n, hoses: n, personnel: Math.max(1, (u.personnel || 1) - 1), ptvDeployed: n > 0 };
+        };
+        setManualUnits(prev => prev.map(u => (u.id === unitId ? decNozzle(u) : u)));
+        if (deployment) setDeployment({ ...deployment, units: deployment.units.map(u => (u.id === unitId ? decNozzle(u) : u)) });
+        setCustomPositions(prev => {
+          const entry = prev[unitId];
+          if (!entry || !Array.isArray(entry.nozzles)) return prev;
+          return { ...prev, [unitId]: { ...entry, nozzles: entry.nozzles.filter((_: any, i: number) => i !== idx) } };
+        });
+        setSelectedNozzle(null);
+        return;
+      }
+      if (selectedFreePerson) {
+        e.preventDefault();
+        const { unitId, idx } = selectedFreePerson;
+        const decPerson = (u: any) => ({ ...u, personnel: Math.max(1, (u.personnel || 1) - 1) });
+        setManualUnits(prev => prev.map(u => (u.id === unitId ? decPerson(u) : u)));
+        if (deployment) setDeployment({ ...deployment, units: deployment.units.map(u => (u.id === unitId ? decPerson(u) : u)) });
+        setFireTrains(prev => prev.map(t => (t.id === unitId ? { ...t, personnel: Math.max(1, t.personnel - 1) } : t)));
+        setCustomPositions(prev => {
+          const entry = prev[unitId];
+          if (!entry || !Array.isArray(entry.freePersons)) return prev;
+          return { ...prev, [unitId]: { ...entry, freePersons: entry.freePersons.filter((_: any, i: number) => i !== idx) } };
+        });
+        setSelectedFreePerson(null);
+        return;
+      }
+
       if (selectedUnitId) {
         e.preventDefault();
         // Удаляем из deployment.units, если там есть
@@ -1511,7 +1566,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedUnitId, selectedFireTrainId, deployment]);
+  }, [selectedUnitId, selectedFireTrainId, deployment, selectedNozzle, selectedFreePerson, setDeployment, setFireTrains, setCustomPositions]);
 
   return (
     <div className="h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
@@ -3120,19 +3175,22 @@ export default function App() {
                 <g
                   key={`personnel-${idx}`}
                   onMouseDown={e => {
-                    if (toolMode === 'select' || toolMode === 'none') {
-                      e.stopPropagation();
-                      const { x, y } = getSVGCoords(e);
-                      setDragState({
-                        type: 'personnel',
-                        id: `personnel-${idx}`,
-                        offsetX: x - pos.x,
-                        offsetY: y - pos.y
-                      });
-                    }
+                    if (toolMode !== 'select' && toolMode !== 'none') return;
+                    e.stopPropagation();
+                    setSelectedNozzle(null);
+                    setSelectedUnitId(null);
+                    setSelectedFireTrainId(null);
+                    setSelectedFreePerson({ unitId: pos.unitId, idx: pos.freeIdx });
+                    dragFreeRef.current = freePersonsPositions
+                      .filter(p => p.unitId === pos.unitId)
+                      .map(p => ({ x: p.x, y: p.y }));
+                    handleMouseDown(e, 'freePerson', `${pos.unitId}-${pos.freeIdx}`, pos.unitId);
                   }}
                   style={{ cursor: toolMode === 'select' || toolMode === 'none' ? 'move' : 'default' }}
                 >
+                  {selectedFreePerson && selectedFreePerson.unitId === pos.unitId && selectedFreePerson.idx === pos.freeIdx && (
+                    <circle cx={pos.x} cy={pos.y} r="8" fill="none" stroke="#fbbf24" strokeWidth="1.5" />
+                  )}
                   <circle cx={pos.x} cy={pos.y} r="5" fill={isAux ? '#ffe0b2' : '#e3f2fd'} stroke={isAux ? '#e65100' : '#1565c0'} strokeWidth="1.5" />
                   <text x={pos.x} y={pos.y + 2} textAnchor="middle" fontSize="6" fontWeight="bold">{isAux ? '👷' : '🧑‍🚒'}</text>
                 </g>
@@ -3172,12 +3230,19 @@ export default function App() {
                     <g
                       key={`firefighter-top-${unit.id}-${idx}`}
                       onMouseDown={e => {
+                    setSelectedUnitId(null);
+                    setSelectedFireTrainId(null);
+                    setSelectedFreePerson(null);
+                    setSelectedNozzle({ unitId: unit.id, idx });
   dragNozzlesRef.current = routing.nozzles.map(p => ({ x: p.x, y: p.y }));
   handleMouseDown(e, 'firefighter', `${unit.id}-${idx}`, unit.id);
 }}
                       style={{ cursor: 'move' }}
                     >
-                      <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
+                    {selectedNozzle && selectedNozzle.unitId === unit.id && selectedNozzle.idx === idx && (
+                      <circle cx={nozzle.x} cy={nozzle.y} r="9" fill="none" stroke="#fbbf24" strokeWidth="1.5" />
+                    )}
+                    <circle cx={nozzle.x} cy={nozzle.y} r="12" fill="transparent" />
 
                       <circle cx={nozzle.x} cy={nozzle.y} r="5" fill="#e3f2fd" stroke="#1565c0" strokeWidth="1.5" />
 
