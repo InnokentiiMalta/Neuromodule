@@ -3,6 +3,7 @@ import {
   startRetrain,
   getRetrainStatus,
   getModelInfo,
+  getRetrainHistory,
   setRetrainThreshold,
   resetModel,
   RetrainStatus,
@@ -16,11 +17,17 @@ export default function RetrainPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [thresholdInput, setThresholdInput] = useState<string>('');
+  const [history, setHistory] = useState<any[]>([]);
 
   const loadInfo = async () => {
-    const [st, info] = await Promise.all([getRetrainStatus(), getModelInfo()]);
+    const [st, info, hist] = await Promise.all([
+      getRetrainStatus(),
+      getModelInfo(),
+      getRetrainHistory(),
+    ]);
     setStatus(st);
     setModelInfo(info);
+    setHistory(hist);
     if (info) setThresholdInput(String(info.threshold));
   };
 
@@ -86,7 +93,30 @@ export default function RetrainPanel() {
     }
   };
 
+  const handleExportMetrics = () => {
+    const rows: string[][] = [
+      ['Дата', 'Строк обучено', 'val_loss', 'MAE', 'Accuracy', 'F1'],
+      ...history.map(h => [
+        h.at ?? '',
+        String(h.rows ?? ''),
+        h.val_loss ?? '',
+        h.mae ?? '',
+        h.accuracy ?? '',
+        h.f1 ?? '',
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map(r => r.join(';')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `retrain_metrics_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const isRunning = status?.running ?? false;
+  const lastHist = history.length > 0 ? history[history.length - 1] : null;
   const progress = status?.progress ?? 0;
   const newRows = modelInfo?.new_rows ?? 0;
   const threshold = modelInfo?.threshold ?? 25;
@@ -144,6 +174,14 @@ export default function RetrainPanel() {
           <div className="text-emerald-400 font-semibold mb-1">📊 Последнее обучение</div>
           <div className="space-y-0.5 text-gray-300">
             <div className="flex justify-between">
+              <span>Дата:</span>
+              <span className="font-mono">{modelInfo?.last_retrain_at ?? lastHist?.at ?? '—'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Строк:</span>
+              <span className="font-mono">{lastHist?.rows ?? '—'}</span>
+            </div>
+            <div className="flex justify-between">
               <span>MAE:</span>
               <span className="font-mono">{status.last_result.mae?.toFixed(2) ?? '—'}</span>
             </div>
@@ -171,6 +209,11 @@ export default function RetrainPanel() {
         </div>
       )}
 
+      {!isRunning && newRows >= threshold && (
+        <div className="bg-amber-900/25 border border-amber-500/40 rounded-lg p-2 text-[10px] text-amber-200">
+          💡 Накоплено {newRows} новых строк (порог {threshold}). Рекомендуется запустить дообучение.
+        </div>
+      )}
       <button
         onClick={handleStartRetrain}
         disabled={!canManualStart || loading}
@@ -202,6 +245,14 @@ export default function RetrainPanel() {
           </button>
         </div>
       </div>
+
+      <button
+        onClick={handleExportMetrics}
+        disabled={history.length === 0}
+        className="px-3 py-1.5 text-[11px] bg-gray-700 hover:bg-gray-600 disabled:opacity-40 rounded"
+      >
+        📥 Экспорт метрик ({history.length})
+      </button>
 
       {modelInfo?.source === 'user' && (
         <button

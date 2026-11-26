@@ -3425,10 +3425,13 @@ export default function App() {
           {/* Содержимое вкладки */}
           <div className="flex-1 overflow-y-auto">
             {rightPanelTab === 'map' ? (
-              <PredictionPanel key={`${resetCounter}-${panelResetKey}`} onMapUpdate={handleMapUpdate} onReset={() => setPanelResetKey(prev => prev + 1)} />
+              <>
+                <RecommendationPanel />
+                <PredictionPanel key={`${resetCounter}-${panelResetKey}`} onMapUpdate={handleMapUpdate} onReset={() => setPanelResetKey(prev => prev + 1)} />
+              </>
             ) : (
-              <div className="p-3">
-                <RecommendationPanel key={panelResetKey} onApply={handleApplyRecommendations} resources={resources} />
+              <div className="p-3 space-y-3">
+                <RetrainPanel />
               </div>
             )}
           </div>
