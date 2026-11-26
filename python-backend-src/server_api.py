@@ -26,6 +26,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # --- User-data директория ---
 _state_lock = threading.Lock()
+_model_lock = threading.RLock()
 
 def get_user_data_dir():
     """Директория для изменяемых данных. Electron передаёт через переменную окружения."""
@@ -163,7 +164,7 @@ def _load_retrain_state():
             pass
     return {
         "rows_at_last_retrain": 0,
-        "threshold": 50,
+        "threshold": 25,
         "last_retrain_at": None,
         "retrain_count": 0,
     }
@@ -706,15 +707,22 @@ def _retrain_worker():
 
         # Сохраняем дообученную модель в user-data
         _retrain_status["message"] = "Сохранение модели..."
+        # Резервная копия перед перезаписью
+        import shutil
+        for _fn in ("fire_prediction_model.pth", "scalers.pkl"):
+            _src = os.path.join(get_user_data_dir(), _fn)
+            if os.path.exists(_src):
+                shutil.copy2(_src, os.path.join(get_user_data_dir(), _fn + ".bak"))
         torch.save(training_model.state_dict(),
                    os.path.join(get_user_data_dir(), "fire_prediction_model.pth"))
         with open(os.path.join(get_user_data_dir(), "scalers.pkl"), "wb") as f:
             pickle.dump({"scalers": new_scalers, "y_scalers": new_y_scalers}, f)
 
-        # Обновляем in-memory модель
-        model = training_model
-        scalers = new_scalers
-        y_scalers = new_y_scalers
+        # Обновляем in-memory модель (под блокировкой модели)
+        with _model_lock:
+            model = training_model
+            scalers = new_scalers
+            y_scalers = new_y_scalers
 
         # Обновляем состояние
         state = _load_retrain_state()
@@ -748,8 +756,10 @@ def _retrain_worker():
 @app.post("/retrain")
 async def start_retrain():
     """Запускает дообучение в фоновом потоке. Возвращает 409, если уже идёт."""
-    if _retrain_status["running"]:
-        raise HTTPException(status_code=409, detail="Дообучение уже выполняется")
+    with _model_lock:
+        if _retrain_status.get("running"):
+            raise HTTPException(status_code=409, detail="Обучение уже идёт")
+        _retrain_status["running"] = True
 
     # Проверяем, что данных достаточно
     total = _count_csv_rows()
@@ -848,7 +858,8 @@ async def predict(data: dict):
     try:
         input_data = data.get("input_data", {})
         stage = data.get("stage", 0)
-        result = predict_fire_parameters(model, scalers, y_scalers, input_data, stage)
+        with _model_lock:
+            result = predict_fire_parameters(model, scalers, y_scalers, input_data, stage)
         return result
     except Exception as e:
         tb = traceback.format_exc()
@@ -876,11 +887,13 @@ async def receive_data(data: dict):
         auto_retrain_started = False
 
         # Авто-триггер дообучения (итерация 8)
-        if new_rows >= threshold and not _retrain_status["running"]:
-            thread = threading.Thread(target=_retrain_worker, daemon=True)
-            thread.start()
-            auto_retrain_started = True
-            print(f"[AUTO-RETRAIN] Порог достигнут: {new_rows} >= {threshold}. Запуск.", flush=True)
+        with _model_lock:
+            if not _retrain_status.get("running"):
+                _retrain_status["running"] = True
+                thread = threading.Thread(target=_retrain_worker, daemon=True)
+                thread.start()
+                auto_retrain_started = True
+                print(f"[AUTO-RETRAIN] Порог достигнут: {new_rows} >= {threshold}. Запуск.", flush=True)
 
         print(f"[DATA] Saved row. Total={total}, new={new_rows}/{threshold}", flush=True)
 
