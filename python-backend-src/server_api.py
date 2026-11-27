@@ -139,10 +139,7 @@ def get_active_model_path(filename: str) -> str:
 def _count_csv_rows() -> int:
     try:
         csv_path = get_writable_csv_path()
-        key_path = get_writable_key_path()
-        with open(key_path, "rb") as kf:
-            key = kf.read()
-        fernet = Fernet(key)
+        fernet = _fernet()
         with open(csv_path, "rb") as f:
             encrypted = f.read()
         decrypted = fernet.decrypt(encrypted)
@@ -151,6 +148,50 @@ def _count_csv_rows() -> int:
     except Exception as e:
         print(f"[CSV COUNT ERROR] {e}", flush=True)
         return 0
+
+
+def _fernet():
+    key_path = get_writable_key_path()
+    with open(key_path, "rb") as kf:
+        key = kf.read()
+    return Fernet(key)
+
+
+CSV_COLUMNS = [
+    'Время_следования_мин', 'Время_подачи_первого_ствола_мин',
+    'Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
+    'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин',
+    'Количество_основных_пожарных_автомобилей_ед',
+    'Количество_специальных_пожарных_автомобилей_ед',
+    'Количество_пожарных_поездов_ед', 'Всего_подано_пожарных_стволов_ед',
+    'Количество_АСО_ед', 'Количество_АСА_ед', 'Количество_людей_ед',
+]
+
+
+def _load_user_df():
+    path = os.path.join(get_user_data_dir(), "fire_data_test_encrypted.bin")
+    with open(path, "rb") as f:
+        encrypted = f.read()
+    text = _fernet().decrypt(encrypted).decode("utf-8")
+    lines = [l for l in text.splitlines() if l.strip()]
+    if not lines:
+        return pd.DataFrame(columns=CSV_COLUMNS)
+    old_header = lines[0].split(",")
+    rows = []
+    for line in lines[1:]:
+        fields = line.split(",")
+        if len(fields) == len(CSV_COLUMNS):
+            vals = fields
+        elif len(fields) == len(old_header):
+            d = dict(zip(old_header, fields))
+            vals = [d.get(c, "0") for c in CSV_COLUMNS]
+        else:
+            continue
+        rows.append(vals)
+    df = pd.DataFrame(rows, columns=CSV_COLUMNS)
+    for _c in CSV_COLUMNS:
+        df[_c] = pd.to_numeric(df[_c], errors="coerce")
+    return df
 
 
 # --- Состояние дообучения ---
@@ -448,25 +489,7 @@ def _retrain_worker():
         torch.set_num_threads(2)
 
         # Загружаем CSV из user-data
-        csv_path = get_writable_csv_path()
-        key_path = get_writable_key_path()
-        with open(key_path, "rb") as kf:
-            key = kf.read()
-        fernet = Fernet(key)
-        with open(csv_path, "rb") as f:
-            encrypted = f.read()
-        decrypted = fernet.decrypt(encrypted)
-
-        column_names = [
-            'Время_следования_мин', 'Время_подачи_первого_ствола_мин',
-            'Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
-            'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин',
-            'Количество_основных_пожарных_автомобилей_ед',
-            'Количество_специальных_пожарных_автомобилей_ед',
-            'Количество_пожарных_поездов_ед', 'Всего_подано_пожарных_стволов_ед'
-        ]
-        df = pd.read_csv(BytesIO(decrypted), encoding='utf-8', header=None,
-                         names=column_names, skiprows=1)
+        df = _load_user_df()
 
         _retrain_status["message"] = f"Загружено {len(df)} строк. Очистка..."
 
@@ -960,24 +983,8 @@ async def data_status():
 @app.post("/median_values")
 async def get_median_values(filter_params: dict):
     try:
-        csv_path = resource_path("fire_data_test_encrypted.bin")
-        key_path = resource_path("encryption_key.key")
-        with open(key_path, "rb") as key_file:
-            key = key_file.read()
-        fernet = Fernet(key)
-        with open(csv_path, "rb") as file:
-            encrypted_data = file.read()
-        decrypted_data = fernet.decrypt(encrypted_data)
-        column_names = [
-            'Время_следования_мин', 'Время_подачи_первого_ствола_мин',
-            'Время_локализации_пожара_мин', 'Время_ликвидации_открытого_горения_мин',
-            'Время_ликвидации_последствий_пожара_мин', 'Время_тушения_мин',
-            'Количество_основных_пожарных_автомобилей_ед',
-            'Количество_специальных_пожарных_автомобилей_ед',
-            'Количество_пожарных_поездов_ед', 'Всего_подано_пожарных_стволов_ед'
-        ]
-        df = pd.read_csv(BytesIO(decrypted_data), encoding='utf-8', header=None,
-                         names=column_names, skiprows=1)
+
+        df = _load_user_df()
         for param, value in filter_params.items():
             if param in df.columns and value > 0:
                 df = df[df[param] == value]
