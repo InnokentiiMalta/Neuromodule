@@ -754,6 +754,11 @@ def _retrain_worker():
     except Exception as e:
         tb = traceback.format_exc()
         print(f"[RETRAIN ERROR] {tb}", flush=True)
+        try:
+            with open(os.path.join(get_user_data_dir(), "retrain_error.log"), "w", encoding="utf-8") as _lf:
+                _lf.write(datetime.now().isoformat() + "\n" + tb)
+        except Exception:
+            pass
         _retrain_status.update({
             "running": False,
             "message": f"Ошибка: {e}",

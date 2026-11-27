@@ -52,7 +52,7 @@ export default function RetrainPanel() {
     setMessage(null);
     try {
       const res = await startRetrain();
-      setMessage(`Дообучение запущено. Обучение на ${res.total_rows} строках.`);
+      setMessage(`Дообучение запущено. Всего строк: ${res.total_rows}, новых с последнего дообучения: ${res.new_rows}.`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -194,6 +194,12 @@ export default function RetrainPanel() {
               <span className="font-mono">{status.last_result.f1.toFixed(3)}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {status?.error && (
+        <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-2 text-[10px] text-red-200 whitespace-pre-wrap">
+          ⛔ Ошибка дообучения: {status.error}
         </div>
       )}
 
