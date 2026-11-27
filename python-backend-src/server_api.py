@@ -729,6 +729,18 @@ def _retrain_worker():
         state["rows_at_last_retrain"] = _count_csv_rows()
         state["last_retrain_at"] = datetime.now().isoformat()
         state["retrain_count"] = state.get("retrain_count", 0) + 1
+
+        _hist = state.get("history", [])
+        _hist.append({
+            "at": state["last_retrain_at"],
+            "rows": int(len(df)),
+            "val_loss": round(float(last_metrics.get("val_loss", 0.0)), 4),
+            "mae": round(float(last_metrics["mae"]), 4) if last_metrics.get("mae") is not None else None,
+            "accuracy": round(float(last_metrics["accuracy"]), 4),
+            "f1": round(float(last_metrics["f1"]), 4),
+        })
+        state["history"] = _hist[-50:]
+
         _save_retrain_state(state)
 
         _retrain_status.update({
@@ -759,7 +771,6 @@ async def start_retrain():
     with _model_lock:
         if _retrain_status.get("running"):
             raise HTTPException(status_code=409, detail="Обучение уже идёт")
-        _retrain_status["running"] = True
 
     # Проверяем, что данных достаточно
     total = _count_csv_rows()
@@ -768,6 +779,11 @@ async def start_retrain():
 
     if total < 20:
         raise HTTPException(status_code=400, detail=f"Недостаточно данных: {total} строк")
+
+    with _model_lock:
+        if _retrain_status.get("running"):
+            raise HTTPException(status_code=409, detail="Обучение уже идёт")
+        _retrain_status["running"] = True
 
     thread = threading.Thread(target=_retrain_worker, daemon=True)
     thread.start()
@@ -785,6 +801,13 @@ async def start_retrain():
 async def retrain_status():
     """Возвращает текущий статус дообучения."""
     return dict(_retrain_status)
+
+
+@app.get("/retrain/history")
+async def retrain_history():
+    """Возвращает историю метрик дообучения."""
+    state = _load_retrain_state()
+    return {"history": state.get("history", [])}
 
 
 @app.post("/retrain/set-threshold")

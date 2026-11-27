@@ -144,3 +144,14 @@ export async function getModelInfo(): Promise<ModelInfo | null> {
     return null;
   }
 }
+
+export async function getRetrainHistory(): Promise<any[]> {
+  try {
+    const res = await fetch(`${BASE_URL}/retrain/history`);
+    if (!res.ok) return [];
+    const j = await res.json();
+    return Array.isArray(j.history) ? j.history : [];
+  } catch {
+    return [];
+  }
+}
