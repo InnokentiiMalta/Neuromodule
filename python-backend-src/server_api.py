@@ -592,7 +592,8 @@ def _retrain_worker():
         )
         print(f"[RETRAIN] class_weights = {class_weights.tolist()}", flush=True)
 
-        last_metrics = {}
+        last_metrics = {"val_loss": 0.0, "mae": None, "accuracy": 0.0, "f1": 0.0}
+        trained_any = False
 
         for stage in range(4):
             _retrain_status.update({
@@ -723,6 +724,7 @@ def _retrain_worker():
                     "accuracy": float(accuracy),
                     "f1": float(f1),
                 }
+                trained_any = True
 
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
@@ -731,6 +733,15 @@ def _retrain_worker():
                     patience_counter += 1
                     if patience_counter >= patience:
                         break
+
+        if not trained_any:
+            _retrain_status.update({
+                "running": False,
+                "progress": 0,
+                "message": "Недостаточно данных после маскирования: ни один этап не обучен.",
+                "error": "Недостаточно данных после маскирования: ни один этап не обучен.",
+            })
+            return
 
         # Сохраняем дообученную модель в user-data
         _retrain_status["message"] = "Сохранение модели..."
@@ -763,8 +774,8 @@ def _retrain_worker():
             "rows": int(len(df)),
             "val_loss": round(float(last_metrics.get("val_loss", 0.0)), 4),
             "mae": round(float(last_metrics["mae"]), 4) if last_metrics.get("mae") is not None else None,
-            "accuracy": round(float(last_metrics["accuracy"]), 4),
-            "f1": round(float(last_metrics["f1"]), 4),
+            "accuracy": round(float(last_metrics.get("accuracy", 0.0)), 4),
+            "f1": round(float(last_metrics.get("f1", 0.0)), 4),
         })
         state["history"] = _hist[-50:]
 
