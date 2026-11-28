@@ -184,7 +184,7 @@ def _load_user_df():
             vals = fields
         elif len(fields) == len(old_header):
             d = dict(zip(old_header, fields))
-            vals = [d.get(c, "0") for c in CSV_COLUMNS]
+            vals = [d.get(c, "") for c in CSV_COLUMNS]
         else:
             continue
         rows.append(vals)
@@ -494,15 +494,17 @@ def _retrain_worker():
         _retrain_status["message"] = f"Загружено {len(df)} строк. Очистка..."
 
         # Чистка выбросов (как в Tkinter)
-        for col in column_names:
+        for col in CSV_COLUMNS:
             if col in df.columns and df[col].dtype in [np.float64, np.int64]:
-                Q1 = df[col].quantile(0.25)
-                Q3 = df[col].quantile(0.75)
+                s = df[col].dropna()
+                if len(s) == 0:
+                    continue
+                Q1 = s.quantile(0.25)
+                Q3 = s.quantile(0.75)
                 IQR = Q3 - Q1
                 lower_bound = Q1 - 1.5 * IQR
                 upper_bound = Q3 + 1.5 * IQR
-                df = df[(df[col] >= lower_bound) & (df[col] <= upper_bound)]
-        df = df.dropna()
+                df = df[df[col].isna() | df[col].between(lower_bound, upper_bound)]
 
         if len(df) < 20:
             raise ValueError(f"Недостаточно данных для дообучения: {len(df)} строк")
@@ -598,15 +600,17 @@ def _retrain_worker():
                 "message": f"Этап {stage + 1}/4: подготовка...",
             })
 
-            X = df[input_features[stage]].values
-            if X.shape[0] < 10:
+            y_cols = [c for c in output_features[stage] if c != 'Всего_подано_пожарных_стволов_ед']
+            needed = input_features[stage] + y_cols + ['class_idx']
+            sub = df.dropna(subset=needed)
+            if len(sub) < 20:
                 continue
 
-            y_cols = [c for c in output_features[stage] if c != 'Всего_подано_пожарных_стволов_ед']
-            y_cls = df['class_idx'].values
+            X = sub[input_features[stage]].values
+            y_cls = sub['class_idx'].values
 
             if y_cols:
-                y_reg = df[y_cols].values
+                y_reg = sub[y_cols].values
                 X_train, X_val, y_reg_train, y_reg_val, y_cls_train, y_cls_val = train_test_split(
                     X, y_reg, y_cls, test_size=0.2, random_state=42, stratify=y_cls
                 )
@@ -624,7 +628,7 @@ def _retrain_worker():
 
             for col in y_cols:
                 new_y_scalers[col] = StandardScaler()
-                new_y_scalers[col].fit(np.log1p(df[[col]]))
+                new_y_scalers[col].fit(np.log1p(sub[[col]]))
 
             X_train_t = torch.tensor(X_train_scaled, dtype=torch.float32)
             X_val_t = torch.tensor(X_val_scaled, dtype=torch.float32)
